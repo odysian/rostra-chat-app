@@ -11,7 +11,7 @@ class Room(Base):
     # Columns
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, index=True, unique=True, nullable=False)
-    created_by = Column(Integer, ForeignKey="users.id", nullable=False)
+    created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
