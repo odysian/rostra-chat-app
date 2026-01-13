@@ -6,7 +6,6 @@ __pycache__/
 .Python
 venv/
 env/
-requirements.txt
 
 # Environment variables
 .env
