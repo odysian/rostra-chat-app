@@ -40,7 +40,7 @@ export interface Message {
   created_at: string
 }
 
-// WebSocket message types (match backend schemas)
+// WebSocket message types
 export interface WSSubscribe {
     action: 'subscribe'
     room_id: number
