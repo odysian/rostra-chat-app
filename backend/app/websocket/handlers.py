@@ -83,7 +83,17 @@ async def websocket_endpoint(
 
     except WebSocketDisconnect:
         logger.info(f"User disconnected: {user.username} (ID: {user.id})")
-        manager.disconnect(websocket)
+        rooms_user_was_in = manager.disconnect(websocket)
+
+        for room_id in rooms_user_was_in:
+            await manager.broadcast_to_room(
+                room_id,
+                WSUserLeft(
+                    type="user_left",
+                    room_id=room_id,
+                    user=WSUser(id=user.id, username=user.username),
+                ).model_dump(mode="json"),
+            )
 
     except Exception as e:
         logger.error(f"WebSocket error for {user.username}: {e}", exc_info=True)
@@ -131,7 +141,7 @@ async def handle_subscribe(
     response = WSSubscribed(
         type="subscribed", room_id=msg.room_id, online_users=online_users_data
     )
-    await websocket.send_json(response.model_dump())
+    await websocket.send_json(response.model_dump(mode="json"))
 
     # Notify others in room
     notification = WSUserJoined(
@@ -139,7 +149,7 @@ async def handle_subscribe(
         room_id=msg.room_id,
         user=WSUser(id=user.id, username=user.username),
     )
-    await manager.broadcast_to_room(msg.room_id, notification.model_dump())
+    await manager.broadcast_to_room(msg.room_id, notification.model_dump(mode="json"))
 
 
 async def handle_unsubscribe(
@@ -161,11 +171,15 @@ async def handle_unsubscribe(
 
     # Send confirmation
     response = WSUnsubscribed(type="unsubscribed", room_id=msg.room_id)
-    await websocket.send_json(response.model_dump())
+    await websocket.send_json(response.model_dump(mode="json"))
 
     # Notify others
-    notification = WSUserLeft(type="user_left", room_id=msg.room_id, user_id=user.id)
-    await manager.broadcast_to_room(msg.room_id, notification.model_dump())
+    notification = WSUserLeft(
+        type="user_left",
+        room_id=msg.room_id,
+        user=WSUser(id=user.id, username=user.username),
+    )
+    await manager.broadcast_to_room(msg.room_id, notification.model_dump(mode="json"))
 
 
 async def handle_send_message(
@@ -216,7 +230,7 @@ async def handle_send_message(
             created_at=db_message.created_at,
         ),
     )
-    await manager.broadcast_to_room(msg.room_id, broadcast_msg.model_dump())
+    await manager.broadcast_to_room(msg.room_id, broadcast_msg.model_dump(mode="json"))
 
 
 async def send_error(websocket: WebSocket, message: str, details: Any = None) -> None:
@@ -229,7 +243,7 @@ async def send_error(websocket: WebSocket, message: str, details: Any = None) ->
         details: Optional technical details (validation errors, etc.)
     """
     error_response = WSError(type="error", message=message)
-    error_dict = error_response.model_dump()
+    error_dict = error_response.model_dump(mode="json")
 
     if details:
         error_dict["details"] = details

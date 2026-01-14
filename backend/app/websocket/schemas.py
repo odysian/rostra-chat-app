@@ -81,7 +81,7 @@ class WSUserLeft(BaseModel):
 
     type: Literal["user_left"]
     room_id: int
-    user_id: int
+    user: WSUser
 
 
 class WSError(BaseModel):

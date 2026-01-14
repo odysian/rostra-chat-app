@@ -38,13 +38,16 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections[websocket] = user_id
 
-    def disconnect(self, websocket: WebSocket):
+    def disconnect(self, websocket: WebSocket) -> List[int]:
         """
         Remove a WebSocket connection and clean up all its subscriptions.
 
         Args:
             websocket: The WebSocket connection to remove
         """
+
+        rooms_user_was_in = []
+
         # Remove active connections
         if websocket in self.active_connections:
             del self.active_connections[websocket]
@@ -53,6 +56,7 @@ class ConnectionManager:
         rooms_to_cleanup = []
         for room_id, subscribers in self.room_subscriptions.items():
             if websocket in subscribers:
+                rooms_user_was_in.append(room_id)
                 subscribers.remove(websocket)
                 # Mark empty rooms for cleanup
                 if len(subscribers) == 0:
@@ -61,6 +65,8 @@ class ConnectionManager:
         # Clean up empty room sets
         for room_id in rooms_to_cleanup:
             del self.room_subscriptions[room_id]
+
+        return rooms_user_was_in
 
     def subscribe_to_room(self, websocket: WebSocket, room_id: int):
         """

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WebSocket Chat Test</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 50px auto;
+        padding: 20px;
+      }
+      .section {
+        border: 1px solid #ccc;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 5px;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        margin: 5px;
+        cursor: pointer;
+        border-radius: 3px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      input,
+      select {
+        padding: 8px;
+        margin: 5px;
+        width: 200px;
+      }
+      #messages {
+        height: 300px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 10px;
+        background: #f9f9f9;
+      }
+      .message {
+        margin: 5px 0;
+        padding: 5px;
+      }
+      .system {
+        color: #666;
+        font-style: italic;
+      }
+      .error {
+        color: red;
+      }
+      .success {
+        color: green;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WebSocket Chat Test Client</h1>
+
+    <div class="section">
+      <h3>Login</h3>
+      <input id="username" placeholder="Username" value="testuser" />
+      <input id="password" placeholder="Password" value="testpass123" />
+      <button onclick="login()">Login</button>
+      <div id="loginStatus"></div>
+    </div>
+
+    <div class="section">
+      <h3>Connect WebSocket</h3>
+      <button onclick="connectWebSocket()">Connect</button>
+      <button onclick="disconnectWebSocket()">Disconnect</button>
+      <div id="wsStatus"></div>
+    </div>
+
+    <div class="section">
+      <h3>Join/Leave Rooms</h3>
+      <input id="roomId" type="number" placeholder="Room ID" value="1" />
+      <button onclick="subscribeRoom()">Join Room</button>
+      <button onclick="unsubscribeRoom()">Leave Room</button>
+      <div id="subStatus"></div>
+    </div>
+
+    <div class="section">
+      <h3>Send Message</h3>
+      <input
+        id="messageInput"
+        placeholder="Type a message"
+        style="width: 400px"
+      />
+      <button onclick="sendMessage()">Send</button>
+    </div>
+
+    <div class="section">
+      <h3>Messages</h3>
+      <div id="messages"></div>
+    </div>
+
+    <script>
+      let ws = null;
+      let token = null;
+      let currentRoomId = null;
+
+      async function login() {
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+
+        try {
+          const response = await fetch("http://localhost:8000/api/auth/login", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ username, password }),
+          });
+
+          const data = await response.json();
+
+          if (response.ok) {
+            token = data.access_token;
+            document.getElementById("loginStatus").innerHTML =
+              '<span class="success">✓ Logged in! Token: ' +
+              token.substring(0, 20) +
+              "...</span>";
+          } else {
+            document.getElementById("loginStatus").innerHTML =
+              '<span class="error">✗ Login failed: ' + data.detail + "</span>";
+          }
+        } catch (error) {
+          document.getElementById("loginStatus").innerHTML =
+            '<span class="error">✗ Error: ' + error.message + "</span>";
+        }
+      }
+
+      function connectWebSocket() {
+        if (!token) {
+          document.getElementById("wsStatus").innerHTML =
+            '<span class="error">✗ Please login first!</span>';
+          return;
+        }
+
+        const wsUrl = `ws://localhost:8000/ws/connect?token=${token}`;
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          document.getElementById("wsStatus").innerHTML =
+            '<span class="success">✓ WebSocket Connected!</span>';
+          addMessage("system", "Connected to server");
+        };
+
+        ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          handleServerMessage(data);
+        };
+
+        ws.onclose = () => {
+          document.getElementById("wsStatus").innerHTML =
+            '<span class="error">✗ WebSocket Disconnected</span>';
+          addMessage("system", "Disconnected from server");
+        };
+
+        ws.onerror = (error) => {
+          document.getElementById("wsStatus").innerHTML =
+            '<span class="error">✗ WebSocket Error</span>';
+          addMessage("error", "Connection error: " + error);
+        };
+      }
+
+      function disconnectWebSocket() {
+        if (ws) {
+          ws.close();
+          ws = null;
+        }
+      }
+
+      function subscribeRoom() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          document.getElementById("subStatus").innerHTML =
+            '<span class="error">✗ Please connect WebSocket first!</span>';
+          return;
+        }
+
+        currentRoomId = parseInt(document.getElementById("roomId").value);
+
+        const message = {
+          action: "subscribe",
+          room_id: currentRoomId,
+        };
+
+        ws.send(JSON.stringify(message));
+        document.getElementById("subStatus").innerHTML =
+          '<span class="success">✓ Subscription request sent</span>';
+
+        setTimeout(() => loadMessageHistory(), 500);
+      }
+
+      function unsubscribeRoom() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          alert("Not connected!");
+          return;
+        }
+
+        if (!currentRoomId) {
+          alert("Not subscribed to any room!");
+          return;
+        }
+
+        const message = {
+          action: "unsubscribe",
+          room_id: currentRoomId,
+        };
+
+        ws.send(JSON.stringify(message));
+        currentRoomId = null;
+      }
+
+      function sendMessage() {
+        if (!ws || ws.readyState !== WebSocket.OPEN) {
+          alert("Please connect WebSocket first!");
+          return;
+        }
+
+        if (!currentRoomId) {
+          alert("Please subscribe to a room first!");
+          return;
+        }
+
+        const content = document.getElementById("messageInput").value;
+        if (!content.trim()) {
+          alert("Please enter a message!");
+          return;
+        }
+
+        const message = {
+          action: "send_message",
+          room_id: currentRoomId,
+          content: content,
+        };
+
+        ws.send(JSON.stringify(message));
+        document.getElementById("messageInput").value = "";
+      }
+
+      function handleServerMessage(data) {
+        console.log("Received:", data);
+
+        if (data.type === "subscribed") {
+          addMessage("success", `✓ Subscribed to room ${data.room_id}`);
+          addMessage(
+            "system",
+            `Online users: ${data.online_users
+              .map((u) => u.username)
+              .join(", ")}`
+          );
+        } else if (data.type === "new_message") {
+          const msg = data.message;
+          addMessage("message", `${msg.username}: ${msg.content}`);
+        } else if (data.type === "user_joined") {
+          addMessage("system", `${data.user.username} joined the room`);
+        } else if (data.type === "user_left") {
+          addMessage("system", `User ${data.user.username} left the room`);
+        } else if (data.type === "error") {
+          addMessage("error", `Error: ${data.message}`);
+        }
+      }
+
+      function addMessage(type, text) {
+        const messagesDiv = document.getElementById("messages");
+        const messageDiv = document.createElement("div");
+        messageDiv.className = "message " + type;
+        messageDiv.textContent = text;
+        messagesDiv.appendChild(messageDiv);
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+      }
+
+      document
+        .getElementById("messageInput")
+        .addEventListener("keypress", (e) => {
+          if (e.key === "Enter") {
+            sendMessage();
+          }
+        });
+      async function loadMessageHistory() {
+        if (!currentRoomId) {
+          alert("Please subscribe to a room first!");
+          return;
+        }
+
+        try {
+          const response = await fetch(
+            `http://localhost:8000/api/rooms/${currentRoomId}/messages`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          const messages = await response.json();
+
+          for (const msg of messages.reverse()) {
+            addMessage("message", `${msg.username}: ${msg.content}`);
+          }
+        } catch (error) {
+          addMessage("error", "Failed to load history: " + error.message);
+        }
+      }
+    </script>
+  </body>
+</html>
