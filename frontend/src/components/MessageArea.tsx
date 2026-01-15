@@ -1,3 +1,6 @@
+import MessageList from "./MessageList";
+import MessageInput from "./MessageInput";
+
 interface MessageAreaProps {
   selectedRoomId: number | null;
 }
@@ -19,15 +22,9 @@ export default function MessageArea({ selectedRoomId }: MessageAreaProps) {
   }
 
   return (
-    <div className="flex-1 flex items-center justify-center bg-zinc-950">
-      <div className="text-center">
-        <h2 className="text-2xl font-semibold text-amber-500">
-          Room #{selectedRoomId}
-        </h2>
-        <p className="text-zinc-400 mt-2">
-          Messages will appear here (coming next)
-        </p>
-      </div>
+    <div className="flex-1 flex flex-col bg-zinc-950">
+      <MessageList roomId={selectedRoomId} />
+      <MessageInput roomId={selectedRoomId} />
     </div>
   );
 }
