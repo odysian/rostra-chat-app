@@ -1,6 +1,11 @@
 import type { LoginRequest, RegisterRequest, AuthResponse, User, Room, Message } from "../types";
 
 const API_BASE_URL = 'http://localhost:8000/api'
+let onUnauthorized: (() => void) | null = null
+
+export function setUnauthorizedHandler(handler: () => void) {
+  onUnauthorized = handler
+}
 
 // Helper for API calls
 async function apiCall<T>(
@@ -16,6 +21,9 @@ async function apiCall<T>(
   })
 
   if (!response.ok) {
+    if (response.status === 401 && onUnauthorized) {
+      onUnauthorized()
+    }
     const error = await response.json()
     throw new Error(error.detail || 'API request failed')
   }

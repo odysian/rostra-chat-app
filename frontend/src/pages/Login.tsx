@@ -1,13 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from 'react-router-dom';
 import { login } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  // const navigate = useNavigate()
+  const navigate = useNavigate()
+  const { login: authLogin } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -16,7 +18,8 @@ export default function Login() {
 
     try {
       const response = await login({ username, password })
-      console.log('Login success', response)
+      await authLogin(response.access_token)
+      navigate('/chat')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
