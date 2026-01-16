@@ -4,13 +4,15 @@ import { getRooms } from "../services/api";
 import type { Room } from "../types";
 
 interface RoomListProps {
-  selectedRoomId: number | null;
-  onSelectRoom: (roomId: number) => void;
+  selectedRoom: Room | null;
+  onSelectRoom: (room: Room) => void;
+  sidebarOpen: boolean;
 }
 
 export default function RoomList({
-  selectedRoomId,
+  selectedRoom,
   onSelectRoom,
+  sidebarOpen,
 }: RoomListProps) {
   const { token } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -61,25 +63,51 @@ export default function RoomList({
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {rooms.map((room) => (
-        <button
-          key={room.id}
-          onClick={() => onSelectRoom(room.id)}
-          className={`w-full text-left px-4 py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
-            selectedRoomId === room.id
-              ? "bg-amber-500/10 border-l-4 border-l-amber-500"
-              : ""
-          }`}
-        >
-          <div
-            className={`font-medium ${
-              selectedRoomId === room.id ? "text-amber-500" : "text-zinc-100"
+      {rooms.map((room) => {
+        const isSelected = selectedRoom?.id === room.id;
+
+        // When collapsed, show just first letter
+        if (!sidebarOpen) {
+          return (
+            <button
+              key={room.id}
+              onClick={() => onSelectRoom(room)}
+              className={`w-full flex items-center justify-center py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
+                isSelected
+                  ? "bg-amber-500/10 border-l-4 border-l-amber-500"
+                  : ""
+              }`}
+            >
+              <span
+                className={`text-lg font-bold ${
+                  isSelected ? "text-amber-500" : "text-zinc-400"
+                }`}
+              >
+                {room.name.charAt(0).toUpperCase()}
+              </span>
+            </button>
+          );
+        }
+
+        // When expanded, show full name
+        return (
+          <button
+            key={room.id}
+            onClick={() => onSelectRoom(room)}
+            className={`w-full text-left px-4 py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
+              isSelected ? "bg-amber-500/10 border-l-4 border-l-amber-500" : ""
             }`}
           >
-            {room.name}
-          </div>
-        </button>
-      ))}
+            <div
+              className={`font-medium ${
+                isSelected ? "text-amber-500" : "text-zinc-100"
+              }`}
+            >
+              {room.name}
+            </div>
+          </button>
+        );
+      })}
     </div>
   );
 }
