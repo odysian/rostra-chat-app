@@ -22,7 +22,7 @@ export default function MessageArea({ selectedRoomId }: MessageAreaProps) {
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-zinc-950">
+    <div className="flex-1 flex flex-col bg-zinc-950 min-h-0">
       <MessageList roomId={selectedRoomId} />
       <MessageInput roomId={selectedRoomId} />
     </div>

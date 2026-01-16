@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { sendMessage } from "../services/api";
+import { useWebSocket } from "../hooks/useWebSocket";
 
 interface MessageInputProps {
   roomId: number;
@@ -8,6 +8,7 @@ interface MessageInputProps {
 
 export default function MessageInput({ roomId }: MessageInputProps) {
   const { token } = useAuth();
+  const { sendMessage: wsSendMessage } = useWebSocket();
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
 
@@ -16,20 +17,13 @@ export default function MessageInput({ roomId }: MessageInputProps) {
 
     if (!content.trim() || !token) return;
 
-    console.log("Sending message:", {
-      roomId,
-      content,
-      token: token.substring(0, 20) + "...",
-    });
-
     setSending(true);
 
     try {
-      await sendMessage(roomId, content, token);
+      wsSendMessage(roomId, content);
       setContent("");
     } catch (err) {
       console.error("Failed to send message", err);
-      // ADD LATER: Show error to user
     } finally {
       setSending(false);
     }
