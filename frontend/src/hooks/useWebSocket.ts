@@ -1,9 +1,20 @@
 import { useEffect, useState, useRef } from "react";
 import { WebSocketService } from "../services/websocket";
 import { useAuth } from "../context/AuthContext";
-import type { WSNewMessage, WSUserJoined, WSUserLeft, WSError } from "../types";
+import type {
+  WSNewMessage,
+  WSUserJoined,
+  WSUserLeft,
+  WSError,
+  WSSubscribed,
+} from "../types";
 
-type WebSocketMessage = WSNewMessage | WSUserJoined | WSUserLeft | WSError;
+type WebSocketMessage =
+  | WSNewMessage
+  | WSUserJoined
+  | WSUserLeft
+  | WSError
+  | WSSubscribed;
 
 export function useWebSocket() {
   const { token } = useAuth();
@@ -40,9 +51,15 @@ export function useWebSocket() {
     wsRef.current?.send({ action: "subscribe", room_id: roomId });
   };
 
+  const unsubscribe = (roomId: number) => {
+    if (wsRef.current) {
+      wsRef.current.send({ action: "unsubscribe", room_id: roomId });
+    }
+  };
+
   const sendMessage = (roomId: number, content: string) => {
     wsRef.current?.send({ action: "send_message", room_id: roomId, content });
   };
 
-  return { connected, lastMessage, subscribe, sendMessage };
+  return { connected, lastMessage, subscribe, unsubscribe, sendMessage };
 }

@@ -3,7 +3,7 @@ import MessageInput from "./MessageInput";
 import type { Room } from "../types";
 
 interface MessageAreaProps {
-  selectedRoom: number | null;
+  selectedRoom: Room | null;
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   onToggleUsers: () => void;
