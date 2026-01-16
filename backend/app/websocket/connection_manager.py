@@ -96,7 +96,9 @@ class ConnectionManager:
             if len(self.room_subscriptions[room_id]) == 0:
                 del self.room_subscriptions[room_id]
 
-    async def broadcast_to_room(self, room_id: int, message: dict):
+    async def broadcast_to_room(
+        self, room_id: int, message: dict, exclude: WebSocket = None  # type: ignore
+    ):
         """
         Send a message to all subscribers of a room.
 
@@ -109,12 +111,9 @@ class ConnectionManager:
             return  # Nobody subscribed, do nothing
 
         # Send to all subscribers
-        for websocket in self.room_subscriptions[room_id]:
-            try:
-                await websocket.send_json(message)
-            except Exception as e:
-                # Connection might have died, cleaned up on next disconnect
-                print(f"Error sending to websocket: {e}")
+        for connection in self.room_subscriptions[room_id]:
+            if connection != exclude:
+                await connection.send_json(message)
 
     def get_room_users(self, room_id: int, db: Session) -> List[User]:
         """

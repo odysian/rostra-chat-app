@@ -4,7 +4,6 @@ import MessageArea from "./MessageArea";
 import { useWebSocket } from "../hooks/useWebSocket";
 import type { Room } from "../types";
 
-// Define a simplified user type for the UI list
 interface OnlineUser {
   id: number;
   username: string;
@@ -12,12 +11,8 @@ interface OnlineUser {
 
 export default function ChatLayout() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
-
-  // UI State
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [usersPanelOpen, setUsersPanelOpen] = useState(true);
-
-  // Data State
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
 
   const { connected, lastMessage, subscribe, unsubscribe } = useWebSocket();
@@ -25,13 +20,11 @@ export default function ChatLayout() {
   useEffect(() => {
     if (selectedRoom && connected) {
       subscribe(selectedRoom.id);
-
       return () => {
         setOnlineUsers([]);
         unsubscribe(selectedRoom.id);
       };
     }
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoom, connected]);
 
@@ -51,14 +44,12 @@ export default function ChatLayout() {
       case "subscribed":
         setOnlineUsers(lastMessage.online_users);
         break;
-
       case "user_joined":
         setOnlineUsers((prev) => {
           const exists = prev.some((u) => u.id === lastMessage.user.id);
           return exists ? prev : [...prev, lastMessage.user];
         });
         break;
-
       case "user_left":
         setOnlineUsers((prev) =>
           prev.filter((u) => u.id !== lastMessage.user.id)
@@ -97,6 +88,7 @@ export default function ChatLayout() {
       <div className="flex-1 flex flex-col">
         <MessageArea
           selectedRoom={selectedRoom}
+          lastMessage={lastMessage}
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onToggleUsers={() => setUsersPanelOpen(!usersPanelOpen)}
@@ -111,7 +103,6 @@ export default function ChatLayout() {
               Online — {onlineUsers.length}
             </h3>
           </div>
-
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {onlineUsers.length === 0 ? (
               <p className="text-zinc-600 text-sm italic">No one here yet...</p>

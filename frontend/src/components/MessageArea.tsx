@@ -1,9 +1,10 @@
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
-import type { Room } from "../types";
+import type { Room, WebSocketMessage } from "../types";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
+  lastMessage: WebSocketMessage | null; // Accept the prop
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   onToggleUsers: () => void;
@@ -11,6 +12,7 @@ interface MessageAreaProps {
 
 export default function MessageArea({
   selectedRoom,
+  lastMessage,
   sidebarOpen,
   onToggleSidebar,
   onToggleUsers,
@@ -32,15 +34,12 @@ export default function MessageArea({
 
   return (
     <div className="flex-1 flex flex-col bg-zinc-950 min-h-0">
-      {/* Room Header */}
       <div className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleSidebar}
             className="text-zinc-400 hover:text-amber-500 transition-all duration-300"
-            title="Toggle sidebar"
           >
-            {/* Chevron arrow that rotates */}
             <svg
               className={`w-6 h-6 transition-transform duration-300 ${
                 sidebarOpen ? "" : "rotate-180"
@@ -64,7 +63,6 @@ export default function MessageArea({
         <button
           onClick={onToggleUsers}
           className="text-zinc-400 hover:text-amber-500 transition-colors"
-          title="Toggle users panel"
         >
           <svg
             className="w-6 h-6"
@@ -82,8 +80,11 @@ export default function MessageArea({
         </button>
       </div>
 
-      {/* Rest stays the same */}
-      <MessageList roomId={selectedRoom.id} />
+      <MessageList
+        key={selectedRoom.id}
+        roomId={selectedRoom.id}
+        lastMessage={lastMessage}
+      />
       <MessageInput roomId={selectedRoom.id} />
     </div>
   );

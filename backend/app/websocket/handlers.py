@@ -149,7 +149,10 @@ async def handle_subscribe(
         room_id=msg.room_id,
         user=WSUser(id=user.id, username=user.username),
     )
-    await manager.broadcast_to_room(msg.room_id, notification.model_dump(mode="json"))
+
+    await manager.broadcast_to_room(
+        msg.room_id, notification.model_dump(mode="json"), exclude=websocket
+    )
 
 
 async def handle_unsubscribe(
