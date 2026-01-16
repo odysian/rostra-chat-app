@@ -25,6 +25,7 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
   const [error, setError] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  // Fetch History & Deduplicate
   useEffect(() => {
     async function fetchMessages() {
       if (!token) return;
@@ -60,10 +61,10 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
     fetchMessages();
   }, [roomId, token]);
 
+  // Handle Live Events
   useEffect(() => {
     if (!lastMessage) return;
 
-    // Filter Logic
     const msgRoomId =
       lastMessage.type === "new_message"
         ? lastMessage.message.room_id
@@ -79,7 +80,7 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
       newItem = lastMessage.message;
     } else if (lastMessage.type === "user_joined") {
       newItem = {
-        id: `sys-join-${Date.now()}-${Math.random()}`, // Ensure unique ID
+        id: `sys-join-${Date.now()}-${Math.random()}`,
         type: "system",
         content: `${lastMessage.user.username} joined the room.`,
         timestamp: Date.now(),
@@ -97,7 +98,6 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
       setMessages((prev) => {
         const exists = prev.some((item) => item.id === newItem!.id);
         if (exists) return prev;
-
         return [...prev, newItem!];
       });
     }
@@ -107,6 +107,50 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Date Formatting
+  const getSmartDate = (isoString: string) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const timeStr = date.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+
+    // Today
+    if (date.toDateString() === now.toDateString()) {
+      return `${timeStr}`;
+    }
+
+    // Yesterday
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+      return `Yesterday at ${timeStr}`;
+    }
+
+    // Older
+    return `${date.toLocaleDateString()} ${timeStr}`;
+  };
+
+  const shouldGroupMessage = (
+    current: ChatItem,
+    prev: ChatItem | undefined
+  ) => {
+    if (!prev) return false;
+    if ("type" in current && current.type === "system") return false;
+    if ("type" in prev && prev.type === "system") return false;
+
+    const currMsg = current as Message;
+    const prevMsg = prev as Message;
+
+    if (currMsg.username !== prevMsg.username) return false;
+
+    const currTime = new Date(currMsg.created_at).getTime();
+    const prevTime = new Date(prevMsg.created_at).getTime();
+
+    return currTime - prevTime < 5 * 60 * 1000;
+  };
 
   if (loading && messages.length === 0) {
     return (
@@ -127,37 +171,74 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 flex flex-col">
-      {messages.map((item) => {
-        // System Message
+    <div className="flex-1 min-h-0 overflow-y-auto py-4 flex flex-col">
+      {messages.map((item, index) => {
         if ("type" in item && item.type === "system") {
           return (
-            <div key={item.id} className="flex justify-center my-2 opacity-75">
+            <div
+              key={item.id}
+              className="flex justify-center my-4 opacity-75 px-4"
+            >
               <span className="text-xs text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">
                 {item.content}
               </span>
             </div>
           );
         }
-        // Standard Message
+
         const message = item as Message;
+        const isoDate = message.created_at.endsWith("Z")
+          ? message.created_at
+          : message.created_at + "Z";
+        const isGrouped = shouldGroupMessage(item, messages[index - 1]);
+
+        const headerDate = getSmartDate(isoDate);
+
+        const simpleTime = new Date(isoDate).toLocaleTimeString([], {
+          hour: "numeric",
+          minute: "2-digit",
+        });
+
         return (
           <div
             key={message.id}
-            className="flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-200"
+            className={`group flex items-start gap-3 px-4 hover:bg-white/5 transition-colors ${
+              isGrouped ? "mt-0.5 py-0.5" : "mt-4 py-0.5"
+            }`}
           >
-            <div className="flex items-baseline gap-2">
-              <span className="font-semibold text-amber-500 text-sm">
-                {message.username}
-              </span>
-              <span className="text-xs text-zinc-500">
-                {new Date(message.created_at + "Z").toLocaleTimeString([], {
-                  hour: "numeric",
-                  minute: "2-digit",
-                })}
-              </span>
+            {/* Left Sidebar */}
+            <div className="w-10 shrink-0 select-none flex justify-center">
+              {!isGrouped ? (
+                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-sm border border-zinc-700">
+                  {message.username.substring(0, 2).toUpperCase()}
+                </div>
+              ) : (
+                // Hover Timestamp
+                <span className="hidden group-hover:block text-[10px] text-zinc-500 pt-1 text-center w-full">
+                  {simpleTime}
+                </span>
+              )}
             </div>
-            <div className="text-zinc-200 mt-1">{message.content}</div>
+
+            {/* Right Side */}
+            <div className="flex flex-col min-w-0 flex-1">
+              {!isGrouped && (
+                <div className="flex items-baseline gap-2">
+                  <span className="font-semibold text-amber-500 text-sm hover:underline cursor-pointer">
+                    {message.username}
+                  </span>
+                  <span className="text-xs text-zinc-500">{headerDate}</span>
+                </div>
+              )}
+
+              <div
+                className={`text-zinc-200 wrap-break-word leading-snug ${
+                  isGrouped ? "" : "mt-1"
+                }`}
+              >
+                {message.content}
+              </div>
+            </div>
           </div>
         );
       })}
