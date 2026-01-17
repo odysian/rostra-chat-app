@@ -32,6 +32,10 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
     throw new Error(error.detail || "API request failed");
   }
 
+  if (response.status === 204) {
+    return {} as T;
+  }
+
   return response.json();
 }
 
@@ -67,10 +71,29 @@ export async function getRooms(token: string): Promise<Room[]> {
   });
 }
 
+export async function createRoom(name: string, token: string): Promise<Room> {
+  return apiCall<Room>("/rooms", {
+    method: "POST",
+    body: JSON.stringify({ name }),
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function deleteRoom(roomId: number, token: string): Promise<void> {
+  return apiCall<void>(`/rooms/${roomId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 // Message API calls
 export async function getRoomMessages(
   roomId: number,
-  token: string
+  token: string,
 ): Promise<Message[]> {
   return apiCall<Message[]>(`/rooms/${roomId}/messages`, {
     headers: {
@@ -82,7 +105,7 @@ export async function getRoomMessages(
 export async function sendMessage(
   roomId: number,
   content: string,
-  token: string
+  token: string,
 ): Promise<Message> {
   return apiCall<Message>("/messages", {
     method: "POST",

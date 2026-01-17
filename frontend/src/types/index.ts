@@ -27,7 +27,7 @@ export interface Room {
   id: number;
   name: string;
   created_by: number;
-  create_at: string;
+  created_at: string;
 }
 
 // Message types

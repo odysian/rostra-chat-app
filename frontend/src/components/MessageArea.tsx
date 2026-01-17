@@ -1,6 +1,9 @@
+import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import type { Room, WebSocketMessage } from "../types";
+import { useAuth } from "../context/AuthContext";
+import { deleteRoom } from "../services/api";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
@@ -8,6 +11,7 @@ interface MessageAreaProps {
   sidebarOpen: boolean;
   onToggleSidebar: () => void;
   onToggleUsers: () => void;
+  onRoomDeleted: () => void;
 }
 
 export default function MessageArea({
@@ -16,7 +20,12 @@ export default function MessageArea({
   sidebarOpen,
   onToggleSidebar,
   onToggleUsers,
+  onRoomDeleted,
 }: MessageAreaProps) {
+  const { user, token } = useAuth();
+  const [showRoomMenu, setShowRoomMenu] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   if (!selectedRoom) {
     return (
       <div className="flex-1 flex items-center justify-center bg-zinc-950">
@@ -32,13 +41,34 @@ export default function MessageArea({
     );
   }
 
+  const isRoomOwner = user?.id === selectedRoom.created_by;
+
+  const handleDeleteRoom = async () => {
+    if (!token) return;
+
+    setDeleting(true);
+    try {
+      await deleteRoom(selectedRoom.id, token);
+      setShowDeleteModal(false);
+      setShowRoomMenu(false);
+      onRoomDeleted();
+    } catch (err) {
+      console.error("Failed to delete room:", err);
+      alert("Failed to delete room. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-zinc-950 min-h-0">
+      {/* Room Header */}
       <div className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleSidebar}
             className="text-zinc-400 hover:text-amber-500 transition-all duration-300"
+            title="Toggle sidebar"
           >
             <svg
               className={`w-6 h-6 transition-transform duration-300 ${
@@ -59,10 +89,54 @@ export default function MessageArea({
           <h2 className="text-lg font-semibold text-zinc-100">
             # {selectedRoom.name}
           </h2>
+
+          {/* Room Options Menu - Only show if owner */}
+          {isRoomOwner && (
+            <div className="relative">
+              <button
+                onClick={() => setShowRoomMenu(!showRoomMenu)}
+                className="text-zinc-400 hover:text-amber-500 transition-colors p-1"
+                title="Room options"
+              >
+                <svg
+                  className="w-5 h-5"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+                </svg>
+              </button>
+
+              {/* Dropdown Menu */}
+              {showRoomMenu && (
+                <>
+                  {/* Backdrop to close menu */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowRoomMenu(false)}
+                  />
+                  {/* Menu */}
+                  <div className="absolute left-0 mt-2 w-48 bg-zinc-800 rounded-lg shadow-lg border border-zinc-700 py-1 z-20">
+                    <button
+                      onClick={() => {
+                        setShowRoomMenu(false);
+                        setShowDeleteModal(true);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-zinc-700 transition-colors"
+                    >
+                      Delete Room
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
         </div>
+
         <button
           onClick={onToggleUsers}
           className="text-zinc-400 hover:text-amber-500 transition-colors"
+          title="Toggle users panel"
         >
           <svg
             className="w-6 h-6"
@@ -79,6 +153,41 @@ export default function MessageArea({
           </svg>
         </button>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
+            <h3 className="text-xl font-semibold text-zinc-100 mb-2">
+              Delete Room?
+            </h3>
+            <p className="text-zinc-400 mb-6">
+              Are you sure you want to delete{" "}
+              <span className="text-amber-500 font-medium">
+                #{selectedRoom.name}
+              </span>
+              ? This will permanently delete all messages in this room. This
+              action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
+                className="px-4 py-2 bg-zinc-700 text-zinc-200 rounded hover:bg-zinc-600 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteRoom}
+                disabled={deleting}
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50"
+              >
+                {deleting ? "Deleting..." : "Delete Room"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <MessageList
         key={selectedRoom.id}

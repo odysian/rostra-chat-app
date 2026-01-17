@@ -14,8 +14,15 @@ export default function ChatLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [usersPanelOpen, setUsersPanelOpen] = useState(true);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
+  const [roomListKey, setRoomListKey] = useState(0);
 
   const { connected, lastMessage, subscribe, unsubscribe } = useWebSocket();
+
+  const handleRoomDeleted = () => {
+    setSelectedRoom(null);
+    setOnlineUsers([]);
+    setRoomListKey((prev) => prev + 1);
+  };
 
   useEffect(() => {
     if (selectedRoom && connected) {
@@ -35,8 +42,8 @@ export default function ChatLayout() {
       lastMessage.type === "new_message"
         ? lastMessage.message.room_id
         : "room_id" in lastMessage
-        ? lastMessage.room_id
-        : null;
+          ? lastMessage.room_id
+          : null;
 
     if (msgRoomId !== selectedRoom.id) return;
 
@@ -52,7 +59,7 @@ export default function ChatLayout() {
         break;
       case "user_left":
         setOnlineUsers((prev) =>
-          prev.filter((u) => u.id !== lastMessage.user.id)
+          prev.filter((u) => u.id !== lastMessage.user.id),
         );
         break;
     }
@@ -78,6 +85,7 @@ export default function ChatLayout() {
           )}
         </div>
         <RoomList
+          key={roomListKey}
           selectedRoom={selectedRoom}
           onSelectRoom={setSelectedRoom}
           sidebarOpen={sidebarOpen}
@@ -92,6 +100,7 @@ export default function ChatLayout() {
           sidebarOpen={sidebarOpen}
           onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onToggleUsers={() => setUsersPanelOpen(!usersPanelOpen)}
+          onRoomDeleted={handleRoomDeleted}
         />
       </div>
 
