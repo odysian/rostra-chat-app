@@ -32,7 +32,7 @@ export default function MessageInput({ roomId }: MessageInputProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="p-4 bg-zinc-900 border-t border-zinc-800"
+      className="h-16 bg-zinc-900 border-t border-zinc-800 flex items-center px-4"
     >
       <div className="flex gap-2">
         <input

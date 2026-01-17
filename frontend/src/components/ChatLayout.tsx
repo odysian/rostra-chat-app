@@ -14,14 +14,14 @@ export default function ChatLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [usersPanelOpen, setUsersPanelOpen] = useState(true);
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
-  const [roomListKey, setRoomListKey] = useState(0);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   const { connected, lastMessage, subscribe, unsubscribe } = useWebSocket();
 
   const handleRoomDeleted = () => {
     setSelectedRoom(null);
     setOnlineUsers([]);
-    setRoomListKey((prev) => prev + 1);
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   useEffect(() => {
@@ -67,28 +67,52 @@ export default function ChatLayout() {
 
   return (
     <div className="flex h-screen bg-zinc-950">
-      {/* Sidebar */}
       <div
         className={`${
           sidebarOpen ? "w-64" : "w-16"
         } bg-zinc-900 border-r border-zinc-800 flex flex-col transition-all duration-300`}
       >
-        <div className="p-4 border-b border-zinc-800 flex items-center justify-center">
+        <div className="h-14 border-b border-zinc-800 flex items-center px-4">
           {sidebarOpen ? (
-            <h1 className="text-2xl font-cinzel font-bold text-amber-500 tracking-wide">
-              ROSTRA
-            </h1>
+            <button
+              onClick={() => setSidebarOpen(false)}
+              className="w-full flex items-center justify-between group"
+              title="Collapse sidebar"
+            >
+              <h1 className="text-3xl font-cinzel font-bold text-amber-500 tracking-wide">
+                ROSTRA
+              </h1>
+              <svg
+                className="w-5 h-5 text-zinc-400 group-hover:text-amber-500 transition-colors"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M11 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
           ) : (
-            <span className="text-3xl font-cinzel font-bold text-amber-500">
-              R
-            </span>
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="w-full flex justify-center hover:scale-110 transition-transform"
+              title="Expand sidebar"
+            >
+              <span className="text-3xl font-cinzel font-bold text-amber-500">
+                R
+              </span>
+            </button>
           )}
         </div>
         <RoomList
-          key={roomListKey}
           selectedRoom={selectedRoom}
           onSelectRoom={setSelectedRoom}
           sidebarOpen={sidebarOpen}
+          refreshTrigger={refreshTrigger}
         />
       </div>
 
@@ -97,8 +121,6 @@ export default function ChatLayout() {
         <MessageArea
           selectedRoom={selectedRoom}
           lastMessage={lastMessage}
-          sidebarOpen={sidebarOpen}
-          onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           onToggleUsers={() => setUsersPanelOpen(!usersPanelOpen)}
           onRoomDeleted={handleRoomDeleted}
         />
@@ -107,7 +129,7 @@ export default function ChatLayout() {
       {/* Users Panel */}
       {usersPanelOpen && (
         <div className="w-60 bg-zinc-900 border-l border-zinc-800 flex flex-col">
-          <div className="p-4 border-b border-zinc-800">
+          <div className="h-14 border-b border-zinc-800 flex items-center px-4">
             <h3 className="text-zinc-400 text-sm font-semibold">
               Online — {onlineUsers.length}
             </h3>

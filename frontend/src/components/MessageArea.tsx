@@ -7,9 +7,7 @@ import { deleteRoom } from "../services/api";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
-  lastMessage: WebSocketMessage | null; // Accept the prop
-  sidebarOpen: boolean;
-  onToggleSidebar: () => void;
+  lastMessage: WebSocketMessage | null;
   onToggleUsers: () => void;
   onRoomDeleted: () => void;
 }
@@ -17,8 +15,6 @@ interface MessageAreaProps {
 export default function MessageArea({
   selectedRoom,
   lastMessage,
-  sidebarOpen,
-  onToggleSidebar,
   onToggleUsers,
   onRoomDeleted,
 }: MessageAreaProps) {
@@ -65,27 +61,6 @@ export default function MessageArea({
       {/* Room Header */}
       <div className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
-          <button
-            onClick={onToggleSidebar}
-            className="text-zinc-400 hover:text-amber-500 transition-all duration-300"
-            title="Toggle sidebar"
-          >
-            <svg
-              className={`w-6 h-6 transition-transform duration-300 ${
-                sidebarOpen ? "" : "rotate-180"
-              }`}
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
           <h2 className="text-lg font-semibold text-zinc-100">
             # {selectedRoom.name}
           </h2>

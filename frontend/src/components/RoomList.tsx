@@ -1,23 +1,31 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
-import { getRooms } from "../services/api";
+import { getRooms, createRoom } from "../services/api";
 import type { Room } from "../types";
 
 interface RoomListProps {
   selectedRoom: Room | null;
   onSelectRoom: (room: Room) => void;
   sidebarOpen: boolean;
+  refreshTrigger?: number;
 }
 
 export default function RoomList({
   selectedRoom,
   onSelectRoom,
   sidebarOpen,
+  refreshTrigger,
 }: RoomListProps) {
   const { token } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  // Room modal state
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [newRoomName, setNewRoomName] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState("");
 
   useEffect(() => {
     async function fetchRooms() {
@@ -33,7 +41,44 @@ export default function RoomList({
       }
     }
     fetchRooms();
-  }, [token]);
+  }, [token, refreshTrigger]);
+
+  const handleCreateRoom = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!token) return;
+
+    // Validate
+    const trimmedName = newRoomName.trim();
+    if (trimmedName.length < 3) {
+      setCreateError("Room name must be at least 3 characters");
+      return;
+    }
+
+    if (trimmedName.length > 50) {
+      setCreateError("Room name must be less than 50 characters");
+      return;
+    }
+
+    setCreating(true);
+    setCreateError("");
+
+    try {
+      const newRoom = await createRoom(trimmedName, token);
+
+      setRooms([...rooms, newRoom]);
+      onSelectRoom(newRoom);
+
+      setShowCreateModal(false);
+      setNewRoomName("");
+    } catch (err) {
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create room",
+      );
+    } finally {
+      setCreating(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -62,52 +107,148 @@ export default function RoomList({
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      {rooms.map((room) => {
-        const isSelected = selectedRoom?.id === room.id;
-
-        // When collapsed, show just first letter
-        if (!sidebarOpen) {
+    <>
+      <div className="flex-1 overflow-y-auto">
+        {rooms.map((room) => {
+          const isSelected = selectedRoom?.id === room.id;
           return (
             <button
               key={room.id}
               onClick={() => onSelectRoom(room)}
-              className={`w-full flex items-center justify-center py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
+              className={`w-full text-left px-4 py-3 hover:bg-zinc-800 transition-colors border-l-4 ${
                 isSelected
-                  ? "bg-amber-500/10 border-l-4 border-l-amber-500"
-                  : ""
+                  ? "bg-amber-500/10 border-l-amber-500"
+                  : "border-l-transparent"
               }`}
             >
-              <span
-                className={`text-lg font-bold ${
-                  isSelected ? "text-amber-500" : "text-zinc-400"
-                }`}
-              >
-                {room.name.charAt(0).toUpperCase()}
-              </span>
+              {sidebarOpen ? (
+                <div
+                  className={`font-medium ${
+                    isSelected ? "text-amber-500" : "text-zinc-100"
+                  }`}
+                >
+                  {room.name}
+                </div>
+              ) : (
+                <div className="flex justify-center">
+                  <span
+                    className={`text-sm font-medium ${
+                      isSelected ? "text-amber-500" : "text-zinc-400"
+                    }`}
+                  >
+                    {room.name.charAt(0).toUpperCase()}
+                  </span>
+                </div>
+              )}
             </button>
           );
-        }
+        })}
+      </div>
 
-        // When expanded, show full name
-        return (
-          <button
-            key={room.id}
-            onClick={() => onSelectRoom(room)}
-            className={`w-full text-left px-4 py-3 border-b border-zinc-800 hover:bg-zinc-800/50 transition-colors ${
-              isSelected ? "bg-amber-500/10 border-l-4 border-l-amber-500" : ""
-            }`}
-          >
-            <div
-              className={`font-medium ${
-                isSelected ? "text-amber-500" : "text-zinc-100"
-              }`}
+      {/* Create Room Button */}
+      <div className="h-16 border-t border-zinc-800 flex items-center px-3">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="w-full py-2 bg-amber-500 text-zinc-900 font-medium rounded hover:bg-amber-600 transition-colors flex items-center justify-center gap-2"
+          title="Create new room"
+        >
+          {sidebarOpen ? (
+            <>
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
+              </svg>
+              <span>Create Room</span>
+            </>
+          ) : (
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
             >
-              {room.name}
-            </div>
-          </button>
-        );
-      })}
-    </div>
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+          )}
+        </button>
+      </div>
+
+      {/* Create Room Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
+            <h3 className="text-xl font-semibold text-zinc-100 mb-4">
+              Create New Room
+            </h3>
+
+            <form onSubmit={handleCreateRoom}>
+              <div className="mb-4">
+                <label
+                  htmlFor="roomName"
+                  className="block text-sm font-medium text-zinc-300 mb-2"
+                >
+                  Room Name
+                </label>
+                <input
+                  id="roomName"
+                  type="text"
+                  value={newRoomName}
+                  onChange={(e) => {
+                    setNewRoomName(e.target.value);
+                    setCreateError(""); // Clear error on input
+                  }}
+                  placeholder="e.g., General Discussion"
+                  autoFocus
+                  disabled={creating}
+                  className="w-full px-4 py-2 bg-zinc-900 text-zinc-100 rounded border border-zinc-700 focus:outline-none focus:border-amber-500 disabled:opacity-50"
+                />
+                {createError && (
+                  <p className="mt-2 text-sm text-red-400">{createError}</p>
+                )}
+                <p className="mt-2 text-xs text-zinc-500">
+                  Room names must be 3-50 characters
+                </p>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewRoomName("");
+                    setCreateError("");
+                  }}
+                  disabled={creating}
+                  className="px-4 py-2 bg-zinc-700 text-zinc-200 rounded hover:bg-zinc-600 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating || !newRoomName.trim()}
+                  className="px-4 py-2 bg-amber-500 text-zinc-900 font-medium rounded hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {creating ? "Creating..." : "Create Room"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
