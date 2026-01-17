@@ -16,4 +16,6 @@ class Room(Base):
 
     # Relationships
     creator = relationship("User", back_populates="rooms")
-    messages = relationship("Message", back_populates="room")
+    messages = relationship(
+        "Message", back_populates="room", cascade="all, delete-orphan"
+    )

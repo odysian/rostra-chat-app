@@ -37,3 +37,17 @@ def create_room(db: Session, room: RoomCreate, user_id: int):
     db.commit()
     db.refresh(db_room)
     return db_room
+
+
+def delete_room(db: Session, room_id: int):
+    """
+    Delete room by ID
+
+    SQLAlchemy will cascade delete associated messages
+    based on foreign key relationship.
+    """
+
+    room = db.query(Room).filter(Room.id == room_id).first()
+    if room:
+        db.delete(room)
+        db.commit()

@@ -56,3 +56,32 @@ def get_room(room_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
         )
     return room
+
+
+@router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_room(
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Delete a room by ID.
+
+    Requires auth and room ownership.
+    """
+
+    room = room_crud.get_room_by_id(db, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
+
+    if room.created_by != current_user.id:  # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only room creator can delete this room",
+        )
+
+    room_crud.delete_room(db, room_id)
+
+    return None
