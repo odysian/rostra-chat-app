@@ -10,6 +10,7 @@ interface MessageAreaProps {
   lastMessage: WebSocketMessage | null;
   onToggleUsers: () => void;
   onRoomDeleted: () => void;
+  onLeaveRoom: () => void;
 }
 
 export default function MessageArea({
@@ -17,11 +18,13 @@ export default function MessageArea({
   lastMessage,
   onToggleUsers,
   onRoomDeleted,
+  onLeaveRoom,
 }: MessageAreaProps) {
   const { user, token } = useAuth();
   const [showRoomMenu, setShowRoomMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+
   if (!selectedRoom) {
     return (
       <div className="flex-1 flex items-center justify-center bg-zinc-950">
@@ -65,47 +68,58 @@ export default function MessageArea({
             # {selectedRoom.name}
           </h2>
 
-          {/* Room Options Menu - Only show if owner */}
-          {isRoomOwner && (
-            <div className="relative">
-              <button
-                onClick={() => setShowRoomMenu(!showRoomMenu)}
-                className="text-zinc-400 hover:text-amber-500 transition-colors p-1"
-                title="Room options"
-              >
-                <svg
-                  className="w-5 h-5"
-                  fill="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-                </svg>
-              </button>
+          {/* Room Options Menu - Always show the button */}
+          <div className="relative">
+            <button
+              onClick={() => setShowRoomMenu(!showRoomMenu)}
+              className="text-zinc-400 hover:text-amber-500 transition-colors p-1"
+              title="Room options"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
+              </svg>
+            </button>
 
-              {/* Dropdown Menu */}
-              {showRoomMenu && (
-                <>
-                  {/* Backdrop to close menu */}
-                  <div
-                    className="fixed inset-0 z-10"
-                    onClick={() => setShowRoomMenu(false)}
-                  />
-                  {/* Menu */}
-                  <div className="absolute left-0 mt-2 w-48 bg-zinc-800 rounded-lg shadow-lg border border-zinc-700 py-1 z-20">
-                    <button
-                      onClick={() => {
-                        setShowRoomMenu(false);
-                        setShowDeleteModal(true);
-                      }}
-                      className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-zinc-700 transition-colors"
-                    >
-                      Delete Room
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+            {/* Dropdown Menu */}
+            {showRoomMenu && (
+              <>
+                {/* Backdrop to close menu */}
+                <div
+                  className="fixed inset-0 z-10"
+                  onClick={() => setShowRoomMenu(false)}
+                />
+                {/* Menu */}
+                <div className="absolute left-0 mt-2 w-48 bg-zinc-800 rounded-lg shadow-lg border border-zinc-700 py-1 z-20">
+                  {/* Leave Room - always visible */}
+                  <button
+                    onClick={() => {
+                      setShowRoomMenu(false);
+                      onLeaveRoom();
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
+                  >
+                    Leave Room
+                  </button>
+
+                  {/* Delete Room - only for owner */}
+                  {isRoomOwner && (
+                    <>
+                      <div className="border-t border-zinc-700 my-1" />
+                      <button
+                        onClick={() => {
+                          setShowRoomMenu(false);
+                          setShowDeleteModal(true);
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-zinc-700 transition-colors"
+                      >
+                        Delete Room
+                      </button>
+                    </>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <button
