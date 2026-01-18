@@ -7,7 +7,10 @@ import type {
   Message,
 } from "../types";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+const API_URL = `${BASE_URL}/api`;
+
 let onUnauthorized: (() => void) | null = null;
 
 export function setUnauthorizedHandler(handler: () => void) {
