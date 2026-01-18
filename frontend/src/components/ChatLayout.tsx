@@ -18,6 +18,7 @@ export default function ChatLayout() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [onlineUsersExpanded, setOnlineUsersExpanded] = useState(true);
+  const [mobileView, setMobileView] = useState<"rooms" | "chat">("rooms");
 
   const { connected, lastMessage, subscribe, unsubscribe } = useWebSocket();
 
@@ -33,6 +34,15 @@ export default function ChatLayout() {
     setShowUserMenu(false);
 
     logout();
+  };
+
+  const handleSelectRoom = (room: Room) => {
+    setSelectedRoom(room);
+    setMobileView("chat");
+  };
+
+  const handleBackToRooms = () => {
+    setMobileView("rooms");
   };
 
   const handleRoomDeleted = () => {
@@ -92,10 +102,13 @@ export default function ChatLayout() {
 
   return (
     <div className="flex h-screen bg-zinc-950">
+      {/* Sidebar - Hide on mobile when in chat view */}
       <div
-        className={`${
-          sidebarOpen ? "w-64" : "w-16"
-        } bg-zinc-900 border-r border-zinc-800 flex flex-col transition-all duration-300`}
+        className={`
+        ${sidebarOpen ? "w-64" : "w-16"}
+        bg-zinc-900 border-r border-zinc-800 flex-col transition-all duration-300
+        ${mobileView === "rooms" ? "flex" : "hidden md:flex"}
+      `}
       >
         <div className="h-14 border-b border-zinc-800 flex items-center px-4">
           {sidebarOpen ? (
@@ -104,7 +117,7 @@ export default function ChatLayout() {
               className="w-full flex items-center justify-between group"
               title="Collapse sidebar"
             >
-              <h1 className="text-3xl font-cinzel font-bold text-amber-500 tracking-wide">
+              <h1 className="text-2xl font-cinzel font-bold text-amber-500 tracking-wide">
                 ROSTRA
               </h1>
               <svg
@@ -133,28 +146,49 @@ export default function ChatLayout() {
             </button>
           )}
         </div>
+
         <RoomList
           selectedRoom={selectedRoom}
-          onSelectRoom={setSelectedRoom}
+          onSelectRoom={handleSelectRoom}
           sidebarOpen={sidebarOpen}
           refreshTrigger={refreshTrigger}
         />
       </div>
 
-      {/* Main Area */}
-      <div className="flex-1 flex flex-col">
+      {/* Main Area - Show on mobile when chat view, always show on desktop */}
+      <div
+        className={`
+      flex-1 flex-col
+      ${mobileView === "chat" ? "flex" : "hidden md:flex"}
+    `}
+      >
         <MessageArea
           selectedRoom={selectedRoom}
           lastMessage={lastMessage}
+          // sidebarOpen={sidebarOpen}
           onToggleUsers={() => setUsersPanelOpen(!usersPanelOpen)}
           onRoomDeleted={handleRoomDeleted}
           onLeaveRoom={handleLeaveRoom}
+          onBackToRooms={handleBackToRooms}
+          isMobile={true}
         />
       </div>
 
-      {/* Users Panel */}
+      {/* Users Panel - Overlay on mobile, sidebar on desktop */}
       {usersPanelOpen && (
-        <div className="w-60 bg-zinc-900 border-l border-zinc-800 flex flex-col">
+        <div
+          className={`
+          w-60 bg-zinc-900 border-l border-zinc-800 flex flex-col
+          md:relative md:border-l
+          fixed inset-y-0 right-0 z-50 md:z-auto
+        `}
+        >
+          {/* Backdrop for mobile - click to close */}
+          <div
+            className="fixed inset-0 bg-black/50 -z-10 md:hidden"
+            onClick={() => setUsersPanelOpen(false)}
+          />
+
           {/* Current User Section */}
           <div className="h-14 border-b border-zinc-800 flex items-center px-4">
             <div className="relative w-full">
@@ -163,16 +197,13 @@ export default function ChatLayout() {
                 className="w-full flex items-center justify-between group"
               >
                 <div className="flex items-center gap-3">
-                  {/* User Avatar */}
                   <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-xs border border-zinc-700">
-                    {user?.username.substring(0, 2).toUpperCase()}
+                    {user?.username.substring(0, 2).toUpperCase() || "US"}
                   </div>
-                  {/* Username */}
                   <span className="text-zinc-300 text-sm font-medium truncate">
-                    {user?.username}
+                    {user?.username || "Username"}
                   </span>
                 </div>
-                {/* Dropdown Arrow */}
                 <svg
                   className={`w-4 h-4 text-zinc-400 group-hover:text-amber-500 transition-all ${
                     showUserMenu ? "rotate-180" : ""
@@ -190,7 +221,6 @@ export default function ChatLayout() {
                 </svg>
               </button>
 
-              {/* User Menu Dropdown */}
               {showUserMenu && (
                 <>
                   <div
@@ -223,7 +253,7 @@ export default function ChatLayout() {
             </div>
           </div>
 
-          {/* Online Users Section - Collapsible */}
+          {/* Online Users Section */}
           <div className="border-b border-zinc-800">
             <button
               onClick={() => setOnlineUsersExpanded(!onlineUsersExpanded)}
@@ -250,7 +280,6 @@ export default function ChatLayout() {
             </button>
           </div>
 
-          {/* Online Users List - Collapsible Content */}
           {onlineUsersExpanded && (
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {onlineUsers.length === 0 ? (

@@ -11,6 +11,8 @@ interface MessageAreaProps {
   onToggleUsers: () => void;
   onRoomDeleted: () => void;
   onLeaveRoom: () => void;
+  onBackToRooms: () => void;
+  isMobile: boolean;
 }
 
 export default function MessageArea({
@@ -19,6 +21,7 @@ export default function MessageArea({
   onToggleUsers,
   onRoomDeleted,
   onLeaveRoom,
+  onBackToRooms,
 }: MessageAreaProps) {
   const { user, token } = useAuth();
   const [showRoomMenu, setShowRoomMenu] = useState(false);
@@ -64,6 +67,27 @@ export default function MessageArea({
       {/* Room Header */}
       <div className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
+          {/* Back button - mobile only */}
+          <button
+            onClick={onBackToRooms}
+            className="text-zinc-400 hover:text-amber-500 transition-colors md:hidden"
+            title="Back to rooms"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 19l-7-7 7-7"
+              />
+            </svg>
+          </button>
+
           <h2 className="text-lg font-semibold text-zinc-100">
             # {selectedRoom.name}
           </h2>
