@@ -15,11 +15,11 @@ interface OnlineUser {
  * ChatLayout Component
  *
  * Responsibility: Orchestrate the chat interface
- * - Manage all shared state (selected room, online users, mobile view)
+ * - Manage all shared state (selected room, online users, panel visibility)
  * - Handle WebSocket connection lifecycle
  * - Coordinate between Sidebar, MessageArea, and UsersPanel
  *
- * This component should NOT contain complex UI - just coordinate children
+ *
  */
 export default function ChatLayout() {
   // STATE
@@ -29,10 +29,7 @@ export default function ChatLayout() {
 
   // Panel visibility
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [usersPanelOpen, setUsersPanelOpen] = useState(true);
-
-  // Mobile navigation
-  const [mobileView, setMobileView] = useState<"rooms" | "chat">("rooms");
+  const [usersPanelOpen, setUsersPanelOpen] = useState(false);
 
   // Online users (from WebSocket)
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
@@ -44,11 +41,11 @@ export default function ChatLayout() {
   // HANDLERS
   const handleSelectRoom = (room: Room) => {
     setSelectedRoom(room);
-    setMobileView("chat"); // Switch to chat view on mobile
+    setSidebarOpen(false); // Close sidebar on mobile after selecting room
   };
 
   const handleBackToRooms = () => {
-    setMobileView("rooms"); // Back to room list on mobile
+    setSidebarOpen(true); // Open sidebar when going back to rooms
   };
 
   const handleRoomDeleted = () => {
@@ -135,16 +132,11 @@ export default function ChatLayout() {
         selectedRoom={selectedRoom}
         onSelectRoom={handleSelectRoom}
         refreshTrigger={refreshTrigger}
-        visible={mobileView === "rooms"}
+        visible={sidebarOpen}
       />
 
-      {/* Center panel - Messages */}
-      <div
-        className={`
-          flex-1 flex-col
-          ${mobileView === "chat" ? "flex" : "hidden md:flex"}
-        `}
-      >
+      {/* Center panel - Messages (always visible, sidebar overlays on mobile) */}
+      <div className="flex-1 flex-col flex min-w-0">
         <MessageArea
           selectedRoom={selectedRoom}
           lastMessage={lastMessage}
