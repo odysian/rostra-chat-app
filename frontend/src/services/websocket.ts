@@ -1,4 +1,6 @@
-const WS_URL = "ws://localhost:8000/ws/connect";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+const WS_URL = API_URL.replace(/^http/, "ws") + "/ws/connect";
 
 export class WebSocketService {
   private ws: WebSocket | null = null;

@@ -7,7 +7,7 @@ import type {
   Message,
 } from "../types";
 
-const API_BASE_URL = "http://localhost:8000/api";
+const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 let onUnauthorized: (() => void) | null = null;
 
 export function setUnauthorizedHandler(handler: () => void) {
@@ -16,7 +16,7 @@ export function setUnauthorizedHandler(handler: () => void) {
 
 // Helper for API calls
 async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(`${API_URL}${endpoint}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
