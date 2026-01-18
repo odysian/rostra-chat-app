@@ -36,18 +36,21 @@ export default function Sidebar({
 
   return (
     <>
-      {/* Mobile backdrop - click to close */}
-      <div
-        className="fixed inset-0 bg-black/50 z-40 md:hidden"
-        onClick={onToggle}
-      />
+      {/* Mobile backdrop - click to close (only show when sidebar is open) */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          onClick={onToggle}
+        />
+      )}
 
       <div
         className={`
           ${isOpen ? "w-64" : "w-16"}
-          bg-zinc-900 border-r border-zinc-800 flex-col transition-all duration-300
-          md:relative md:flex
+          bg-zinc-900 border-r border-zinc-800 flex flex-col transition-all duration-300
+          md:relative
           fixed inset-y-0 left-0 z-50 md:z-auto
+          ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >
         {/* Header with logo and collapse button */}

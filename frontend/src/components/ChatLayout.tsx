@@ -19,26 +19,35 @@ interface OnlineUser {
  * - Handle WebSocket connection lifecycle
  * - Coordinate between Sidebar, MessageArea, and UsersPanel
  *
- *
+ * This component should NOT contain complex UI - just coordinate children
  */
 export default function ChatLayout() {
+  // ============================================================================
   // STATE
+  // ============================================================================
+
   // Room state
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Panel visibility
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [usersPanelOpen, setUsersPanelOpen] = useState(false);
+  const [usersPanelOpen, setUsersPanelOpen] = useState(true);
 
   // Online users (from WebSocket)
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
 
+  // ============================================================================
   // HOOKS
+  // ============================================================================
+
   const { connected, lastMessage, subscribe, unsubscribe } = useWebSocket();
   const { user, logout } = useAuth();
 
+  // ============================================================================
   // HANDLERS
+  // ============================================================================
+
   const handleSelectRoom = (room: Room) => {
     setSelectedRoom(room);
     setSidebarOpen(false); // Close sidebar on mobile after selecting room
@@ -72,7 +81,10 @@ export default function ChatLayout() {
     logout();
   };
 
+  // ============================================================================
   // EFFECTS
+  // ============================================================================
+
   // Subscribe to room when selected
   useEffect(() => {
     if (selectedRoom && connected) {
@@ -122,17 +134,20 @@ export default function ChatLayout() {
     }
   }, [lastMessage, selectedRoom]);
 
+  // ============================================================================
   // RENDER
+  // ============================================================================
+
   return (
     <div className="flex h-screen bg-zinc-950">
       {/* Left panel - Room list */}
       <Sidebar
-        isOpen={sidebarOpen}
+        isOpen={sidebarOpen || !selectedRoom}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         selectedRoom={selectedRoom}
         onSelectRoom={handleSelectRoom}
         refreshTrigger={refreshTrigger}
-        visible={sidebarOpen}
+        visible={true}
       />
 
       {/* Center panel - Messages (always visible, sidebar overlays on mobile) */}

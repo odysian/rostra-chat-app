@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { getRooms, createRoom } from "../services/api";
 import type { Room } from "../types";
@@ -80,72 +81,65 @@ export default function RoomList({
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-zinc-400">Loading rooms...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex-1 p-4">
-        <div className="bg-red-900/20 text-red-400 p-3 rounded text-sm border border-red-900">
-          {error}
-        </div>
-      </div>
-    );
-  }
-
-  if (rooms.length === 0) {
-    return (
-      <div className="flex-1 flex items-center justify-center p-4">
-        <p className="text-zinc-400 text-sm">No rooms available</p>
-      </div>
-    );
-  }
-
   return (
     <>
+      {/* Room List Area */}
       <div className="flex-1 overflow-y-auto">
-        {rooms.map((room) => {
-          const isSelected = selectedRoom?.id === room.id;
-          return (
-            <button
-              key={room.id}
-              onClick={() => onSelectRoom(room)}
-              className={`w-full text-left px-4 py-3 hover:bg-zinc-800 transition-colors border-l-4 ${
-                isSelected
-                  ? "bg-amber-500/10 border-l-amber-500"
-                  : "border-l-transparent"
-              }`}
-            >
-              {sidebarOpen ? (
-                <div
-                  className={`font-medium ${
-                    isSelected ? "text-amber-500" : "text-zinc-100"
-                  }`}
-                >
-                  {room.name}
-                </div>
-              ) : (
-                <div className="flex justify-center">
-                  <span
-                    className={`text-sm font-medium ${
-                      isSelected ? "text-amber-500" : "text-zinc-400"
+        {loading ? (
+          <div className="flex items-center justify-center p-4">
+            <p className="text-zinc-400">Loading rooms...</p>
+          </div>
+        ) : error ? (
+          <div className="p-4">
+            <div className="bg-red-900/20 text-red-400 p-3 rounded text-sm border border-red-900">
+              {error}
+            </div>
+          </div>
+        ) : rooms.length === 0 ? (
+          <div className="flex items-center justify-center p-4">
+            <p className="text-zinc-400 text-sm text-center">
+              No rooms yet. Create one below!
+            </p>
+          </div>
+        ) : (
+          rooms.map((room) => {
+            const isSelected = selectedRoom?.id === room.id;
+            return (
+              <button
+                key={room.id}
+                onClick={() => onSelectRoom(room)}
+                className={`w-full text-left px-4 py-3 hover:bg-zinc-800 transition-colors border-l-4 ${
+                  isSelected
+                    ? "bg-amber-500/10 border-l-amber-500"
+                    : "border-l-transparent"
+                }`}
+              >
+                {sidebarOpen ? (
+                  <div
+                    className={`font-medium ${
+                      isSelected ? "text-amber-500" : "text-zinc-100"
                     }`}
                   >
-                    {room.name.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-              )}
-            </button>
-          );
-        })}
+                    {room.name}
+                  </div>
+                ) : (
+                  <div className="flex justify-center">
+                    <span
+                      className={`text-sm font-medium ${
+                        isSelected ? "text-amber-500" : "text-zinc-400"
+                      }`}
+                    >
+                      {room.name.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                )}
+              </button>
+            );
+          })
+        )}
       </div>
 
-      {/* Create Room Button */}
+      {/* Create Room Button - ALWAYS RENDERS */}
       <div className="h-16 border-t border-zinc-800 flex items-center px-3">
         <button
           onClick={() => setShowCreateModal(true)}
@@ -187,68 +181,70 @@ export default function RoomList({
         </button>
       </div>
 
-      {/* Create Room Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
-            <h3 className="text-xl font-semibold text-zinc-100 mb-4">
-              Create New Room
-            </h3>
+      {/* Create Room Modal - rendered via portal to escape sidebar constraints */}
+      {showCreateModal &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
+              <h3 className="text-xl font-semibold text-zinc-100 mb-4">
+                Create New Room
+              </h3>
 
-            <form onSubmit={handleCreateRoom}>
-              <div className="mb-4">
-                <label
-                  htmlFor="roomName"
-                  className="block text-sm font-medium text-zinc-300 mb-2"
-                >
-                  Room Name
-                </label>
-                <input
-                  id="roomName"
-                  type="text"
-                  value={newRoomName}
-                  onChange={(e) => {
-                    setNewRoomName(e.target.value);
-                    setCreateError(""); // Clear error on input
-                  }}
-                  placeholder="e.g., General Discussion"
-                  autoFocus
-                  disabled={creating}
-                  className="w-full px-4 py-2 bg-zinc-900 text-zinc-100 rounded border border-zinc-700 focus:outline-none focus:border-amber-500 disabled:opacity-50"
-                />
-                {createError && (
-                  <p className="mt-2 text-sm text-red-400">{createError}</p>
-                )}
-                <p className="mt-2 text-xs text-zinc-500">
-                  Room names must be 3-50 characters
-                </p>
-              </div>
+              <form onSubmit={handleCreateRoom}>
+                <div className="mb-4">
+                  <label
+                    htmlFor="roomName"
+                    className="block text-sm font-medium text-zinc-300 mb-2"
+                  >
+                    Room Name
+                  </label>
+                  <input
+                    id="roomName"
+                    type="text"
+                    value={newRoomName}
+                    onChange={(e) => {
+                      setNewRoomName(e.target.value);
+                      setCreateError(""); // Clear error on input
+                    }}
+                    placeholder="e.g., General Discussion"
+                    autoFocus
+                    disabled={creating}
+                    className="w-full px-4 py-2 bg-zinc-900 text-zinc-100 rounded border border-zinc-700 focus:outline-none focus:border-amber-500 disabled:opacity-50"
+                  />
+                  {createError && (
+                    <p className="mt-2 text-sm text-red-400">{createError}</p>
+                  )}
+                  <p className="mt-2 text-xs text-zinc-500">
+                    Room names must be 3-50 characters
+                  </p>
+                </div>
 
-              <div className="flex gap-3 justify-end">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setNewRoomName("");
-                    setCreateError("");
-                  }}
-                  disabled={creating}
-                  className="px-4 py-2 bg-zinc-700 text-zinc-200 rounded hover:bg-zinc-600 transition-colors disabled:opacity-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating || !newRoomName.trim()}
-                  className="px-4 py-2 bg-amber-500 text-zinc-900 font-medium rounded hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {creating ? "Creating..." : "Create Room"}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                <div className="flex gap-3 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setNewRoomName("");
+                      setCreateError("");
+                    }}
+                    disabled={creating}
+                    className="px-4 py-2 bg-zinc-700 text-zinc-200 rounded hover:bg-zinc-600 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={creating || !newRoomName.trim()}
+                    className="px-4 py-2 bg-amber-500 text-zinc-900 font-medium rounded hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {creating ? "Creating..." : "Create Room"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </>
   );
 }
