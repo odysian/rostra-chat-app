@@ -51,7 +51,7 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
         });
       } catch (err) {
         setError(
-          err instanceof Error ? err.message : "Failed to load messages"
+          err instanceof Error ? err.message : "Failed to load messages",
         );
       } finally {
         setLoading(false);
@@ -69,8 +69,8 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
       lastMessage.type === "new_message"
         ? lastMessage.message.room_id
         : "room_id" in lastMessage
-        ? lastMessage.room_id
-        : null;
+          ? lastMessage.room_id
+          : null;
 
     if (msgRoomId !== roomId) return;
 
@@ -135,7 +135,7 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
 
   const shouldGroupMessage = (
     current: ChatItem,
-    prev: ChatItem | undefined
+    prev: ChatItem | undefined,
   ) => {
     if (!prev) return false;
     if ("type" in current && current.type === "system") return false;
@@ -171,7 +171,7 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto py-4 flex flex-col">
+    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 flex flex-col">
       {messages.map((item, index) => {
         if ("type" in item && item.type === "system") {
           return (
@@ -232,7 +232,7 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
               )}
 
               <div
-                className={`text-zinc-200 wrap-break-word leading-snug ${
+                className={`text-zinc-200 break-all leading-snug ${
                   isGrouped ? "" : "mt-1"
                 }`}
               >

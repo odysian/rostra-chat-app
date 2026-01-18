@@ -6,6 +6,11 @@ export interface User {
   created_at: string;
 }
 
+export interface OnlineUser {
+  id: number;
+  username: string;
+}
+
 export interface LoginRequest {
   username: string;
   password: string;
