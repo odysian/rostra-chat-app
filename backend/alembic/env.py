@@ -2,7 +2,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from app.core.config import settings
-from app.core.database import Base
+from app.core.database import Base, engine
 from app.models.message import Message
 from app.models.room import Room
 from app.models.user import User
@@ -60,13 +60,12 @@ def run_migrations_online() -> None:
 
     In this scenario we need to create an Engine
     and associate a connection with the context.
-
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    # ---------------------------------------------------------
+    # FIX: Use the engine from app.core.database directly
+    # instead of reading it from the config file (which crashes on %)
+    # ---------------------------------------------------------
+    connectable = engine
 
     with connectable.connect() as connection:
         context.configure(connection=connection, target_metadata=target_metadata)
