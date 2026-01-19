@@ -3,11 +3,10 @@ from logging.config import fileConfig
 from alembic import context
 from app.core.config import settings
 from app.core.database import Base, engine
-from sqlalchemy import engine_from_config, pool, text  # <--- Added 'text'
+from sqlalchemy import text  # <-- ADD THIS IMPORT
 
 config = context.config
 
-# Interpret the config file for Python logging.
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
@@ -16,13 +15,15 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode."""
-    # FIX: Get URL directly from settings
     url = settings.DATABASE_URL
+
     context.configure(
         url=url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
+        version_table_schema=target_metadata.schema,
     )
 
     with context.begin_transaction():
@@ -34,14 +35,18 @@ def run_migrations_online() -> None:
     connectable = engine
 
     with connectable.connect() as connection:
-        # ---------------------------------------------------------
-        # FIX: Force the search path to 'rostra'
-        # ---------------------------------------------------------
-        connection.execute(text("SET search_path TO rostra"))
-
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            version_table_schema=target_metadata.schema,
+            include_schemas=True,
+        )
 
         with context.begin_transaction():
+            connection.execute(
+                text(f"CREATE SCHEMA IF NOT EXISTS {target_metadata.schema}")
+            )
+
             context.run_migrations()
 
 
