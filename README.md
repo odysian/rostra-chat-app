@@ -2,9 +2,7 @@
 
 Real-time chat app built to learn WebSockets. First time working with persistent connections instead of regular HTTP requests.
 
-**Live Demo:** [Coming soon - setting up custom domain]
-**GitHub:** https://github.com/odysian/rostra-chat-app
-
+**Live Demo:** https://rostra.odysian.dev
 ## What It Does
 
 - Real-time messaging using WebSockets
