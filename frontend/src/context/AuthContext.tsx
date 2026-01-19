@@ -8,7 +8,7 @@ interface AuthContextType {
   token: string | null;
   user: User | null;
   login: (token: string) => Promise<void>;
-  logout: () => void;
+  logout: (redirect?: boolean) => void;
   isAuthenticated: boolean;
 }
 
@@ -21,10 +21,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
 
   // Declare logout BEFORE it's used in useEffect
-  const logout = () => {
+  const logout = (redirect: boolean = false) => {
     localStorage.removeItem("token");
     setToken(null);
     setUser(null);
+    if (redirect) {
+      window.location.href = "/login";
+    }
   };
 
   useEffect(() => {
@@ -40,7 +43,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      logout();
+      logout(true); // Redirect to login on 401
     });
   }, []); // Now logout is defined above
 

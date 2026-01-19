@@ -78,7 +78,7 @@ export default function ChatLayout() {
     }
     setSelectedRoom(null);
     setOnlineUsers([]);
-    logout();
+    logout(true);
   };
 
   // ============================================================================
