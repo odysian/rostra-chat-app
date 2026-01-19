@@ -32,7 +32,7 @@ export default function ChatLayout() {
 
   // Panel visibility
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [usersPanelOpen, setUsersPanelOpen] = useState(true);
+  const [usersPanelOpen, setUsersPanelOpen] = useState(false);
 
   // Online users (from WebSocket)
   const [onlineUsers, setOnlineUsers] = useState<OnlineUser[]>([]);
