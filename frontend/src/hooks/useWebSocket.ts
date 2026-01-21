@@ -19,29 +19,59 @@ type WebSocketMessage =
 export function useWebSocket() {
   const { token } = useAuth();
   const [connected, setConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "reconnecting" | "connected" | "error">("disconnected");
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const wsRef = useRef<WebSocketService | null>(null);
+  const currentTokenRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      // Disconnect when no token
+      if (wsRef.current) {
+        wsRef.current.disconnect();
+        wsRef.current = null;
+      }
+      currentTokenRef.current = null;
+      
+      // Defer state setting to avoid cascading renders
+      const statusTimer = setTimeout(() => {
+        setConnectionStatus("disconnected");
+        setConnected(false);
+      }, 0);
+      
+      return () => clearTimeout(statusTimer);
+    }
 
-    // Create service
+    // Only recreate service if token changed
+    if (currentTokenRef.current === token && wsRef.current) {
+      return;
+    }
+
+    // Cleanup existing connection
+    if (wsRef.current) {
+      wsRef.current.disconnect();
+    }
+
+    currentTokenRef.current = token;
+
+    // Create new service
     const ws = new WebSocketService(token);
     wsRef.current = ws;
 
     // Register callbacks
     ws.onStatusChange((status) => {
+      setConnectionStatus(status as "disconnected" | "connecting" | "reconnecting" | "connected" | "error");
       setConnected(status === "connected");
     });
 
     ws.onMessage((data) => {
-      setLastMessage(data);
+      setLastMessage(data as WebSocketMessage);
     });
 
     // Connect
     ws.connect();
 
-    // Cleanup on unmount
+    // Cleanup on unmount or token change
     return () => {
       ws.disconnect();
     };
@@ -61,5 +91,12 @@ export function useWebSocket() {
     wsRef.current?.send({ action: "send_message", room_id: roomId, content });
   };
 
-  return { connected, lastMessage, subscribe, unsubscribe, sendMessage };
+  return { 
+    connected, 
+    connectionStatus, 
+    lastMessage, 
+    subscribe, 
+    unsubscribe, 
+    sendMessage 
+  };
 }

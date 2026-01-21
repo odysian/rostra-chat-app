@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { User } from "../types";
+import { useWebSocket } from "../hooks/useWebSocket";
 
 interface OnlineUser {
   id: number;
@@ -44,6 +45,7 @@ export default function UsersPanel({
   // Internal UI state - only affects this component
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [onlineUsersExpanded, setOnlineUsersExpanded] = useState(true);
+  const { connectionStatus } = useWebSocket();
 
   // Helper to get user initials for avatar
   const getUserInitials = (username: string) => {
@@ -53,6 +55,35 @@ export default function UsersPanel({
   const handleLogout = () => {
     setShowUserMenu(false);
     onLogout();
+  };
+
+  const getConnectionStatusColor = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return "bg-emerald-500";
+      case "connecting":
+      case "reconnecting":
+        return "bg-amber-500";
+      case "error":
+        return "bg-red-500";
+      default:
+        return "bg-zinc-600";
+    }
+  };
+
+  const getConnectionStatusText = () => {
+    switch (connectionStatus) {
+      case "connected":
+        return "Connected";
+      case "connecting":
+        return "Connecting...";
+      case "reconnecting":
+        return "Reconnecting...";
+      case "error":
+        return "Connection Error";
+      default:
+        return "Disconnected";
+    }
   };
 
   if (!isOpen) return null;
@@ -140,6 +171,14 @@ export default function UsersPanel({
                 </div>
               </>
             )}
+          </div>
+        </div>
+
+        {/* Connection Status */}
+        <div className="border-b border-zinc-800 px-4 py-2">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()}`}></div>
+            <span className="text-xs text-zinc-400">{getConnectionStatusText()}</span>
           </div>
         </div>
 

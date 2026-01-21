@@ -21,6 +21,7 @@ export default function RoomList({
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [timeoutError, setTimeoutError] = useState(false);
 
   // Room modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -29,20 +30,58 @@ export default function RoomList({
   const [createError, setCreateError] = useState("");
 
   useEffect(() => {
+    let timeoutId: number;
+    
     async function fetchRooms() {
       if (!token) return;
 
+      // Reset timeout error state
+      setTimeoutError(false);
+      setLoading(true);
+      setError("");
+
+      // 5-second timeout for local testing
+      timeoutId = window.setTimeout(() => {
+        setTimeoutError(true);
+        setError("Loading is taking longer than expected. The server may be waking up.");
+        setLoading(false);
+      }, 5000);
+
       try {
         const fetchedRooms = await getRooms(token);
+        clearTimeout(timeoutId);
         setRooms(fetchedRooms);
+        setTimeoutError(false);
       } catch (err) {
+        clearTimeout(timeoutId);
         setError(err instanceof Error ? err.message : "Failed to load rooms");
+        setTimeoutError(false);
       } finally {
-        setLoading(false);
+        if (!timeoutError) {
+          setLoading(false);
+        }
       }
     }
+    
     fetchRooms();
-  }, [token, refreshTrigger]);
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [token, refreshTrigger]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError("");
+    setTimeoutError(false);
+    // Trigger refetch by updating refreshTrigger
+    // This will be handled by parent component
+  };
+
+  
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +132,12 @@ export default function RoomList({
           <div className="p-4">
             <div className="bg-red-900/20 text-red-400 p-3 rounded text-sm border border-red-900">
               {error}
+              <button
+                onClick={handleRetry}
+                className="mt-2 block w-full py-1 px-2 bg-red-600/20 hover:bg-red-600/30 rounded text-xs transition-colors"
+              >
+                Retry
+              </button>
             </div>
           </div>
         ) : rooms.length === 0 ? (

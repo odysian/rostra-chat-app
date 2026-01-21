@@ -10,6 +10,8 @@ interface AuthContextType {
   login: (token: string) => Promise<void>;
   logout: (redirect?: boolean) => void;
   isAuthenticated: boolean;
+  isAuthenticating: boolean;
+  isColdStart: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -19,39 +21,86 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.getItem("token"),
   );
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
+  const [isColdStart, setIsColdStart] = useState<boolean>(false);
 
   // Declare logout BEFORE it's used in useEffect
   const logout = (redirect: boolean = false) => {
     localStorage.removeItem("token");
     setToken(null);
     setUser(null);
+    setIsAuthenticating(false);
+    setIsColdStart(false);
+    
     if (redirect) {
+      // Use window.location for immediate redirect (more reliable than React Router)
       window.location.href = "/login";
     }
   };
 
   useEffect(() => {
     if (token) {
+      // Defer state setting to avoid cascading renders
+      const authTimer = setTimeout(() => {
+        setIsAuthenticating(true);
+      }, 0);
+      
+      // 5-second cold start detection timer
+      const coldStartTimer = setTimeout(() => {
+        setIsColdStart(true);
+      }, 5000);
+
+      // 10-second timeout for getCurrentUser call
+      const timeoutController = new AbortController();
+      const timeoutId = setTimeout(() => {
+        timeoutController.abort();
+      }, 10000);
+
       getCurrentUser(token)
-        .then(setUser)
+        .then((userData) => {
+          clearTimeout(authTimer);
+          clearTimeout(coldStartTimer);
+          clearTimeout(timeoutId);
+          setUser(userData);
+          setIsAuthenticating(false);
+          setIsColdStart(false);
+        })
         .catch(() => {
+          clearTimeout(authTimer);
+          clearTimeout(coldStartTimer);
+          clearTimeout(timeoutId);
           setToken(null);
           localStorage.removeItem("token");
+          setIsAuthenticating(false);
+          setIsColdStart(false);
         });
+
+      return () => {
+        clearTimeout(authTimer);
+        clearTimeout(coldStartTimer);
+        clearTimeout(timeoutId);
+      };
     }
   }, [token]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
-      logout(true); // Redirect to login on 401
+      // Clear authentication state immediately
+      localStorage.removeItem("token");
+      setToken(null);
+      setUser(null);
+      setIsAuthenticating(false);
+      setIsColdStart(false);
+      
+      // Force immediate redirect to login
+      window.location.href = "/login";
     });
   }, []); // Now logout is defined above
 
   const login = async (newToken: string) => {
     localStorage.setItem("token", newToken);
     setToken(newToken);
-    const userData = await getCurrentUser(newToken);
-    setUser(userData);
+    // Authentication state will be handled by the useEffect above
   };
 
   return (
@@ -61,7 +110,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         user,
         login,
         logout,
-        isAuthenticated: !!token,
+        isAuthenticated: !!token && !isAuthenticating && !!user,
+        isAuthenticating,
+        isColdStart,
       }}
     >
       {children}

@@ -23,19 +23,32 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [timeoutError, setTimeoutError] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch History & Deduplicate
   useEffect(() => {
+    let timeoutId: number;
+    
     async function fetchMessages() {
       if (!token) return;
 
+      // Reset timeout error state
+      setTimeoutError(false);
       setLoading(true);
       setError("");
+
+      // 5-second timeout for local testing
+      timeoutId = window.setTimeout(() => {
+        setTimeoutError(true);
+        setError("Loading messages is taking longer than expected. The server may be waking up.");
+        setLoading(false);
+      }, 5000);
 
       try {
         const fetchedMessages = await getRoomMessages(roomId, token);
         const history = fetchedMessages.reverse();
+        clearTimeout(timeoutId);
 
         setMessages((prev) => {
           const uniqueMap = new Map<string | number, ChatItem>();
@@ -49,17 +62,38 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
 
           return Array.from(uniqueMap.values());
         });
+        setTimeoutError(false);
       } catch (err) {
+        clearTimeout(timeoutId);
         setError(
           err instanceof Error ? err.message : "Failed to load messages",
         );
+        setTimeoutError(false);
       } finally {
-        setLoading(false);
+        if (!timeoutError) {
+          setLoading(false);
+        }
       }
     }
 
     fetchMessages();
-  }, [roomId, token]);
+    
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [roomId, token]);
+
+  const handleRetry = () => {
+    setLoading(true);
+    setError("");
+    setTimeoutError(false);
+    // This will trigger useEffect to run again
+  };
+
+  
 
   // Handle Live Events
   useEffect(() => {
@@ -163,8 +197,14 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
   if (error) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-red-900/20 text-red-400 p-3 rounded border border-red-900">
+        <div className="bg-red-900/20 text-red-400 p-3 rounded border border-red-900 max-w-md">
           {error}
+          <button
+            onClick={handleRetry}
+            className="mt-2 block w-full py-1 px-2 bg-red-600/20 hover:bg-red-600/30 rounded text-xs transition-colors"
+          >
+            Retry
+          </button>
         </div>
       </div>
     );

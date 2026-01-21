@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ChatLayout from "./components/ChatLayout";
+import AuthLoadingOverlay from "./components/AuthLoadingOverlay";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuth();
@@ -10,7 +11,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isAuthenticating } = useAuth();
+
+  if (isAuthenticating) {
+    return <AuthLoadingOverlay />;
+  }
 
   return (
     <Routes>

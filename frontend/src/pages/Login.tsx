@@ -9,6 +9,8 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [startTime, setStartTime] = useState<number | null>(null);
+  const [showCancel, setShowCancel] = useState(false);
   const navigate = useNavigate();
   const { login: authLogin } = useAuth();
 
@@ -16,16 +18,62 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
+    setStartTime(Date.now());
+    setShowCancel(false);
+
+    // Show cancel option after 10 seconds
+    const cancelTimer = setTimeout(() => {
+      setShowCancel(true);
+    }, 10000);
 
     try {
       const response = await login({ username, password });
+      clearTimeout(cancelTimer);
       await authLogin(response.access_token);
       navigate("/chat");
     } catch (err) {
+      clearTimeout(cancelTimer);
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
+      setStartTime(null);
+      setShowCancel(false);
     }
+  };
+
+  const getLoadingMessage = () => {
+    if (!startTime) return "Signing in...";
+
+    const elapsed = (Date.now() - startTime) / 1000;
+
+    if (elapsed < 5) {
+      return "Signing in...";
+    } else if (elapsed < 10) {
+      return "Server waking up...";
+    } else {
+      return "Still connecting (this can take 2-3 min on free tier)";
+    }
+  };
+
+  const getLoadingSubMessage = () => {
+    if (!startTime) return "";
+
+    const elapsed = (Date.now() - startTime) / 1000;
+
+    if (elapsed < 5) {
+      return "";
+    } else if (elapsed < 10) {
+      return "The server is starting up, this usually takes 30-60 seconds";
+    } else {
+      return "Free tier services can take several minutes to respond when cold";
+    }
+  };
+
+  const handleCancel = () => {
+    setLoading(false);
+    setStartTime(null);
+    setShowCancel(false);
+    setError("Login cancelled. Please try again.");
   };
 
   return (
@@ -99,13 +147,38 @@ export default function Login() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300 transition-colors"
                   >
                     {showPassword ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"
+                        />
                       </svg>
                     ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                        />
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
+                        />
                       </svg>
                     )}
                   </button>
@@ -113,13 +186,40 @@ export default function Login() {
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-zinc-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900"
-            >
-              {loading ? "Signing in..." : "Sign in"}
-            </button>
+            <div className="relative">
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-zinc-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <div className="w-4 h-4 border-2 border-zinc-900/30 border-t-zinc-900 rounded-full animate-spin"></div>
+                    <span>{getLoadingMessage()}</span>
+                  </div>
+                ) : (
+                  "Sign in"
+                )}
+              </button>
+
+              {loading && getLoadingSubMessage() && (
+                <div className="mt-3 text-center">
+                  <p className="text-zinc-400 text-xs">
+                    {getLoadingSubMessage()}
+                  </p>
+                </div>
+              )}
+
+              {showCancel && (
+                <button
+                  type="button"
+                  onClick={handleCancel}
+                  className="mt-2 w-full py-2 px-4 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm rounded transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
 
             <div className="text-center">
               <a
