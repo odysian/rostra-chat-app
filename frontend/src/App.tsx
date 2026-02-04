@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ChatLayout from "./components/ChatLayout";
@@ -35,7 +36,10 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      <Route path="/" element={<Navigate to="/login" />} />
+      <Route
+        path="/"
+        element={isAuthenticated ? <Navigate to="/chat" /> : <LandingPage />}
+      />
     </Routes>
   );
 }
