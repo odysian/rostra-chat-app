@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Info, Loader2 } from "lucide-react";
 import { register } from "../services/api";
 
 export default function Register() {
@@ -30,9 +31,9 @@ export default function Register() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
       {/* Subtle background pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-900/10 via-zinc-950 to-zinc-950" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-amber-900/10 via-zinc-950 to-zinc-950" />
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-[30rem]">
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-cinzel font-bold text-amber-500 tracking-wide mb-2">
@@ -130,12 +131,27 @@ export default function Register() {
               </div>
             </div>
 
+            {/* Cold start disclaimer */}
+            <div className="flex items-start gap-2 p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+              <Info size={16} className="text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-zinc-400 text-xs leading-relaxed">
+                Initial requests may take up to a minute while servers start up.
+              </p>
+            </div>
+
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-zinc-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900"
+              className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-zinc-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900 flex items-center justify-center gap-2"
             >
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Registering...
+                </>
+              ) : (
+                "Create account"
+              )}
             </button>
 
             <div className="text-center">

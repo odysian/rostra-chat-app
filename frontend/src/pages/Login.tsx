@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { Info, Loader2 } from "lucide-react";
 import { login } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -9,8 +10,6 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [startTime, setStartTime] = useState<number | null>(null);
-  const [showCancel, setShowCancel] = useState(false);
   const navigate = useNavigate();
   const { login: authLogin } = useAuth();
 
@@ -18,70 +17,24 @@ export default function Login() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    setStartTime(Date.now());
-    setShowCancel(false);
-
-    // Show cancel option after 10 seconds
-    const cancelTimer = setTimeout(() => {
-      setShowCancel(true);
-    }, 10000);
 
     try {
       const response = await login({ username, password });
-      clearTimeout(cancelTimer);
       await authLogin(response.access_token);
       navigate("/chat");
     } catch (err) {
-      clearTimeout(cancelTimer);
       setError(err instanceof Error ? err.message : "Login failed");
     } finally {
       setLoading(false);
-      setStartTime(null);
-      setShowCancel(false);
     }
-  };
-
-  const getLoadingMessage = () => {
-    if (!startTime) return "Signing in...";
-
-    const elapsed = (Date.now() - startTime) / 1000;
-
-    if (elapsed < 5) {
-      return "Signing in...";
-    } else if (elapsed < 10) {
-      return "Server waking up...";
-    } else {
-      return "Still connecting (this can take 2-3 min on free tier)";
-    }
-  };
-
-  const getLoadingSubMessage = () => {
-    if (!startTime) return "";
-
-    const elapsed = (Date.now() - startTime) / 1000;
-
-    if (elapsed < 5) {
-      return "";
-    } else if (elapsed < 10) {
-      return "The server is starting up, this usually takes 30-60 seconds";
-    } else {
-      return "Free tier services can take several minutes to respond when cold";
-    }
-  };
-
-  const handleCancel = () => {
-    setLoading(false);
-    setStartTime(null);
-    setShowCancel(false);
-    setError("Login cancelled. Please try again.");
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
       {/* Subtle background pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-amber-900/10 via-zinc-950 to-zinc-950" />
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-amber-900/10 via-zinc-950 to-zinc-950" />
 
-      <div className="relative w-full max-w-md">
+      <div className="relative w-full max-w-[30rem]">
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-cinzel font-bold text-amber-500 tracking-wide mb-2">
@@ -186,40 +139,28 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="relative">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-zinc-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900"
-              >
-                {loading ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <div className="w-4 h-4 border-2 border-zinc-900/30 border-t-zinc-900 rounded-full animate-spin"></div>
-                    <span>{getLoadingMessage()}</span>
-                  </div>
-                ) : (
-                  "Sign in"
-                )}
-              </button>
-
-              {loading && getLoadingSubMessage() && (
-                <div className="mt-3 text-center">
-                  <p className="text-zinc-400 text-xs">
-                    {getLoadingSubMessage()}
-                  </p>
-                </div>
-              )}
-
-              {showCancel && (
-                <button
-                  type="button"
-                  onClick={handleCancel}
-                  className="mt-2 w-full py-2 px-4 bg-zinc-700 hover:bg-zinc-600 text-zinc-200 text-sm rounded transition-colors"
-                >
-                  Cancel
-                </button>
-              )}
+            {/* Cold start disclaimer */}
+            <div className="flex items-start gap-2 p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg">
+              <Info size={16} className="text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-zinc-400 text-xs leading-relaxed">
+                Initial requests may take up to a minute while servers start up.
+              </p>
             </div>
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-zinc-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900 flex items-center justify-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 size={18} className="animate-spin" />
+                  Signing in...
+                </>
+              ) : (
+                "Sign in"
+              )}
+            </button>
 
             <div className="text-center">
               <a
