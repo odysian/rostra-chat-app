@@ -1,13 +1,12 @@
 import { useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
-import type { Message, Room, WebSocketMessage } from "../types";
+import type { Message, Room } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { deleteRoom } from "../services/api";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
-  lastMessage: WebSocketMessage | null;
   incomingMessages: Message[];
   onIncomingMessagesProcessed: () => void;
   onToggleUsers: () => void;
@@ -19,7 +18,6 @@ interface MessageAreaProps {
 
 export default function MessageArea({
   selectedRoom,
-  lastMessage,
   incomingMessages,
   onIncomingMessagesProcessed,
   onToggleUsers,
@@ -209,7 +207,6 @@ export default function MessageArea({
       <MessageList
         key={selectedRoom.id}
         roomId={selectedRoom.id}
-        lastMessage={lastMessage}
         incomingMessages={incomingMessages}
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
       />

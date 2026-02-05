@@ -60,7 +60,6 @@ export default function ChatLayout() {
 
   const {
     connected,
-    lastMessage,
     subscribe,
     unsubscribe,
     registerMessageHandler,
@@ -248,7 +247,6 @@ export default function ChatLayout() {
       <div className="flex-1 flex-col flex min-w-0">
         <MessageArea
           selectedRoom={selectedRoom}
-          lastMessage={lastMessage}
           incomingMessages={incomingMessagesForRoom}
           onIncomingMessagesProcessed={handleIncomingMessagesProcessed}
           onToggleUsers={() => setUsersPanelOpen(!usersPanelOpen)}

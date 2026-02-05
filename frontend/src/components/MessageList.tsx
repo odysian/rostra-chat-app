@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getRoomMessages } from "../services/api";
-import type { Message, WebSocketMessage } from "../types";
+import type { Message } from "../types";
 
 // Local types
 interface SystemMessage {
@@ -15,14 +15,12 @@ type ChatItem = Message | SystemMessage;
 
 interface MessageListProps {
   roomId: number;
-  lastMessage: WebSocketMessage | null;
   incomingMessages?: Message[];
   onIncomingMessagesProcessed?: () => void;
 }
 
 export default function MessageList({
   roomId,
-  lastMessage,
   incomingMessages = [],
   onIncomingMessagesProcessed,
 }: MessageListProps) {
