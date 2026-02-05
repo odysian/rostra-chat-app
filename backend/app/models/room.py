@@ -19,3 +19,6 @@ class Room(Base):
     messages = relationship(
         "Message", back_populates="room", cascade="all, delete-orphan"
     )
+    user_rooms = relationship(
+        "UserRoom", back_populates="room", cascade="all, delete-orphan"
+    )

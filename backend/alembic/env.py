@@ -3,7 +3,10 @@ from logging.config import fileConfig
 from alembic import context
 from app.core.config import settings
 from app.core.database import Base, engine
-from sqlalchemy import text  # <-- ADD THIS IMPORT
+
+# Import all models so Alembic can discover them
+from app.models import message, room, user, user_room  # noqa: F401
+from sqlalchemy import text
 
 config = context.config
 

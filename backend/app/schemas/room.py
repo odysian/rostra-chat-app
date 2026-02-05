@@ -16,6 +16,7 @@ class RoomResponse(BaseModel):
     name: str
     created_by: int
     created_at: datetime
+    unread_count: int | None = None  # Optional field for unread count
 
     class Config:
         from_attributes = True

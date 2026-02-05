@@ -18,3 +18,6 @@ class User(Base):
     # Relationships
     messages = relationship("Message", back_populates="user")
     rooms = relationship("Room", back_populates="creator")
+    user_rooms = relationship(
+        "UserRoom", back_populates="user", cascade="all, delete-orphan"
+    )
