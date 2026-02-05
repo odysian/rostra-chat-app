@@ -1,87 +1,70 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { WebSocketService } from "../services/websocket";
-import { useAuth } from "../context/AuthContext";
-import type {
-  WSNewMessage,
-  WSUserJoined,
-  WSUserLeft,
-  WSError,
-  WSSubscribed,
-} from "../types";
+import { useAuth } from "./AuthContext";
+import {
+  WebSocketContext,
+  type WebSocketContextType,
+  type WebSocketMessage,
+  type ConnectionStatus,
+} from "./webSocketContextState";
 
-type WebSocketMessage =
-  | WSNewMessage
-  | WSUserJoined
-  | WSUserLeft
-  | WSError
-  | WSSubscribed;
+export type { WebSocketMessage } from "./webSocketContextState";
 
-export function useWebSocket(options?: {
-  /** Called for every message so none are dropped when several arrive before a re-render */
-  onMessage?: (msg: WebSocketMessage) => void;
-}) {
+export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
   const [connected, setConnected] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<"disconnected" | "connecting" | "reconnecting" | "connected" | "error">("disconnected");
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>("disconnected");
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const wsRef = useRef<WebSocketService | null>(null);
   const currentTokenRef = useRef<string | null>(null);
-  const onMessageRef = useRef(options?.onMessage);
+  const messageHandlerRef = useRef<((msg: WebSocketMessage) => void) | undefined>(undefined);
 
-  useEffect(() => {
-    onMessageRef.current = options?.onMessage;
-  }, [options?.onMessage]);
+  const registerMessageHandler = useCallback(
+    (handler: ((msg: WebSocketMessage) => void) | undefined) => {
+      messageHandlerRef.current = handler;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!token) {
-      // Disconnect when no token
       if (wsRef.current) {
         wsRef.current.disconnect();
         wsRef.current = null;
       }
       currentTokenRef.current = null;
-
-      // Defer state setting to avoid cascading renders
       const statusTimer = setTimeout(() => {
         setConnectionStatus("disconnected");
         setConnected(false);
       }, 0);
-
       return () => clearTimeout(statusTimer);
     }
 
-    // Only recreate service if token changed
     if (currentTokenRef.current === token && wsRef.current) {
       return;
     }
 
-    // Cleanup existing connection
     if (wsRef.current) {
       wsRef.current.disconnect();
     }
 
     currentTokenRef.current = token;
-
-    // Create new service
     const ws = new WebSocketService(token);
     wsRef.current = ws;
 
-    // Register callbacks
     ws.onStatusChange((status) => {
-      setConnectionStatus(status as "disconnected" | "connecting" | "reconnecting" | "connected" | "error");
+      setConnectionStatus(status as ConnectionStatus);
       setConnected(status === "connected");
     });
 
     ws.onMessage((data) => {
       const msg = data as WebSocketMessage;
       setLastMessage(msg);
-      onMessageRef.current?.(msg);
+      messageHandlerRef.current?.(msg);
     });
 
-    // Connect
     ws.connect();
 
-    // Cleanup on unmount or token change
     return () => {
       ws.disconnect();
     };
@@ -99,12 +82,19 @@ export function useWebSocket(options?: {
     wsRef.current?.send({ action: "send_message", room_id: roomId, content });
   }, []);
 
-  return {
+  const value: WebSocketContextType = {
     connected,
     connectionStatus,
     lastMessage,
     subscribe,
     unsubscribe,
-    sendMessage
+    sendMessage,
+    registerMessageHandler,
   };
+
+  return (
+    <WebSocketContext.Provider value={value}>
+      {children}
+    </WebSocketContext.Provider>
+  );
 }

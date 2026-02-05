@@ -8,6 +8,7 @@ from app.core.security import decode_access_token
 from app.crud import message as message_crud
 from app.crud import room as room_crud
 from app.crud import user as user_crud
+from app.crud import user_room as user_room_crud
 from app.models.user import User
 from app.schemas.message import MessageCreate
 from app.websocket.connection_manager import manager
@@ -215,6 +216,9 @@ async def handle_send_message(
     # Save to database first
     message_create = MessageCreate(room_id=msg.room_id, content=msg.content)
     db_message = message_crud.create_message(db, message_create, user.id)
+
+    # Sending a message implies the user has read up to now; keep last_read_at in sync
+    user_room_crud.mark_room_read(db, user.id, msg.room_id)
 
     logger.info(
         f"Message saved: User {user.username} → Room '{room.name}' (ID: {room.id})",

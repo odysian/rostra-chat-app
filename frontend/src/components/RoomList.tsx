@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { getRooms, createRoom } from "../services/api";
@@ -9,6 +9,9 @@ interface RoomListProps {
   onSelectRoom: (room: Room) => void;
   sidebarOpen: boolean;
   refreshTrigger?: number;
+  unreadCounts: Record<number, number>;
+  onUnreadCountsLoaded: (counts: Record<number, number>) => void;
+  onInitialRoomsLoaded?: (rooms: Room[]) => void;
 }
 
 export default function RoomList({
@@ -16,12 +19,16 @@ export default function RoomList({
   onSelectRoom,
   sidebarOpen,
   refreshTrigger,
+  unreadCounts,
+  onUnreadCountsLoaded,
+  onInitialRoomsLoaded,
 }: RoomListProps) {
   const { token } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [timeoutError, setTimeoutError] = useState(false);
+  const hasReportedInitialRoomsRef = useRef(false);
 
   // Room modal state
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -31,7 +38,7 @@ export default function RoomList({
 
   useEffect(() => {
     let timeoutId: number;
-    
+
     async function fetchRooms() {
       if (!token) return;
 
@@ -48,9 +55,18 @@ export default function RoomList({
       }, 5000);
 
       try {
-        const fetchedRooms = await getRooms(token);
+        const fetchedRooms = await getRooms(token, { includeUnread: true });
         clearTimeout(timeoutId);
         setRooms(fetchedRooms);
+        const counts: Record<number, number> = {};
+        fetchedRooms.forEach((r) => {
+          if (r.unread_count != null) counts[r.id] = r.unread_count;
+        });
+        onUnreadCountsLoaded(counts);
+        if (!hasReportedInitialRoomsRef.current && onInitialRoomsLoaded) {
+          hasReportedInitialRoomsRef.current = true;
+          onInitialRoomsLoaded(fetchedRooms);
+        }
         setTimeoutError(false);
       } catch (err) {
         clearTimeout(timeoutId);
@@ -62,9 +78,9 @@ export default function RoomList({
         }
       }
     }
-    
+
     fetchRooms();
-    
+
     return () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -81,7 +97,7 @@ export default function RoomList({
     // This will be handled by parent component
   };
 
-  
+
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -149,26 +165,35 @@ export default function RoomList({
         ) : (
           rooms.map((room) => {
             const isSelected = selectedRoom?.id === room.id;
+            const unreadCount = unreadCounts[room.id] ?? 0;
+            const hasUnread = unreadCount > 0 && !isSelected;
             return (
               <button
                 key={room.id}
                 onClick={() => onSelectRoom(room)}
-                className={`w-full text-left px-4 py-3 hover:bg-zinc-800 transition-colors border-l-4 ${
+                className={`w-full text-left px-4 py-3 hover:bg-zinc-800 transition-colors border-l-4 flex items-center justify-between gap-2 ${
                   isSelected
                     ? "bg-amber-500/10 border-l-amber-500"
                     : "border-l-transparent"
-                }`}
+                } ${hasUnread ? "bg-amber-500/5" : ""}`}
               >
                 {sidebarOpen ? (
-                  <div
-                    className={`font-medium ${
-                      isSelected ? "text-amber-500" : "text-zinc-100"
-                    }`}
-                  >
-                    {room.name}
-                  </div>
+                  <>
+                    <div
+                      className={`font-medium truncate min-w-0 ${
+                        isSelected ? "text-amber-500" : "text-zinc-100"
+                      } ${hasUnread ? "font-semibold" : ""}`}
+                    >
+                      {room.name}
+                    </div>
+                    {hasUnread && (
+                      <span className="shrink-0 bg-amber-500 text-zinc-900 rounded-full min-w-5 h-5 px-1.5 flex items-center justify-center text-xs font-bold">
+                        {unreadCount > 99 ? "99+" : unreadCount}
+                      </span>
+                    )}
+                  </>
                 ) : (
-                  <div className="flex justify-center">
+                  <div className="flex justify-center w-full relative">
                     <span
                       className={`text-sm font-medium ${
                         isSelected ? "text-amber-500" : "text-zinc-400"
@@ -176,6 +201,9 @@ export default function RoomList({
                     >
                       {room.name.charAt(0).toUpperCase()}
                     </span>
+                    {hasUnread && (
+                      <span className="absolute top-0 right-0 w-2 h-2 rounded-full bg-amber-500" />
+                    )}
                   </div>
                 )}
               </button>

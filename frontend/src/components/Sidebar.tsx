@@ -2,17 +2,15 @@ import RoomList from "./RoomList";
 import type { Room } from "../types";
 
 interface SidebarProps {
-  // Visual state
   isOpen: boolean;
   onToggle: () => void;
-
-  // Room management
   selectedRoom: Room | null;
   onSelectRoom: (room: Room) => void;
   refreshTrigger: number;
-
-  // Mobile responsiveness
-  visible: boolean; // show/hide based on mobile view
+  unreadCounts: Record<number, number>;
+  onUnreadCountsLoaded: (counts: Record<number, number>) => void;
+  onInitialRoomsLoaded: (rooms: Room[]) => void;
+  visible: boolean;
 }
 
 /**
@@ -30,6 +28,9 @@ export default function Sidebar({
   selectedRoom,
   onSelectRoom,
   refreshTrigger,
+  unreadCounts,
+  onUnreadCountsLoaded,
+  onInitialRoomsLoaded,
   visible,
 }: SidebarProps) {
   if (!visible) return null;
@@ -99,6 +100,9 @@ export default function Sidebar({
           onSelectRoom={onSelectRoom}
           sidebarOpen={isOpen}
           refreshTrigger={refreshTrigger}
+          unreadCounts={unreadCounts}
+          onUnreadCountsLoaded={onUnreadCountsLoaded}
+          onInitialRoomsLoaded={onInitialRoomsLoaded}
         />
       </div>
     </>

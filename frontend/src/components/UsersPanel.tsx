@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { User } from "../types";
-import { useWebSocket } from "../hooks/useWebSocket";
+import { useWebSocketContext } from "../context/useWebSocketContext";
 
 interface OnlineUser {
   id: number;
@@ -45,7 +45,7 @@ export default function UsersPanel({
   // Internal UI state - only affects this component
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [onlineUsersExpanded, setOnlineUsersExpanded] = useState(true);
-  const { connectionStatus } = useWebSocket();
+  const { connectionStatus } = useWebSocketContext();
 
   // Helper to get user initials for avatar
   const getUserInitials = (username: string) => {

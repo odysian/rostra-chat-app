@@ -28,10 +28,10 @@ const RETRY_CONFIG = {
 // Determine if an error should trigger a retry
 function shouldRetry(error: Error, attempt: number): boolean {
   if (attempt >= RETRY_CONFIG.maxRetries) return false;
-  
+
   // Don't retry on 401 auth errors - these should trigger logout
   if (error.message.includes('401') || error.message.includes('Unauthorized')) return false;
-  
+
   // Retry on network errors, timeouts, and 5xx server errors
   return (
     error.message.includes('Failed to fetch') ||
@@ -86,7 +86,7 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
         if (response.status === 401 && onUnauthorized) {
           onUnauthorized();
         }
-        
+
         // Get error details
         let errorMessage = "API request failed";
         try {
@@ -95,16 +95,16 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
         } catch {
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
-        
+
         const error = new Error(errorMessage);
-        
+
         // Check if we should retry
         if (!shouldRetry(error, attempt)) {
           throw error;
         }
-        
+
         lastError = error;
-        
+
         // Wait before retry
         if (attempt < RETRY_CONFIG.maxRetries) {
           await new Promise(resolve => setTimeout(resolve, getDelay(attempt)));
@@ -124,7 +124,7 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
           throw timeoutError;
         }
         lastError = timeoutError;
-        
+
         // Wait before retry
         if (attempt < RETRY_CONFIG.maxRetries) {
           await new Promise(resolve => setTimeout(resolve, getDelay(attempt)));
@@ -135,7 +135,7 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
           throw error;
         }
         lastError = error;
-        
+
         // Wait before retry
         if (attempt < RETRY_CONFIG.maxRetries) {
           await new Promise(resolve => setTimeout(resolve, getDelay(attempt)));
@@ -147,7 +147,7 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
           throw unknownError;
         }
         lastError = unknownError;
-        
+
         // Wait before retry
         if (attempt < RETRY_CONFIG.maxRetries) {
           await new Promise(resolve => setTimeout(resolve, getDelay(attempt)));
@@ -184,8 +184,22 @@ export async function getCurrentUser(token: string): Promise<User> {
 }
 
 // Room API calls
-export async function getRooms(token: string): Promise<Room[]> {
-  return apiCall<Room[]>("/rooms", {
+export async function getRooms(
+  token: string,
+  options?: { includeUnread?: boolean }
+): Promise<Room[]> {
+  const includeUnread = options?.includeUnread ?? false;
+  const query = includeUnread ? "?include_unread=true" : "";
+  return apiCall<Room[]>(`/rooms${query}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function markRoomRead(roomId: number, token: string): Promise<void> {
+  return apiCall<void>(`/rooms/${roomId}/read`, {
+    method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`,
     },

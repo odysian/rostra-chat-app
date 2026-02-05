@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { WebSocketProvider } from "./context/WebSocketContext";
 import LandingPage from "./pages/LandingPage";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
@@ -32,7 +33,9 @@ function AppRoutes() {
         path="/chat"
         element={
           <ProtectedRoute>
-            <ChatLayout />
+            <WebSocketProvider>
+              <ChatLayout />
+            </WebSocketProvider>
           </ProtectedRoute>
         }
       />

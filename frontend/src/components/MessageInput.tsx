@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { useWebSocket } from "../hooks/useWebSocket";
+import { useWebSocketContext } from "../context/useWebSocketContext";
 
 interface MessageInputProps {
   roomId: number;
@@ -8,7 +8,7 @@ interface MessageInputProps {
 
 export default function MessageInput({ roomId }: MessageInputProps) {
   const { token } = useAuth();
-  const { sendMessage: wsSendMessage } = useWebSocket();
+  const { sendMessage: wsSendMessage } = useWebSocketContext();
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
 

@@ -16,9 +16,16 @@ type ChatItem = Message | SystemMessage;
 interface MessageListProps {
   roomId: number;
   lastMessage: WebSocketMessage | null;
+  incomingMessages?: Message[];
+  onIncomingMessagesProcessed?: () => void;
 }
 
-export default function MessageList({ roomId, lastMessage }: MessageListProps) {
+export default function MessageList({
+  roomId,
+  lastMessage,
+  incomingMessages = [],
+  onIncomingMessagesProcessed,
+}: MessageListProps) {
   const { token } = useAuth();
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +36,7 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
   // Fetch History & Deduplicate
   useEffect(() => {
     let timeoutId: number;
-    
+
     async function fetchMessages() {
       if (!token) return;
 
@@ -77,7 +84,7 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
     }
 
     fetchMessages();
-    
+
     return () => {
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -93,49 +100,21 @@ export default function MessageList({ roomId, lastMessage }: MessageListProps) {
     // This will trigger useEffect to run again
   };
 
-  
 
-  // Handle Live Events
+
+  // Append incoming messages (delivered per-message so none are dropped when many arrive quickly)
   useEffect(() => {
-    if (!lastMessage) return;
+    if (incomingMessages.length === 0) return;
+    setMessages((prev) => {
+      const ids = new Set(prev.map((item) => item.id));
+      const toAdd = incomingMessages.filter((m) => !ids.has(m.id));
+      if (toAdd.length === 0) return prev;
+      return [...prev, ...toAdd];
+    });
+    onIncomingMessagesProcessed?.();
+  }, [incomingMessages, onIncomingMessagesProcessed]);
 
-    const msgRoomId =
-      lastMessage.type === "new_message"
-        ? lastMessage.message.room_id
-        : "room_id" in lastMessage
-          ? lastMessage.room_id
-          : null;
-
-    if (msgRoomId !== roomId) return;
-
-    let newItem: ChatItem | null = null;
-
-    if (lastMessage.type === "new_message") {
-      newItem = lastMessage.message;
-    } else if (lastMessage.type === "user_joined") {
-      newItem = {
-        id: `sys-join-${Date.now()}-${Math.random()}`,
-        type: "system",
-        content: `${lastMessage.user.username} joined the room.`,
-        timestamp: Date.now(),
-      };
-    } else if (lastMessage.type === "user_left") {
-      newItem = {
-        id: `sys-left-${Date.now()}-${Math.random()}`,
-        type: "system",
-        content: `${lastMessage.user.username} left the room.`,
-        timestamp: Date.now(),
-      };
-    }
-
-    if (newItem) {
-      setMessages((prev) => {
-        const exists = prev.some((item) => item.id === newItem!.id);
-        if (exists) return prev;
-        return [...prev, newItem!];
-      });
-    }
-  }, [lastMessage, roomId]);
+  // user_joined / user_left are not shown as chat messages; ChatLayout uses them only for the online users sidebar
 
   // Auto-scroll
   useEffect(() => {

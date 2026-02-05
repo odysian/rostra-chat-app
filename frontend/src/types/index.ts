@@ -33,6 +33,8 @@ export interface Room {
   name: string;
   created_by: number;
   created_at: string;
+  /** Present when fetched with include_unread=true */
+  unread_count?: number;
 }
 
 // Message types
