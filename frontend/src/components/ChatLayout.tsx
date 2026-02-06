@@ -243,8 +243,8 @@ export default function ChatLayout() {
         visible={true}
       />
 
-      {/* Center panel - Messages (always visible, sidebar overlays on mobile) */}
-      <div className="flex-1 flex-col flex min-w-0">
+      {/* Center panel - Messages (always visible, sidebar overlays on mobile). min-w-0 + overflow-hidden prevent layout break on narrow screens. */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         <MessageArea
           selectedRoom={selectedRoom}
           incomingMessages={incomingMessagesForRoom}

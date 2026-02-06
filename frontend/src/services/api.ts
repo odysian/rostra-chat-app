@@ -225,6 +225,31 @@ export async function deleteRoom(roomId: number, token: string): Promise<void> {
   });
 }
 
+// Get all available rooms for discovery (public rooms)
+export async function discoverRooms(token: string): Promise<Room[]> {
+  return apiCall<Room[]>("/rooms/discover", {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+// Join a room
+export async function joinRoom(
+  roomId: number,
+  token: string
+): Promise<{ message: string; room_id: number }> {
+  return apiCall<{ message: string; room_id: number }>(
+    `/rooms/${roomId}/join`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
 // Message API calls
 export async function getRoomMessages(
   roomId: number,

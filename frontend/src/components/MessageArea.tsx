@@ -70,14 +70,14 @@ export default function MessageArea({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-zinc-950 min-h-0">
-      {/* Room Header */}
-      <div className="h-14 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between px-4">
-        <div className="flex items-center gap-3">
+    <div className="flex-1 flex flex-col bg-zinc-950 min-h-0 min-w-0 overflow-hidden">
+      {/* Room Header - room name truncates so long names don't break layout */}
+      <div className="h-14 shrink-0 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between gap-2 px-3 sm:px-4 min-w-0">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
           {/* Back button - mobile only */}
           <button
             onClick={onBackToRooms}
-            className="text-zinc-400 hover:text-amber-500 transition-colors md:hidden"
+            className="shrink-0 text-zinc-400 hover:text-amber-500 transition-colors md:hidden"
             title="Back to rooms"
           >
             <svg
@@ -95,12 +95,14 @@ export default function MessageArea({
             </svg>
           </button>
 
-          <h2 className="text-lg font-semibold text-zinc-100">
-            # {selectedRoom.name}
-          </h2>
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <h2 className="text-lg font-semibold text-zinc-100 truncate" title={selectedRoom.name}>
+              # {selectedRoom.name}
+            </h2>
+          </div>
 
           {/* Room Options Menu - Always show the button */}
-          <div className="relative">
+          <div className="relative shrink-0">
             <button
               onClick={() => setShowRoomMenu(!showRoomMenu)}
               className="text-zinc-400 hover:text-amber-500 transition-colors p-1"
@@ -120,7 +122,7 @@ export default function MessageArea({
                   onClick={() => setShowRoomMenu(false)}
                 />
                 {/* Menu */}
-                <div className="absolute left-0 mt-2 w-48 bg-zinc-800 rounded-lg shadow-lg border border-zinc-700 py-1 z-20">
+                <div className="absolute right-0 mt-2 w-48 bg-zinc-800 rounded-lg shadow-lg border border-zinc-700 py-1 z-20">
                   {/* Leave Room - always visible */}
                   <button
                     onClick={() => {
@@ -156,7 +158,7 @@ export default function MessageArea({
 
         <button
           onClick={onToggleUsers}
-          className="text-zinc-400 hover:text-amber-500 transition-colors"
+          className="shrink-0 text-zinc-400 hover:text-amber-500 transition-colors"
           title="Toggle users panel"
         >
           <svg

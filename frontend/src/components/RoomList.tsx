@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { getRooms, createRoom } from "../services/api";
+import { RoomDiscoveryModal } from "./RoomDiscoveryModal";
+import { Compass } from "lucide-react";
 import type { Room } from "../types";
 
 interface RoomListProps {
@@ -23,7 +25,7 @@ export default function RoomList({
   onUnreadCountsLoaded,
   onInitialRoomsLoaded,
 }: RoomListProps) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -37,6 +39,18 @@ export default function RoomList({
   const [newRoomName, setNewRoomName] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
+
+  // Discovery modal state
+  const [showDiscovery, setShowDiscovery] = useState(false);
+  const prevSidebarOpenRef = useRef(sidebarOpen);
+
+  // When sidebar transitions from open to closed (e.g. user taps message area on mobile), close discovery modal to avoid stray content. Do not close when sidebar is already collapsed and user opens discovery from the compass.
+  useEffect(() => {
+    if (prevSidebarOpenRef.current && !sidebarOpen && showDiscovery) {
+      setShowDiscovery(false);
+    }
+    prevSidebarOpenRef.current = sidebarOpen;
+  }, [sidebarOpen, showDiscovery]);
 
   useEffect(() => {
     let timeoutId: number;
@@ -97,6 +111,22 @@ export default function RoomList({
     setTimeoutError(false);
     // Bump local retry counter so the effect above refetches rooms
     setRetryCount((prev) => prev + 1);
+  };
+
+  // Function to reload rooms (used by discovery modal)
+  const loadRooms = async () => {
+    if (!token) return;
+    try {
+      const fetchedRooms = await getRooms(token, { includeUnread: true });
+      setRooms(fetchedRooms);
+      const counts: Record<number, number> = {};
+      fetchedRooms.forEach((r) => {
+        if (r.unread_count != null) counts[r.id] = r.unread_count;
+      });
+      onUnreadCountsLoaded(counts);
+    } catch (err) {
+      console.error('Error loading rooms:', err);
+    }
   };
 
 
@@ -214,15 +244,45 @@ export default function RoomList({
         )}
       </div>
 
-      {/* Create Room Button - ALWAYS RENDERS */}
-      <div className="h-16 border-t border-zinc-800 flex items-center px-3">
-        <button
-          onClick={() => setShowCreateModal(true)}
-          className="w-full py-2 bg-amber-500 text-zinc-900 font-medium rounded hover:bg-amber-600 transition-colors flex items-center justify-center gap-2"
-          title="Create new room"
-        >
-          {sidebarOpen ? (
-            <>
+      {/* Browse Rooms and Create Room Buttons - ALWAYS RENDERS */}
+      <div className="border-t border-zinc-800">
+        {/* Browse Rooms Button */}
+        <div className="px-3 py-2">
+          <button
+            onClick={() => setShowDiscovery(true)}
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:text-amber-500 hover:bg-zinc-800 rounded transition-colors"
+            title="Browse public rooms"
+          >
+            <Compass className="w-4 h-4" />
+            {sidebarOpen && <span>Browse Rooms</span>}
+          </button>
+        </div>
+
+        {/* Create Room Button */}
+        <div className="px-3 pb-2">
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="w-full py-2 bg-amber-500 text-zinc-900 font-medium rounded hover:bg-amber-600 transition-colors flex items-center justify-center gap-2"
+            title="Create new room"
+          >
+            {sidebarOpen ? (
+              <>
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 4v16m8-8H4"
+                  />
+                </svg>
+                <span>Create Room</span>
+              </>
+            ) : (
               <svg
                 className="w-5 h-5"
                 fill="none"
@@ -236,24 +296,9 @@ export default function RoomList({
                   d="M12 4v16m8-8H4"
                 />
               </svg>
-              <span>Create Room</span>
-            </>
-          ) : (
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-          )}
-        </button>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Create Room Modal - rendered via portal to escape sidebar constraints */}
@@ -318,6 +363,25 @@ export default function RoomList({
               </form>
             </div>
           </div>,
+          document.body
+        )}
+
+      {/* Room Discovery Modal - portal to body so it stays on top and backdrop click works on mobile */}
+      {showDiscovery &&
+        token &&
+        user &&
+        createPortal(
+          <RoomDiscoveryModal
+            isOpen={showDiscovery}
+            onClose={() => setShowDiscovery(false)}
+            onRoomJoined={() => {
+              loadRooms();
+              setShowDiscovery(false);
+            }}
+            currentUserId={user.id}
+            joinedRoomIds={new Set(rooms.map((r) => r.id))}
+            token={token}
+          />,
           document.body
         )}
     </>
