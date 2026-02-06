@@ -27,9 +27,7 @@ app.add_middleware(
 )
 
 
-async def rate_limit_exceeded_handler(
-    request: Request, exc: Exception
-) -> Response:
+async def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
     """
     Adapter so SlowAPI's handler (expects RateLimitExceeded)
     matches FastAPI's ExceptionHandler type (expects Exception).

@@ -1,12 +1,20 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class RoomCreate(BaseModel):
     """Schema for creating a room"""
 
     name: str = Field(min_length=3, max_length=50)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def trim_whitespace(cls, v: str) -> str:
+        """Trim whitespace from room name before validation."""
+        if isinstance(v, str):
+            return v.strip()
+        return v
 
 
 class RoomResponse(BaseModel):

@@ -10,8 +10,10 @@ def get_user_by_username(db: Session, username: str):
 
 
 def get_user_by_email(db: Session, email: str):
-    """Get a user by email"""
-    return db.query(User).filter(User.email == email).first()
+    """Get a user by email (case-insensitive lookup)"""
+    # Normalize email to lowercase for consistent lookups
+    normalized_email = email.lower().strip()
+    return db.query(User).filter(User.email == normalized_email).first()
 
 
 def get_user_by_id(db: Session, user_id: int):
@@ -31,8 +33,10 @@ def create_user(db: Session, user: UserCreate):
         Created User model instance
     """
     hashed_password = get_password_hash(user.password)
+    # Normalize email to lowercase before storing (per test plan requirement)
+    normalized_email = user.email.lower().strip()
     db_user = User(
-        username=user.username, email=user.email, hashed_password=hashed_password
+        username=user.username, email=normalized_email, hashed_password=hashed_password
     )
     db.add(db_user)
     db.commit()

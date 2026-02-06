@@ -31,7 +31,7 @@ def register(request: Request, user: UserCreate, db: Session = Depends(get_db)):
             detail="Username already registered",
         )
 
-    # Check if email already exists
+    # Check if email already exists (email will be normalized in get_user_by_email)
     db_user = user_crud.get_user_by_email(db, user.email)
     if db_user:
         raise HTTPException(

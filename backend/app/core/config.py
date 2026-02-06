@@ -24,6 +24,8 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        # Allow extra env vars (e.g. TEST_DATABASE_URL for tests) without failing
+        extra = "ignore"
 
 
-settings = Settings() # type: ignore
+settings = Settings()  # type: ignore

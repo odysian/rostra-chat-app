@@ -168,6 +168,16 @@ When a task is clear and scoped (fix a bug, add a field, write one test):
 - **Environment variables:** Always use `.env.example` as the template. Never hardcode connection strings, API keys, or secrets.
 - **Database:** Alembic for all migrations. `alembic upgrade head` must succeed cleanly on a fresh database.
 
+## Testing Rules
+- Never write a test without a corresponding entry in TESTPLAN.md
+- Every test function must have a descriptive name that explains
+  what it verifies without reading the test body
+- Every test must include at least one assertion on the response
+  body, not just status codes
+- Do not mock the database — use a real test database with
+  transactions that roll back
+- Do not write tests that only verify the happy path
+
 ---
 
 _This file is a living document. When the agent does something wrong, add a line to "Common Mistakes to Avoid." When you find a better verification command, update the Verification section. The goal: the agent should never make the same mistake twice._
