@@ -12,6 +12,25 @@ from sqlalchemy.orm import Session
 router = APIRouter()
 
 
+@router.get("/discover", response_model=List[RoomResponse])
+def discover_rooms(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Get all available public rooms for discovery/browsing.
+
+    Returns all rooms regardless of membership status.
+    Use this endpoint for a "Browse Rooms" or "Discover Rooms" feature
+    where users can see all public rooms and choose which to join.
+
+    Returns:
+        List of all rooms in the system
+    """
+    rooms = room_crud.get_all_rooms(db)
+    return rooms
+
+
 @router.get("", response_model=List[RoomResponse])
 def get_rooms(
     include_unread: bool = Query(
@@ -109,12 +128,13 @@ def mark_room_read(
     Mark a room as read for the current user.
 
     Updates last_read_at to current timestamp.
-    Creates user_room record if it doesn't exist (first time viewing room).
+    Requires user to be a member of the room.
 
     Requires authentication.
 
     Returns:
         200: Success with last_read_at timestamp
+        403: User is not a member of this room
         404: Room not found
     """
     # Verify room exists (fail fast with better error message)
@@ -124,10 +144,17 @@ def mark_room_read(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
         )
 
-    # Mark room as read (creates or updates user_room record)
-    user_room = user_room_crud.mark_room_read(
-        db, current_user.id, room_id  # type: ignore[arg-type]
-    )
+    # Mark room as read (only updates existing membership)
+    try:
+        user_room = user_room_crud.mark_room_read(
+            db, current_user.id, room_id  # type: ignore[arg-type]
+        )
+    except ValueError as e:
+        # User is not a member
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this room. Join the room first."
+        )
 
     # Extract last_read_at to avoid type checker issues with SQLAlchemy Column types
     last_read_at = user_room.last_read_at  # type: ignore[assignment]
@@ -211,5 +238,4 @@ def join_room(
     db.add(membership)
     db.commit()
 
-    return {"message": "Successfully joined room", "room_id": room_id}
     return {"message": "Successfully joined room", "room_id": room_id}

@@ -23,16 +23,17 @@ def get_all_rooms(db: Session):
 
 def get_all_rooms_with_unread(db: Session, user_id: int):
     """
-    Get all rooms with unread message counts in a single optimized query.
+    Get rooms the user is a MEMBER of, with unread message counts.
 
-    Uses LEFT JOINs and CASE to calculate unread count per room without N+1 queries.
+    Uses INNER JOIN on UserRoom to only return rooms the user has joined.
+    Uses LEFT JOIN on Message to calculate unread counts without N+1 queries.
 
     Args:
         db: Database session
         user_id: Current user's ID
 
     Returns:
-        List of tuples: (Room, unread_count)
+        List of tuples: (Room, unread_count) for rooms user is a member of
     """
 
     # Build the query
@@ -50,8 +51,8 @@ def get_all_rooms_with_unread(db: Session, user_id: int):
                 )
             ).label("unread_count"),
         )
-        # LEFT JOIN user_room to get user's read state per room
-        .outerjoin(
+        # INNER JOIN user_room - ONLY return rooms user is a member of
+        .join(
             UserRoom, (Room.id == UserRoom.room_id) & (UserRoom.user_id == user_id)
         )
         # LEFT JOIN messages to count unread messages

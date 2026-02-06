@@ -17,8 +17,8 @@ def mark_room_read(db: Session, user_id: int, room_id: int):
     """
     Mark a room as read for a user.
 
-    Creates user_room record if it doesn't exist (first time viewing room),
-    or updates last_read_at if record exists.
+    IMPORTANT: Only updates existing memberships. Does NOT create membership
+    if it doesn't exist. User must join room first via POST /api/rooms/:id/join.
 
     Args:
         db: Database session
@@ -26,29 +26,27 @@ def mark_room_read(db: Session, user_id: int, room_id: int):
         room_id: ID of the room
 
     Returns:
-        UserRoom model instance (created or updated)
+        UserRoom model instance (updated)
+
+    Raises:
+        ValueError: If user is not a member of the room
     """
     now = datetime.now(timezone.utc)
 
-    # Try to get existing record
+    # Get existing record
     user_room = get_user_room(db, user_id, room_id)
 
     if user_room:
         # Update existing record
         user_room.last_read_at = now  # type: ignore[assignment]
+        db.commit()
+        db.refresh(user_room)
+        return user_room
     else:
-        # Create new record (first time user opens this room)
-        user_room = UserRoom(
-            user_id=user_id,
-            room_id=room_id,
-            last_read_at=now,
-            joined_at=now,
+        # No membership found - user must join first
+        raise ValueError(
+            f"User {user_id} is not a member of room {room_id}. Join the room first."
         )
-        db.add(user_room)
-
-    db.commit()
-    db.refresh(user_room)
-    return user_room
 
 
 def get_unread_count(db: Session, user_id: int, room_id: int) -> int:
