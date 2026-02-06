@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Users } from 'lucide-react';
 import { discoverRooms, joinRoom } from '../services/api';
 import type { Room } from '../types';
@@ -24,12 +24,69 @@ export function RoomDiscoveryModal({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [joiningRoomId, setJoiningRoomId] = useState<number | null>(null);
+  /** Tracks room IDs we've optimistically marked as joined before server confirms */
+  const [optimisticJoinedIds, setOptimisticJoinedIds] = useState<Set<number>>(
+    () => new Set()
+  );
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (isOpen) {
       loadRooms();
     }
   }, [isOpen, token]);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+
+    if (isOpen) {
+      window.addEventListener('keydown', handleEscape);
+      return () => window.removeEventListener('keydown', handleEscape);
+    }
+  }, [isOpen, onClose]);
+
+  // Focus trap - keep focus inside modal
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const modal = modalRef.current;
+    if (!modal) return;
+
+    const focusableElements = modal.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+
+    if (focusableElements.length === 0) return;
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    firstElement.focus();
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab') return;
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement.focus();
+        }
+      }
+    };
+
+    modal.addEventListener('keydown', handleTab);
+    return () => modal.removeEventListener('keydown', handleTab);
+  }, [isOpen]);
 
   const loadRooms = async () => {
     setLoading(true);
@@ -54,15 +111,23 @@ export function RoomDiscoveryModal({
   const handleJoinRoom = async (roomId: number) => {
     setJoiningRoomId(roomId);
     setError(null);
+
+    // Optimistic update - show "Joined ✓" immediately
+    setOptimisticJoinedIds((prev) => new Set(prev).add(roomId));
+
     try {
       await joinRoom(roomId, token);
-      // Notify parent to refresh room list
       onRoomJoined();
-      // Mark as joined locally
-      joinedRoomIds.add(roomId);
-      setRooms([...rooms]); // Trigger re-render
-    } catch (err: any) {
-      if (err.message?.includes('409') || err.message?.includes('Already a member')) {
+    } catch (err: unknown) {
+      // Rollback optimistic update on error
+      setOptimisticJoinedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(roomId);
+        return next;
+      });
+
+      const message = err instanceof Error ? err.message : '';
+      if (message.includes('409') || message.includes('Already a member')) {
         setError('Already a member of this room');
       } else {
         setError('Failed to join room');
@@ -84,6 +149,7 @@ export function RoomDiscoveryModal({
       aria-labelledby="discovery-modal-title"
     >
       <div
+        ref={modalRef}
         className="bg-zinc-900 rounded-lg w-full max-w-2xl max-h-[85vh] flex flex-col shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -117,10 +183,11 @@ export function RoomDiscoveryModal({
             </div>
           )}
 
-          {!loading && rooms.length > 0 && (
+              {!loading && rooms.length > 0 && (
             <ul className="space-y-2" role="list">
               {rooms.map((room) => {
-                const isJoined = joinedRoomIds.has(room.id);
+                const isJoined =
+                  joinedRoomIds.has(room.id) || optimisticJoinedIds.has(room.id);
                 const isCreator = room.created_by === currentUserId;
 
                 return (

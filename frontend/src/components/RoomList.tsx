@@ -376,7 +376,7 @@ export default function RoomList({
             onClose={() => setShowDiscovery(false)}
             onRoomJoined={() => {
               loadRooms();
-              setShowDiscovery(false);
+              // setShowDiscovery(false);
             }}
             currentUserId={user.id}
             joinedRoomIds={new Set(rooms.map((r) => r.id))}

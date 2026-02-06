@@ -21,6 +21,28 @@ def get_all_rooms(db: Session):
     return db.query(Room).all()
 
 
+def get_rooms_for_user(db: Session, user_id: int):
+    """
+    Get rooms the user is a member of (without unread counts).
+
+    Returns only rooms where the user has an active membership.
+    This is used by GET /api/rooms when include_unread=false.
+
+    Args:
+        db: Database session
+        user_id: Current user's ID
+
+    Returns:
+        List of Room objects the user is a member of
+    """
+    return (
+        db.query(Room)
+        .join(UserRoom, Room.id == UserRoom.room_id)
+        .filter(UserRoom.user_id == user_id)
+        .all()
+    )
+
+
 def get_all_rooms_with_unread(db: Session, user_id: int):
     """
     Get rooms the user is a MEMBER of, with unread message counts.
@@ -52,9 +74,7 @@ def get_all_rooms_with_unread(db: Session, user_id: int):
             ).label("unread_count"),
         )
         # INNER JOIN user_room - ONLY return rooms user is a member of
-        .join(
-            UserRoom, (Room.id == UserRoom.room_id) & (UserRoom.user_id == user_id)
-        )
+        .join(UserRoom, (Room.id == UserRoom.room_id) & (UserRoom.user_id == user_id))
         # LEFT JOIN messages to count unread messages
         .outerjoin(Message, Message.room_id == Room.id)
         # Group by room to aggregate unread counts
@@ -69,6 +89,8 @@ def create_room(db: Session, room: RoomCreate, user_id: int):
     Create a new room.
 
     Automatically adds the creator as a member of the room (creates UserRoom record).
+    Uses a single transaction to ensure atomicity - both room and membership are
+    created together or not at all.
 
     Args:
         db: Database session
@@ -78,23 +100,26 @@ def create_room(db: Session, room: RoomCreate, user_id: int):
     Returns:
         Created Room model instance
     """
-
-    db_room = Room(name=room.name, created_by=user_id)
-
-    db.add(db_room)
-    db.commit()
-    db.refresh(db_room)
-
-    # Automatically add creator as room member
     from datetime import datetime, timezone
 
+    # Create room
+    db_room = Room(name=room.name, created_by=user_id)
+    db.add(db_room)
+
+    # Flush to get room.id without committing
+    db.flush()
+
+    # Add creator as room member (uses the flushed room.id)
     user_room = UserRoom(
         user_id=user_id,
         room_id=db_room.id,
         joined_at=datetime.now(timezone.utc),
     )
     db.add(user_room)
+
+    # Single commit for both operations (atomic)
     db.commit()
+    db.refresh(db_room)
 
     return db_room
 

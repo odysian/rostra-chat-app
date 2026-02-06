@@ -2,18 +2,22 @@ from typing import List
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.logging import logger
+from app.core.rate_limit import limiter
 from app.crud import room as room_crud
 from app.crud import user_room as user_room_crud
 from app.models.user import User
 from app.schemas.room import RoomCreate, RoomResponse
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 router = APIRouter()
 
 
 @router.get("/discover", response_model=List[RoomResponse])
+@limiter.limit("30/minute")
 def discover_rooms(
+    request: Request,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -23,6 +27,8 @@ def discover_rooms(
     Returns all rooms regardless of membership status.
     Use this endpoint for a "Browse Rooms" or "Discover Rooms" feature
     where users can see all public rooms and choose which to join.
+
+    Rate limited to 30 requests per minute to prevent abuse.
 
     Returns:
         List of all rooms in the system
@@ -40,18 +46,20 @@ def get_rooms(
     db: Session = Depends(get_db),
 ):
     """
-    Get all available rooms.
+    Get rooms the current user is a member of.
 
     If include_unread=true, returns rooms with unread_count field.
     Uses optimized single-query approach (no N+1 problem).
+
+    Both paths filter by membership - only returns rooms user has joined.
     """
 
     if not include_unread:
-        # Simple case: just return rooms
-        rooms = room_crud.get_all_rooms(db)
+        # Return only rooms user is a member of (no unread counts)
+        rooms = room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
         return rooms
 
-    # Optimized case: single query for rooms + unread counts
+    # Optimized case: single query for rooms + unread counts (already filtered by membership)
     rooms_with_unread = room_crud.get_all_rooms_with_unread(db, current_user.id)  # type: ignore
 
     # Format response
@@ -153,7 +161,7 @@ def mark_room_read(
         # User is not a member
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Not a member of this room. Join the room first."
+            detail="Not a member of this room. Join the room first.",
         )
 
     # Extract last_read_at to avoid type checker issues with SQLAlchemy Column types
@@ -196,7 +204,9 @@ def delete_room(
 
 
 @router.post("/{room_id}/join", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
 def join_room(
+    request: Request,
     room_id: int,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -207,6 +217,7 @@ def join_room(
     - Anyone can join any room (public rooms)
     - Returns 404 if room doesn't exist
     - Returns 409 if user is already a member
+    - Rate limited to 10 joins per minute to prevent spam
     """
     # Check if room exists
     room = room_crud.get_room_by_id(db, room_id)
@@ -237,5 +248,15 @@ def join_room(
     )
     db.add(membership)
     db.commit()
+
+    # Audit log after successful commit
+    logger.info(
+        f"User {current_user.username} (ID: {current_user.id}) joined room {room_id} '{room.name}'",
+        extra={
+            "user_id": current_user.id,
+            "room_id": room_id,
+            "action": "room_join",
+        },
+    )
 
     return {"message": "Successfully joined room", "room_id": room_id}
