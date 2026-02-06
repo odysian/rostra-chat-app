@@ -23,32 +23,30 @@ def get_rooms(
     """
     Get all available rooms.
 
-    Requires authentication.
-
-    Query params:
-        include_unread: If true, include unread_count per room.
-
-    Returns:
-        List of rooms. If include_unread=true, includes unread_count field.
+    If include_unread=true, returns rooms with unread_count field.
+    Uses optimized single-query approach (no N+1 problem).
     """
-    rooms = room_crud.get_all_rooms(db)
 
     if not include_unread:
+        # Simple case: just return rooms
+        rooms = room_crud.get_all_rooms(db)
         return rooms
 
+    # Optimized case: single query for rooms + unread counts
+    rooms_with_unread = room_crud.get_all_rooms_with_unread(db, current_user.id)  # type: ignore
+
+    # Format response
     result = []
-    for room in rooms:
-        unread_count = user_room_crud.get_unread_count(
-            db, current_user.id, room.id  # type: ignore[arg-type]
-        )
+    for room, unread_count in rooms_with_unread:
         room_dict = RoomResponse(
-            id=room.id,  # type: ignore[arg-type]
-            name=room.name,  # type: ignore[arg-type]
-            created_by=room.created_by,  # type: ignore[arg-type]
-            created_at=room.created_at,  # type: ignore[arg-type]
-            unread_count=unread_count,
+            id=room.id,
+            name=room.name,
+            created_by=room.created_by,
+            created_at=room.created_at,
+            unread_count=unread_count or 0,  # Ensure 0, not None
         )
         result.append(room_dict)
+
     return result
 
 
