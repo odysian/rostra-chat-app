@@ -14,12 +14,16 @@ router = APIRouter()
 
 
 @router.get("/rooms/{room_id}/messages", response_model=List[MessageResponse])
-def get_room_messages(room_id: int, db: Session = Depends(get_db), limit: int = 50):
+def get_room_messages(
+    room_id: int,
+    limit: int = 50,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     """
     Get recent messages for a room.
 
-    Public endpoint - no authentication required.
-    Returns up to 'limit' most recent messages (default 50).
+    Requires authentication. Returns up to 'limit' most recent messages (default 50).
     """
     # Verify room exists
     room = room_crud.get_room_by_id(db, room_id)

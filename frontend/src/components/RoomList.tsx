@@ -28,6 +28,8 @@ export default function RoomList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [timeoutError, setTimeoutError] = useState(false);
+  // Local retry counter so the effect can refetch when user clicks "Retry"
+  const [retryCount, setRetryCount] = useState(0);
   const hasReportedInitialRoomsRef = useRef(false);
 
   // Room modal state
@@ -87,14 +89,14 @@ export default function RoomList({
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [token, refreshTrigger]);
+}, [token, refreshTrigger, retryCount]);
 
   const handleRetry = () => {
     setLoading(true);
     setError("");
     setTimeoutError(false);
-    // Trigger refetch by updating refreshTrigger
-    // This will be handled by parent component
+    // Bump local retry counter so the effect above refetches rooms
+    setRetryCount((prev) => prev + 1);
   };
 
 

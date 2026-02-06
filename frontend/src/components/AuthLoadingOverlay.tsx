@@ -1,21 +1,8 @@
 import { useAuth } from "../context/AuthContext";
+import { Info } from "lucide-react";
 
 export default function AuthLoadingOverlay() {
   const { isColdStart } = useAuth();
-
-  const getMessage = () => {
-    if (isColdStart) {
-      return "Server waking up (2-3 min delay)";
-    }
-    return "Connecting...";
-  };
-
-  const getSubMessage = () => {
-    if (isColdStart) {
-      return "This app runs on a free tier and may take a few minutes to start up";
-    }
-    return "Validating your authentication";
-  };
 
   return (
     <div className="fixed inset-0 bg-zinc-950 flex items-center justify-center z-50">
@@ -36,20 +23,19 @@ export default function AuthLoadingOverlay() {
         {/* Loading Messages */}
         <div className="mb-2">
           <p className="text-zinc-100 text-lg font-medium">
-            {getMessage()}
+            Connecting...
           </p>
         </div>
-
-        <p className="text-zinc-400 text-sm max-w-md mx-auto">
-          {getSubMessage()}
-        </p>
 
         {/* Cold start specific styling */}
         {isColdStart && (
           <div className="mt-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-lg max-w-md mx-auto">
-            <p className="text-amber-400 text-xs">
-              <strong>Note:</strong> Free tier services can take 1-3 minutes to respond when waking up from sleep.
-            </p>
+            <div className="flex items-start gap-2 md:items-center">
+              <Info size={16} className="text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-amber-400 text-xs">
+              Initial requests may take up to a minute while servers start up.
+              </p>
+            </div>
           </div>
         )}
       </div>

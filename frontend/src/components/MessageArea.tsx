@@ -29,6 +29,8 @@ export default function MessageArea({
   const [showRoomMenu, setShowRoomMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Inline error message for failed room deletion (avoid disruptive alerts)
+  const [deleteError, setDeleteError] = useState("");
 
   if (!selectedRoom) {
     return (
@@ -51,6 +53,7 @@ export default function MessageArea({
     if (!token) return;
 
     setDeleting(true);
+    setDeleteError("");
     try {
       await deleteRoom(selectedRoom.id, token);
       setShowDeleteModal(false);
@@ -58,7 +61,9 @@ export default function MessageArea({
       onRoomDeleted();
     } catch (err) {
       console.error("Failed to delete room:", err);
-      alert("Failed to delete room. Please try again.");
+      setDeleteError(
+        err instanceof Error ? err.message : "Failed to delete room. Please try again.",
+      );
     } finally {
       setDeleting(false);
     }
@@ -134,6 +139,7 @@ export default function MessageArea({
                       <button
                         onClick={() => {
                           setShowRoomMenu(false);
+                          setDeleteError("");
                           setShowDeleteModal(true);
                         }}
                         className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-zinc-700 transition-colors"
@@ -184,9 +190,15 @@ export default function MessageArea({
               ? This will permanently delete all messages in this room. This
               action cannot be undone.
             </p>
+            {deleteError && (
+              <p className="text-sm text-red-400 mb-4">{deleteError}</p>
+            )}
             <div className="flex gap-3 justify-end">
               <button
-                onClick={() => setShowDeleteModal(false)}
+                onClick={() => {
+                  setDeleteError("");
+                  setShowDeleteModal(false);
+                }}
                 disabled={deleting}
                 className="px-4 py-2 bg-zinc-700 text-zinc-200 rounded hover:bg-zinc-600 transition-colors disabled:opacity-50"
               >

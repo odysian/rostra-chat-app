@@ -29,6 +29,8 @@ export default function MessageList({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [timeoutError, setTimeoutError] = useState(false);
+  // Local retry counter so the effect can refetch when user clicks "Retry"
+  const [retryCount, setRetryCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Fetch History & Deduplicate
@@ -89,13 +91,14 @@ export default function MessageList({
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [roomId, token]);
+}, [roomId, token, retryCount]);
 
   const handleRetry = () => {
     setLoading(true);
     setError("");
     setTimeoutError(false);
-    // This will trigger useEffect to run again
+    // Bump local retry counter so the effect above refetches messages
+    setRetryCount((prev) => prev + 1);
   };
 
 
