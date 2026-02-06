@@ -10,9 +10,6 @@ We still test the HTTP endpoints directly in the dedicated tests.
 """
 
 import pytest
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
-
 from app.core.security import create_access_token
 from app.crud import message as message_crud
 from app.crud import room as room_crud
@@ -20,6 +17,8 @@ from app.crud import user as user_crud
 from app.schemas.message import MessageCreate
 from app.schemas.room import RoomCreate
 from app.schemas.user import UserCreate
+from fastapi.testclient import TestClient
+from sqlalchemy.orm import Session
 
 
 @pytest.fixture
@@ -56,9 +55,11 @@ def create_user(db_session: Session):
             "id": db_user.id,
             "email": db_user.email,
             "username": db_user.username,
-            "created_at": db_user.created_at.isoformat()
-            if getattr(db_user, "created_at", None)
-            else None,
+            "created_at": (
+                db_user.created_at.isoformat()
+                if getattr(db_user, "created_at", None)
+                else None
+            ),
         }
 
         return {
@@ -99,9 +100,11 @@ def create_room(db_session: Session):
             "id": db_room.id,
             "name": db_room.name,
             "created_by": db_room.created_by,
-            "created_at": db_room.created_at.isoformat()
-            if getattr(db_room, "created_at", None)
-            else None,
+            "created_at": (
+                db_room.created_at.isoformat()
+                if getattr(db_room, "created_at", None)
+                else None
+            ),
         }
 
     return _create_room
@@ -136,9 +139,11 @@ def create_message(db_session: Session):
             "room_id": db_message.room_id,
             "user_id": db_message.user_id,
             "content": db_message.content,
-            "created_at": db_message.created_at.isoformat()
-            if getattr(db_message, "created_at", None)
-            else None,
+            "created_at": (
+                db_message.created_at.isoformat()
+                if getattr(db_message, "created_at", None)
+                else None
+            ),
         }
 
     return _create_message

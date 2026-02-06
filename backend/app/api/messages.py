@@ -23,13 +23,22 @@ def get_room_messages(
     """
     Get recent messages for a room.
 
-    Requires authentication. Returns up to 'limit' most recent messages (default 50).
+    Requires authentication and room membership. Returns up to 'limit' most recent messages (default 50).
     """
     # Verify room exists
     room = room_crud.get_room_by_id(db, room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
+
+    # Check if user is a member (CRITICAL SECURITY CHECK)
+    from app.crud import user_room as user_room_crud
+
+    membership = user_room_crud.get_user_room(db, current_user.id, room_id)  # type: ignore
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this room"
         )
 
     # Get messages with user data eagerly loaded
@@ -60,13 +69,22 @@ def create_message(
     """
     Send a message to a room.
 
-    Requires authentication. User ID is set from JWT token.
+    Requires authentication and room membership. User ID is set from JWT token.
     """
     # Verify room exists
     room = room_crud.get_room_by_id(db, message.room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
+
+    # Check if user is a member (CRITICAL SECURITY CHECK)
+    from app.crud import user_room as user_room_crud
+
+    membership = user_room_crud.get_user_room(db, current_user.id, message.room_id)  # type: ignore
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this room"
         )
 
     # Create message

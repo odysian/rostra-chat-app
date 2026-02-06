@@ -81,13 +81,21 @@ def get_room(
     """
     Get a specific room by ID.
 
-    Requires authentication.
+    Requires authentication and room membership.
     """
     room = room_crud.get_room_by_id(db, room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
         )
+
+    # Check if user is a member (SECURITY CHECK)
+    membership = user_room_crud.get_user_room(db, current_user.id, room_id)  # type: ignore
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this room"
+        )
+
     return room
 
 
@@ -158,3 +166,50 @@ def delete_room(
     room_crud.delete_room(db, room_id)
 
     return None
+
+
+@router.post("/{room_id}/join", status_code=status.HTTP_200_OK)
+def join_room(
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Join a room (add user to room membership).
+
+    - Anyone can join any room (public rooms)
+    - Returns 404 if room doesn't exist
+    - Returns 409 if user is already a member
+    """
+    # Check if room exists
+    room = room_crud.get_room_by_id(db, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
+
+    # Check if already a member
+    existing_membership = user_room_crud.get_user_room(
+        db, current_user.id, room_id  # type: ignore
+    )
+
+    if existing_membership:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail="Already a member of this room"
+        )
+
+    # Add membership
+    from datetime import datetime, timezone
+
+    from app.models.user_room import UserRoom
+
+    membership = UserRoom(
+        user_id=current_user.id,  # type: ignore
+        room_id=room_id,
+        joined_at=datetime.now(timezone.utc),
+    )
+    db.add(membership)
+    db.commit()
+
+    return {"message": "Successfully joined room", "room_id": room_id}
+    return {"message": "Successfully joined room", "room_id": room_id}

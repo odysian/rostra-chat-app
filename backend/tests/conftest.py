@@ -37,30 +37,29 @@ for env_path in env_paths:
 # Extract TEST_DATABASE_URL before Settings loads (Settings doesn't allow extra fields)
 TEST_DATABASE_URL_ENV = os.environ.pop("TEST_DATABASE_URL", None)
 
+# Import app creation components
+from app.api import auth, messages, rooms
 from app.core.config import settings
 from app.core.database import Base, get_db
+from app.core.logging import logger
 from app.core.rate_limit import limiter
 
 # Import all models so SQLAlchemy can discover them for table creation
 from app.models import message, room, user, user_room  # noqa: F401
-from slowapi.middleware import SlowAPIMiddleware
-
-# Import app creation components
-from app.api import auth, messages, rooms
-from app.core.logging import logger
 from app.websocket.handlers import websocket_endpoint
 from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy.orm import Session
 
 
 def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
     """
     Create a FastAPI app instance for testing.
-    
+
     Args:
         include_rate_limiting: If True, include SlowAPIMiddleware. If False, exclude it.
     """
@@ -74,11 +73,13 @@ def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
     if include_rate_limiting:
         test_app.state.limiter = limiter
         test_app.add_middleware(SlowAPIMiddleware)
-        
-        async def rate_limit_exceeded_handler(request: Request, exc: Exception) -> Response:
+
+        async def rate_limit_exceeded_handler(
+            request: Request, exc: Exception
+        ) -> Response:
             assert isinstance(exc, RateLimitExceeded)
             return _rate_limit_exceeded_handler(request, exc)
-        
+
         test_app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
     # CORS
@@ -99,9 +100,15 @@ def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
         return response
 
     # Routers
-    test_app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
-    test_app.include_router(rooms.router, prefix=f"{settings.API_V1_STR}/rooms", tags=["rooms"])
-    test_app.include_router(messages.router, prefix=settings.API_V1_STR, tags=["messages"])
+    test_app.include_router(
+        auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"]
+    )
+    test_app.include_router(
+        rooms.router, prefix=f"{settings.API_V1_STR}/rooms", tags=["rooms"]
+    )
+    test_app.include_router(
+        messages.router, prefix=settings.API_V1_STR, tags=["messages"]
+    )
 
     @test_app.get("/")
     def root():
@@ -113,7 +120,7 @@ def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
         websocket: WebSocket, token: str, db: Session = Depends(get_db)
     ):
         await websocket_endpoint(websocket, token, db)
-    
+
     return test_app
 
 
@@ -186,7 +193,7 @@ def client(db_session: Session, request) -> Generator[TestClient, None, None]:
     Create a test client with database dependency override.
 
     Overrides get_db to use the test session with rollback transactions.
-    
+
     By default, uses an app without rate limiting middleware. Tests that need rate limiting
     should use the `enable_rate_limiting` fixture, which creates an app with middleware.
     """
@@ -199,13 +206,13 @@ def client(db_session: Session, request) -> Generator[TestClient, None, None]:
 
     # Check if this test needs rate limiting (via enable_rate_limiting fixture)
     has_rate_limiting = "enable_rate_limiting" in request.fixturenames
-    
+
     # Create appropriate app instance
     if has_rate_limiting:
         test_app = create_test_app(include_rate_limiting=True)
     else:
         test_app = app  # Use default app without rate limiting
-    
+
     # Override DB dependency
     test_app.dependency_overrides[get_db] = override_get_db
 
@@ -220,19 +227,19 @@ def client(db_session: Session, request) -> Generator[TestClient, None, None]:
 def clear_rate_limiter_storage():
     """
     Clear rate limiter storage before each test to ensure isolation.
-    
+
     Even though most tests don't use rate limiting middleware, the limiter storage
     is a module-level singleton that persists across tests. Clearing it ensures
     that tests don't interfere with each other.
     """
     # Clear limiter storage before each test
-    if hasattr(limiter, '_storage') and hasattr(limiter._storage, 'reset'):
+    if hasattr(limiter, "_storage") and hasattr(limiter._storage, "reset"):
         limiter._storage.reset()
-    
+
     yield
-    
+
     # Clear again after test for good measure
-    if hasattr(limiter, '_storage') and hasattr(limiter._storage, 'reset'):
+    if hasattr(limiter, "_storage") and hasattr(limiter._storage, "reset"):
         limiter._storage.reset()
 
 
@@ -243,21 +250,21 @@ def enable_rate_limiting():
 
     Use this fixture in rate limit tests that need to verify rate limiting behavior.
     The client fixture will detect this fixture and create an app with rate limiting middleware.
-    
+
     Example:
         def test_rate_limit(enable_rate_limiting, client):
             # Rate limiting is now active
             ...
-    
+
     Note: This fixture clears the limiter storage to ensure a clean state for each test.
     """
     # Clear limiter storage to start fresh for this test
     # SlowAPI's MemoryStorage.reset() clears all stored rate limit data
-    if hasattr(limiter, '_storage') and hasattr(limiter._storage, 'reset'):
+    if hasattr(limiter, "_storage") and hasattr(limiter._storage, "reset"):
         limiter._storage.reset()
-    
+
     yield
-    
+
     # Clear storage after test to prevent interference with other tests
-    if hasattr(limiter, '_storage') and hasattr(limiter._storage, 'reset'):
+    if hasattr(limiter, "_storage") and hasattr(limiter._storage, "reset"):
         limiter._storage.reset()

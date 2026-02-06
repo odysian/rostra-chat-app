@@ -128,6 +128,15 @@ async def handle_subscribe(
         await send_error(websocket, "Room not found")
         return
 
+    # Check if user is a member
+    membership = user_room_crud.get_user_room(db, user.id, msg.room_id)
+    if not membership:
+        logger.warning(
+            f"User {user.username} tried to subscribe to room {msg.room_id} without membership"
+        )
+        await send_error(websocket, "Not a member of this room")
+        return
+
     # Subscribe to room
     manager.subscribe_to_room(websocket, msg.room_id)
     logger.info(
@@ -211,6 +220,15 @@ async def handle_send_message(
             f"User {user.username} tried to send message to non-existent room {msg.room_id}"
         )
         await send_error(websocket, "Room not found")
+        return
+
+    # Check if user is a member
+    membership = user_room_crud.get_user_room(db, user.id, msg.room_id)
+    if not membership:
+        logger.warning(
+            f"User {user.username} tried to send message to room {msg.room_id} without membership"
+        )
+        await send_error(websocket, "Not a member of this room")
         return
 
     # Save to database first

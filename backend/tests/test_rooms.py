@@ -421,14 +421,8 @@ def test_get_room_not_member_returns_403(client: TestClient, create_user, create
         headers={"Authorization": f"Bearer {user_b['access_token']}"},
     )
 
-    # CRITICAL SECURITY TEST: Should return 403, not 404
-    # Note: Current API doesn't check membership, so this will return 200
-    # This test documents expected security behavior
-    assert response.status_code in [
-        403,
-        404,
-        200,
-    ]  # 200 is current (incorrect) behavior
+    # CRITICAL SECURITY TEST: Must enforce membership check
+    assert response.status_code == 403
 
 
 def test_get_nonexistent_room_returns_404(client: TestClient, create_user):
@@ -458,38 +452,121 @@ def test_join_room_returns_200_and_adds_membership(
     client: TestClient, create_user, create_room
 ):
     """Joining room returns 200 and adds user to member list."""
-    pytest.skip("Join endpoint not implemented")
+    # User A creates room
+    user_a = create_user(email="usera@example.com", username="usera")
+    room = create_room(user_a["access_token"], "Test Room")
+    room_id = room["id"]
+
+    # User B joins room
+    user_b = create_user(email="userb@example.com", username="userb")
+    response = client.post(
+        f"/api/rooms/{room_id}/join",
+        headers={"Authorization": f"Bearer {user_b['access_token']}"}
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["message"] == "Successfully joined room"
+    assert data["room_id"] == room_id
 
 
 def test_after_joining_room_appears_in_user_room_list(
     client: TestClient, create_user, create_room
 ):
     """After joining, room appears in user's room list."""
-    pytest.skip("Join endpoint not implemented")
+    # User A creates room
+    user_a = create_user(email="usera@example.com", username="usera")
+    room = create_room(user_a["access_token"], "Test Room")
+    room_id = room["id"]
+
+    # User B joins room
+    user_b = create_user(email="userb@example.com", username="userb")
+    client.post(
+        f"/api/rooms/{room_id}/join",
+        headers={"Authorization": f"Bearer {user_b['access_token']}"}
+    )
+
+    # Get user B's room list
+    response = client.get(
+        "/api/rooms",
+        headers={"Authorization": f"Bearer {user_b['access_token']}"}
+    )
+
+    assert response.status_code == 200
+    rooms = response.json()
+    room_ids = [r["id"] for r in rooms]
+    assert room_id in room_ids
 
 
 def test_after_joining_user_can_send_messages(
     client: TestClient, create_user, create_room
 ):
     """After joining, user can send messages to room."""
-    pytest.skip("Join endpoint not implemented")
+    # User A creates room
+    user_a = create_user(email="usera@example.com", username="usera")
+    room = create_room(user_a["access_token"], "Test Room")
+    room_id = room["id"]
+
+    # User B joins room
+    user_b = create_user(email="userb@example.com", username="userb")
+    client.post(
+        f"/api/rooms/{room_id}/join",
+        headers={"Authorization": f"Bearer {user_b['access_token']}"}
+    )
+
+    # User B sends message
+    response = client.post(
+        "/api/messages",
+        json={"room_id": room_id, "content": "Hello from user B"},
+        headers={"Authorization": f"Bearer {user_b['access_token']}"}
+    )
+
+    assert response.status_code == 201
+    data = response.json()
+    assert data["content"] == "Hello from user B"
+    assert data["room_id"] == room_id
 
 
-def test_join_room_without_auth_returns_401(client: TestClient):
+def test_join_room_without_auth_returns_401(client: TestClient, create_user, create_room):
     """Joining room without authentication returns 401."""
-    pytest.skip("Join endpoint not implemented")
+    user_a = create_user(email="usera@example.com", username="usera")
+    room = create_room(user_a["access_token"], "Test Room")
+    room_id = room["id"]
+
+    response = client.post(f"/api/rooms/{room_id}/join")
+
+    assert response.status_code == 401
 
 
 def test_join_nonexistent_room_returns_404(client: TestClient, create_user):
     """Joining nonexistent room returns 404."""
-    pytest.skip("Join endpoint not implemented")
+    user = create_user()
+
+    response = client.post(
+        "/api/rooms/99999/join",
+        headers={"Authorization": f"Bearer {user['access_token']}"}
+    )
+
+    assert response.status_code == 404
 
 
 def test_join_room_already_member_returns_409(
     client: TestClient, create_user, create_room
 ):
     """Joining room when already a member returns 409."""
-    pytest.skip("Join endpoint not implemented")
+    user = create_user()
+    room = create_room(user["access_token"], "Test Room")
+    room_id = room["id"]
+
+    # Try to join again (user is already a member as creator)
+    response = client.post(
+        f"/api/rooms/{room_id}/join",
+        headers={"Authorization": f"Bearer {user['access_token']}"}
+    )
+
+    assert response.status_code == 409
+    error_detail = response.json()["detail"].lower()
+    assert "already" in error_detail
 
 
 # ============================================================================

@@ -133,14 +133,8 @@ def test_get_messages_not_room_member_returns_403(
         headers={"Authorization": f"Bearer {user_b['access_token']}"},
     )
 
-    # CRITICAL SECURITY TEST: Should return 403, not 404
-    # Note: Current API doesn't check membership, so this will return 200
-    # This test documents expected security behavior
-    assert response.status_code in [
-        403,
-        404,
-        200,
-    ]  # 200 is current (incorrect) behavior
+    # CRITICAL SECURITY TEST: Must enforce membership check
+    assert response.status_code == 403
 
 
 def test_get_messages_nonexistent_room_returns_404(client: TestClient, create_user):
@@ -341,14 +335,8 @@ def test_send_message_not_room_member_returns_403(
         headers={"Authorization": f"Bearer {user_b['access_token']}"},
     )
 
-    # CRITICAL SECURITY TEST: Should return 403, not 404
-    # Note: Current API doesn't check membership, so this will return 201
-    # This test documents expected security behavior
-    assert response.status_code in [
-        403,
-        404,
-        201,
-    ]  # 201 is current (incorrect) behavior
+    # CRITICAL SECURITY TEST: Must enforce membership check
+    assert response.status_code == 403
 
 
 def test_send_message_with_empty_content_returns_422(

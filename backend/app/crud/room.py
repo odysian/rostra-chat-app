@@ -67,6 +67,8 @@ def create_room(db: Session, room: RoomCreate, user_id: int):
     """
     Create a new room.
 
+    Automatically adds the creator as a member of the room (creates UserRoom record).
+
     Args:
         db: Database session
         room: RoomCreate schema with room name
@@ -81,6 +83,18 @@ def create_room(db: Session, room: RoomCreate, user_id: int):
     db.add(db_room)
     db.commit()
     db.refresh(db_room)
+
+    # Automatically add creator as room member
+    from datetime import datetime, timezone
+
+    user_room = UserRoom(
+        user_id=user_id,
+        room_id=db_room.id,
+        joined_at=datetime.now(timezone.utc),
+    )
+    db.add(user_room)
+    db.commit()
+
     return db_room
 
 
