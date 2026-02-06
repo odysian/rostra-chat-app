@@ -2,9 +2,14 @@ from app.api import auth, messages, rooms
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
 from app.core.logging import logger
+from app.core.rate_limit import limiter
 from app.websocket.handlers import websocket_endpoint
 from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 from sqlalchemy.orm import Session
 
 logger.info("Starting ChatApp API")
@@ -14,6 +19,28 @@ app = FastAPI(
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     swagger_ui_parameters={"persistAuthorization": True},
 )
+
+# Rate limiting (slowapi)
+app.state.limiter = limiter
+app.add_middleware(
+    SlowAPIMiddleware,
+)
+
+
+async def rate_limit_exceeded_handler(
+    request: Request, exc: Exception
+) -> Response:
+    """
+    Adapter so SlowAPI's handler (expects RateLimitExceeded)
+    matches FastAPI's ExceptionHandler type (expects Exception).
+    FastAPI will only call this for RateLimitExceeded because of the key.
+    """
+    assert isinstance(exc, RateLimitExceeded)
+    return _rate_limit_exceeded_handler(request, exc)
+
+
+app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
+
 
 # CORS
 app.add_middleware(
@@ -32,6 +59,7 @@ async def add_security_headers(request: Request, call_next):
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     return response
+
 
 # Routers
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
