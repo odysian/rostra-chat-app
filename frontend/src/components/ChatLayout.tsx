@@ -290,6 +290,7 @@ export default function ChatLayout() {
         unreadCounts={unreadCounts}
         onUnreadCountsLoaded={handleUnreadCountsLoaded}
         onInitialRoomsLoaded={handleInitialRoomsLoaded}
+        onLogout={handleLogout}
         visible={true}
       />
 
@@ -326,7 +327,7 @@ export default function ChatLayout() {
         onClose={() => setUsersPanelOpen(false)}
         currentUser={user}
         onlineUsers={onlineUsers}
-        onLogout={handleLogout}
+        roomOwnerId={selectedRoom?.created_by ?? null}
       />
     </div>
   );

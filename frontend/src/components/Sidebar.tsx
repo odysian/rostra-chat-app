@@ -10,6 +10,7 @@ interface SidebarProps {
   unreadCounts: Record<number, number>;
   onUnreadCountsLoaded: (counts: Record<number, number>) => void;
   onInitialRoomsLoaded: (rooms: Room[]) => void;
+  onLogout: () => void;
   visible: boolean;
 }
 
@@ -31,6 +32,7 @@ export default function Sidebar({
   unreadCounts,
   onUnreadCountsLoaded,
   onInitialRoomsLoaded,
+  onLogout,
   visible,
 }: SidebarProps) {
   if (!visible) return null;
@@ -103,6 +105,8 @@ export default function Sidebar({
           unreadCounts={unreadCounts}
           onUnreadCountsLoaded={onUnreadCountsLoaded}
           onInitialRoomsLoaded={onInitialRoomsLoaded}
+          onLogout={onLogout}
+          onExpandSidebar={onToggle}
         />
       </div>
     </>

@@ -19,8 +19,8 @@ export default function Register() {
 
     try {
       await register({ username, email, password });
-      // After successful registration, redirect to login
-      navigate("/login");
+      // Redirect to login with success flag so login page can show confirmation (no token from register)
+      navigate("/login?registered=1");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {

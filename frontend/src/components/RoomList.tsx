@@ -14,6 +14,13 @@ interface RoomListProps {
   unreadCounts: Record<number, number>;
   onUnreadCountsLoaded: (counts: Record<number, number>) => void;
   onInitialRoomsLoaded?: (rooms: Room[]) => void;
+  onLogout: () => void;
+  /** When sidebar is collapsed, clicking the user avatar calls this to expand (same as header "R" button) */
+  onExpandSidebar?: () => void;
+}
+
+function getUserInitials(username: string): string {
+  return username.substring(0, 2).toUpperCase();
 }
 
 export default function RoomList({
@@ -24,6 +31,8 @@ export default function RoomList({
   unreadCounts,
   onUnreadCountsLoaded,
   onInitialRoomsLoaded,
+  onLogout,
+  onExpandSidebar,
 }: RoomListProps) {
   const { token, user } = useAuth();
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -298,6 +307,55 @@ export default function RoomList({
               </svg>
             )}
           </button>
+        </div>
+
+        {/* User block: identity + logout (logout only when sidebar expanded; confirm before logout) */}
+        <div className="border-t border-zinc-800 px-3 py-2">
+          {sidebarOpen ? (
+            <div className="flex items-center gap-3">
+              <div
+                className="w-8 h-8 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-xs border border-zinc-700"
+                title={user?.username ?? "User"}
+              >
+                {user ? getUserInitials(user.username) : "US"}
+              </div>
+              <span className="text-zinc-300 text-sm font-medium truncate min-w-0 flex-1" title={user?.username ?? "User"}>
+                {user?.username ?? "Username"}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to log out?")) {
+                    onLogout();
+                  }
+                }}
+                className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-zinc-800 rounded transition-colors"
+                title="Logout"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span>Logout</span>
+              </button>
+            </div>
+          ) : (
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={onExpandSidebar}
+                className="rounded-full focus:outline-none focus:ring-2 focus:ring-amber-500/50 hover:scale-110 transition-transform"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                <div
+                  className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-xs border border-zinc-700"
+                  title={user?.username ?? "User"}
+                >
+                  {user ? getUserInitials(user.username) : "US"}
+                </div>
+              </button>
+            </div>
+          )}
         </div>
       </div>
 

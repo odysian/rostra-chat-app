@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Crown } from "lucide-react";
 import type { User } from "../types";
 import { useWebSocketContext } from "../context/useWebSocketContext";
 
@@ -12,49 +13,33 @@ interface UsersPanelProps {
   isOpen: boolean;
   onClose: () => void; // For mobile backdrop click
 
-  // User data
+  // User data (currentUser used to highlight "you" in online list)
   currentUser: User | null;
   onlineUsers: OnlineUser[];
-
-  // Actions
-  onLogout: () => void;
+  /** User id of the room creator/owner; show crown next to them in the list */
+  roomOwnerId: number | null;
 }
 
 /**
  * UsersPanel Component
  *
- * Responsibility: Right panel showing current user and online users
- * - Displays current user with dropdown menu
- * - Shows list of online users (collapsible)
- * - Mobile: overlays with backdrop
- * - Desktop: static sidebar
- *
- * Internal State:
- * - showUserMenu: controls dropdown visibility
- * - onlineUsersExpanded: controls online users list collapse
- *
- *
+ * Responsibility: Right panel showing connection status and online users in the current room.
+ * - Identity and logout live in the sidebar (room list); this panel is "who is in this room" only.
+ * - Mobile: overlays with backdrop; Desktop: static sidebar.
  */
 export default function UsersPanel({
   isOpen,
   onClose,
   currentUser,
   onlineUsers,
-  onLogout,
+  roomOwnerId,
 }: UsersPanelProps) {
-  // Internal UI state - only affects this component
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [onlineUsersExpanded, setOnlineUsersExpanded] = useState(true);
   const { connectionStatus } = useWebSocketContext();
 
-  // Helper to get user initials for avatar
+  // Helper to get user initials for avatar (and to highlight current user in list)
   const getUserInitials = (username: string) => {
     return username.substring(0, 2).toUpperCase();
-  };
-
-  const handleLogout = () => {
-    setShowUserMenu(false);
-    onLogout();
   };
 
   const getConnectionStatusColor = () => {
@@ -104,76 +89,6 @@ export default function UsersPanel({
           fixed inset-y-0 right-0 z-50 md:z-auto
         `}
       >
-        {/* Current User Section */}
-        <div className="h-14 border-b border-zinc-800 flex items-center px-4">
-          <div className="relative w-full">
-            <button
-              onClick={() => setShowUserMenu(!showUserMenu)}
-              className="w-full flex items-center justify-between group"
-            >
-              <div className="flex items-center gap-3">
-                {/* User avatar */}
-                <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-xs border border-zinc-700">
-                  {currentUser ? getUserInitials(currentUser.username) : "US"}
-                </div>
-                {/* Username */}
-                <span className="text-zinc-300 text-sm font-medium truncate">
-                  {currentUser?.username || "Username"}
-                </span>
-              </div>
-              {/* Dropdown arrow */}
-              <svg
-                className={`w-4 h-4 text-zinc-400 group-hover:text-amber-500 transition-all ${
-                  showUserMenu ? "rotate-180" : ""
-                }`}
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
-
-            {/* Dropdown Menu */}
-            {showUserMenu && (
-              <>
-                {/* Backdrop to close menu */}
-                <div
-                  className="fixed inset-0 z-10"
-                  onClick={() => setShowUserMenu(false)}
-                />
-                {/* Menu content */}
-                <div className="absolute top-full left-0 right-0 mt-2 bg-zinc-800 rounded-lg shadow-lg border border-zinc-700 py-1 z-20">
-                  <button
-                    onClick={handleLogout}
-                    className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-zinc-700 transition-colors flex items-center gap-2"
-                  >
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                      />
-                    </svg>
-                    Logout
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
         {/* Connection Status */}
         <div className="border-b border-zinc-800 px-4 py-2">
           <div className="flex items-center gap-2">
@@ -215,20 +130,30 @@ export default function UsersPanel({
             {onlineUsers.length === 0 ? (
               <p className="text-zinc-600 text-sm italic">No one here yet...</p>
             ) : (
-              onlineUsers.map((user) => (
-                <div key={user.id} className="flex items-center gap-3">
-                  {/* User avatar */}
-                  <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-xs border border-zinc-700">
-                    {getUserInitials(user.username)}
+              onlineUsers.map((user) => {
+                const isCurrentUser = currentUser?.id === user.id;
+                const isRoomOwner = roomOwnerId != null && user.id === roomOwnerId;
+                return (
+                  <div key={user.id} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-xs border border-zinc-700">
+                      {getUserInitials(user.username)}
+                    </div>
+                    <span
+                      className={`text-sm font-medium truncate flex items-center gap-1.5 min-w-0 flex-1 ${isCurrentUser ? "text-amber-500" : "text-zinc-300"}`}
+                    >
+                      {user.username}
+                      {isRoomOwner && (
+                        <Crown
+                          className="w-3.5 h-3.5 text-amber-500 shrink-0"
+                          title="Room owner"
+                          aria-hidden
+                        />
+                      )}
+                    </span>
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
                   </div>
-                  {/* Username */}
-                  <span className="text-zinc-300 text-sm font-medium truncate">
-                    {user.username}
-                  </span>
-                  {/* Online indicator */}
-                  <div className="w-2 h-2 rounded-full bg-emerald-500 ml-auto"></div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         )}

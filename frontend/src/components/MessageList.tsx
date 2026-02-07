@@ -38,7 +38,6 @@ export default function MessageList({
   useEffect(() => {
     const abortController = new AbortController();
     let timeoutId: number | undefined;
-    let deferredId: number;
 
     if (token) {
       setError("");
@@ -90,7 +89,7 @@ export default function MessageList({
       }
     }
 
-    deferredId = window.setTimeout(fetchMessages, 0);
+    const deferredId = window.setTimeout(fetchMessages, 0);
 
     return () => {
       clearTimeout(deferredId);

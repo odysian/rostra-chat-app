@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Info, Loader2 } from "lucide-react";
 import { login } from "../services/api";
 import { useAuth } from "../context/AuthContext";
@@ -10,8 +10,18 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showRegisteredMessage, setShowRegisteredMessage] = useState(false);
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { login: authLogin } = useAuth();
+
+  // Show success message when redirected here after registration; then clear URL param
+  useEffect(() => {
+    if (searchParams.get("registered") === "1") {
+      setShowRegisteredMessage(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -52,6 +62,11 @@ export default function Login() {
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
+            {showRegisteredMessage && (
+              <div className="bg-emerald-900/20 border border-emerald-700/50 text-emerald-400 p-3 rounded">
+                Account created successfully. Please sign in.
+              </div>
+            )}
             {error && (
               <div className="bg-red-900/20 border border-red-900/50 text-red-400 p-3 rounded">
                 {error}
