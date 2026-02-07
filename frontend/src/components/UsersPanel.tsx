@@ -143,11 +143,12 @@ export default function UsersPanel({
                     >
                       {user.username}
                       {isRoomOwner && (
-                        <Crown
-                          className="w-3.5 h-3.5 text-amber-500 shrink-0"
-                          title="Room owner"
-                          aria-hidden
-                        />
+                        <span title="Room owner">
+                          <Crown
+                            className="w-3.5 h-3.5 text-amber-500 shrink-0"
+                            aria-hidden
+                          />
+                        </span>
                       )}
                     </span>
                     <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
