@@ -52,7 +52,7 @@ export default function Sidebar({
           ${isOpen ? "w-64" : "w-16"}
           bg-zinc-900 border-r border-zinc-800 flex flex-col transition-all duration-300
           md:relative
-          fixed inset-y-0 left-0 z-50 md:z-auto
+          fixed top-0 left-0 h-dvh z-50 md:z-auto
           ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
       >

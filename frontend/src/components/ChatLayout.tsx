@@ -279,7 +279,7 @@ export default function ChatLayout() {
   // ============================================================================
 
   return (
-    <div className="flex h-screen bg-zinc-950">
+    <div className="flex h-dvh bg-zinc-950">
       {/* Left panel - Room list */}
       <Sidebar
         isOpen={sidebarOpen || !selectedRoom}
