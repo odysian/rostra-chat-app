@@ -10,7 +10,9 @@ from app.crud import room as room_crud
 from app.crud import user as user_crud
 from app.crud import user_room as user_room_crud
 from app.models.user import User
+from app.models.user_room import UserRoom
 from app.schemas.message import MessageCreate
+from app.services.cache_service import UnreadCountCache
 from app.websocket.connection_manager import manager
 from app.websocket.schemas import (
     WSError,
@@ -202,14 +204,14 @@ async def handle_send_message(
     Handle message send request.
 
     Validates message, checks room exists, saves to database,
-    and broadcasts to all room subscribers.
+    updates cache for sender and recipients, and broadcasts to room.
     """
 
     # Validate message
     try:
         msg = WSSendMessage(**data)
     except ValidationError as e:
-        logger.warning(f"Invalid send_message from {user.username}: {e}")
+        logger.warning("Invalid send_message from %s: %s", user.username, e)
         await send_error(websocket, "Invalid message format", e.errors())
         return
 
@@ -217,7 +219,9 @@ async def handle_send_message(
     room = room_crud.get_room_by_id(db, msg.room_id)
     if not room:
         logger.warning(
-            f"User {user.username} tried to send message to non-existent room {msg.room_id}"
+            "User %s tried to send message to non-existent room %s",
+            user.username,
+            msg.room_id,
         )
         await send_error(websocket, "Room not found")
         return
@@ -226,7 +230,9 @@ async def handle_send_message(
     membership = user_room_crud.get_user_room(db, user.id, msg.room_id)
     if not membership:
         logger.warning(
-            f"User {user.username} tried to send message to room {msg.room_id} without membership"
+            "User %s tried to send message to room %s without membership",
+            user.username,
+            msg.room_id,
         )
         await send_error(websocket, "Not a member of this room")
         return
@@ -238,8 +244,29 @@ async def handle_send_message(
     # Sending a message implies the user has read up to now; keep last_read_at in sync
     user_room_crud.mark_room_read(db, user.id, msg.room_id)
 
+    # ========== CACHE UPDATES START ==========
+    # Reset sender's unread count (they just sent a message = caught up)
+    UnreadCountCache.reset_unread(user.id, msg.room_id)
+
+    # Increment unread count for all OTHER members of the room
+    other_memberships = (
+        db.query(UserRoom)
+        .filter(
+            UserRoom.room_id == msg.room_id,
+            UserRoom.user_id != user.id,  # Exclude sender
+        )
+        .all()
+    )
+
+    for other_member in other_memberships:
+        UnreadCountCache.increment_unread(other_member.user_id, msg.room_id)
+    # ========== CACHE UPDATES END ==========
+
     logger.info(
-        f"Message saved: User {user.username} → Room '{room.name}' (ID: {room.id})",
+        "Message saved: User %s → Room '%s' (ID: %s)",
+        user.username,
+        room.name,
+        room.id,
         extra={"message_id": db_message.id, "content_length": len(msg.content)},
     )
 

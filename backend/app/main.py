@@ -1,8 +1,11 @@
+from contextlib import asynccontextmanager
+
 from app.api import auth, messages, rooms
 from app.core.config import settings
 from app.core.database import Base, engine, get_db
 from app.core.logging import logger
 from app.core.rate_limit import limiter
+from app.core.redis import init_redis
 from app.websocket.handlers import websocket_endpoint
 from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,10 +17,20 @@ from sqlalchemy.orm import Session
 
 logger.info("Starting ChatApp API")
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan events: startup and shutdown."""
+    init_redis()
+    yield
+    # Shutdown: Redis client does not require explicit close for basic usage
+
+
 app = FastAPI(
     title=settings.PROJECT_NAME,
     openapi_url=f"{settings.API_V1_STR}/openapi.json",
     swagger_ui_parameters={"persistAuthorization": True},
+    lifespan=lifespan,
 )
 
 # Rate limiting (slowapi)

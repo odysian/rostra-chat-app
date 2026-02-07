@@ -5,7 +5,7 @@ import UsersPanel from "./UsersPanel";
 import { useWebSocketContext } from "../context/useWebSocketContext";
 import { type WebSocketMessage } from "../context/WebSocketContext";
 import { useAuth } from "../context/AuthContext";
-import { markRoomRead } from "../services/api";
+import { markRoomRead, leaveRoom } from "../services/api";
 import type { Message, Room } from "../types";
 
 const MAX_SUBSCRIPTIONS = 10;
@@ -44,6 +44,8 @@ export default function ChatLayout() {
   const [unreadCounts, setUnreadCounts] = useState<Record<number, number>>({});
   /** New messages for the selected room delivered via WebSocket (each processed then cleared so none are dropped) */
   const [incomingMessagesForRoom, setIncomingMessagesForRoom] = useState<Message[]>([]);
+  /** Error message when leave room fails (e.g. creator cannot leave) */
+  const [leaveError, setLeaveError] = useState<string | null>(null);
 
   const selectedRoomRef = useRef<Room | null>(null);
   const subscribedRoomIdsRef = useRef<number[]>([]);
@@ -132,6 +134,7 @@ export default function ChatLayout() {
   // ============================================================================
 
   const handleSelectRoom = async (room: Room) => {
+    setLeaveError(null);
     setSelectedRoom(room);
     setIncomingMessagesForRoom([]);
     setSidebarOpen(false);
@@ -181,13 +184,46 @@ export default function ChatLayout() {
     setRefreshTrigger((prev) => prev + 1);
   };
 
-  const handleLeaveRoom = () => {
-    if (selectedRoom) {
-      unsubscribe(selectedRoom.id);
-      setSubscribedRoomIds((prev) => prev.filter((id) => id !== selectedRoom.id));
+  const handleLeaveRoom = async () => {
+    if (!selectedRoom || !token) {
+      setSelectedRoom(null);
+      setIncomingMessagesForRoom([]);
+      return;
     }
+
+    const roomId = selectedRoom.id;
+    setLeaveError(null);
+
+    try {
+      await leaveRoom(roomId, token);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Failed to leave room";
+      setLeaveError(
+        message.includes("creator") || message.includes("cannot leave")
+          ? message
+          : "Failed to leave room. Please try again."
+      );
+      // Still clear selection and unsubscribe so the user isn't stuck
+    }
+
+    // Unsubscribe from WebSocket and remove from local subscription list
+    unsubscribe(roomId);
+    setSubscribedRoomIds((prev) => prev.filter((id) => id !== roomId));
     setSelectedRoom(null);
     setIncomingMessagesForRoom([]);
+    setOnlineUsersByRoom((prev) => {
+      const next = { ...prev };
+      delete next[roomId];
+      return next;
+    });
+    setUnreadCounts((prev) => {
+      const next = { ...prev };
+      delete next[roomId];
+      return next;
+    });
+    // Refresh room list so the left room disappears from the sidebar
+    setRefreshTrigger((prev) => prev + 1);
   };
 
   const handleLogout = () => {
@@ -259,6 +295,19 @@ export default function ChatLayout() {
 
       {/* Center panel - Messages (always visible, sidebar overlays on mobile). min-w-0 + overflow-hidden prevent layout break on narrow screens. */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {leaveError && (
+          <div className="shrink-0 px-4 py-2 bg-amber-950/80 border-b border-amber-800 text-amber-200 text-sm flex items-center justify-between gap-2">
+            <span>{leaveError}</span>
+            <button
+              type="button"
+              onClick={() => setLeaveError(null)}
+              className="text-amber-400 hover:text-amber-300"
+              aria-label="Dismiss"
+            >
+              ×
+            </button>
+          </div>
+        )}
         <MessageArea
           selectedRoom={selectedRoom}
           incomingMessages={incomingMessagesForRoom}

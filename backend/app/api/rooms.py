@@ -1,4 +1,5 @@
-from typing import List
+from datetime import datetime
+from typing import List, cast
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
@@ -8,6 +9,7 @@ from app.crud import room as room_crud
 from app.crud import user_room as user_room_crud
 from app.models.user import User
 from app.schemas.room import RoomCreate, RoomResponse
+from app.services.cache_service import UnreadCountCache
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
@@ -48,33 +50,40 @@ def get_rooms(
     """
     Get rooms the current user is a member of.
 
-    If include_unread=true, returns rooms with unread_count field.
-    Uses optimized single-query approach (no N+1 problem).
-
+    If include_unread=true, returns rooms with unread_count (uses Redis cache).
     Both paths filter by membership - only returns rooms user has joined.
     """
 
-    if not include_unread:
-        # Return only rooms user is a member of (no unread counts)
-        rooms = room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
-        return rooms
-
-    # Optimized case: single query for rooms + unread counts (already filtered by membership)
-    rooms_with_unread = room_crud.get_all_rooms_with_unread(db, current_user.id)  # type: ignore
-
-    # Format response
-    result = []
-    for room, unread_count in rooms_with_unread:
-        room_dict = RoomResponse(
-            id=room.id,
-            name=room.name,
-            created_by=room.created_by,
-            created_at=room.created_at,
-            unread_count=unread_count or 0,  # Ensure 0, not None
+    if include_unread:
+        # Get unread counts from cache (falls back to DB on miss)
+        unread_counts = UnreadCountCache.get_unread_counts(
+            current_user.id, db  # type: ignore[arg-type]
         )
-        result.append(room_dict)
+        # Get rooms (simple query, no JOIN needed)
+        rooms = room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
+        # Attach cached unread counts
+        return [
+            RoomResponse(
+                id=cast(int, room.id),
+                name=cast(str, room.name),
+                created_by=cast(int, room.created_by),
+                created_at=cast(datetime, room.created_at),
+                unread_count=unread_counts.get(cast(int, room.id), 0),
+            )
+            for room in rooms
+        ]
 
-    return result
+    # No unread counts needed - simple room list
+    rooms = room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
+    return [
+        RoomResponse(
+            id=cast(int, room.id),
+            name=cast(str, room.name),
+            created_by=cast(int, room.created_by),
+            created_at=cast(datetime, room.created_at),
+        )
+        for room in rooms
+    ]
 
 
 @router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
@@ -163,6 +172,9 @@ def mark_room_read(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not a member of this room. Join the room first.",
         )
+
+    # Reset unread count in cache
+    UnreadCountCache.reset_unread(current_user.id, room_id)  # type: ignore[arg-type]
 
     # Extract last_read_at to avoid type checker issues with SQLAlchemy Column types
     last_read_at = user_room.last_read_at  # type: ignore[assignment]
