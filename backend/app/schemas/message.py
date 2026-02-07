@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class MessageCreate(BaseModel):
@@ -21,12 +21,11 @@ class MessageCreate(BaseModel):
 class MessageResponse(BaseModel):
     """Schema for message in responses"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     room_id: int
     user_id: int
     username: str
     content: str
     created_at: datetime
-
-    class Config:
-        from_attributes = True

@@ -1,10 +1,16 @@
 from typing import List
 
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """Application settings loaded from env vars"""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",  # Allow extra env vars (e.g. TEST_DATABASE_URL) without failing
+    )
 
     # Database
     DATABASE_URL: str
@@ -20,12 +26,6 @@ class Settings(BaseSettings):
 
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = []
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
-        # Allow extra env vars (e.g. TEST_DATABASE_URL for tests) without failing
-        extra = "ignore"
 
 
 settings = Settings()  # type: ignore

@@ -3,11 +3,17 @@ Pytest configuration and shared fixtures for tests.
 
 Sets up test database with transactions that rollback after each test,
 and disables rate limiting for tests (except specific rate limit tests).
+
+If TEST_DATABASE_URL points to a separate PostgreSQL database (e.g. chatdb_test),
+that database is created automatically when missing (e.g. after docker-compose
+volume wipe), so pytest can run without manual CREATE DATABASE.
 """
 
 import os
+import re
 from pathlib import Path
 from typing import Generator
+from urllib.parse import urlparse
 
 import pytest
 from dotenv import load_dotenv
@@ -129,6 +135,43 @@ app = create_test_app(include_rate_limiting=False)
 
 # Use TEST_DATABASE_URL from env if provided, otherwise use main DATABASE_URL
 TEST_DATABASE_URL = TEST_DATABASE_URL_ENV or settings.DATABASE_URL
+
+
+def _ensure_test_database_exists() -> None:
+    """
+    If TEST_DATABASE_URL points to a separate PostgreSQL DB that does not exist,
+    create it by connecting to the main DATABASE_URL (e.g. chatdb) and running
+    CREATE DATABASE. This allows pytest to work after a fresh docker-compose up
+    without manually creating chatdb_test.
+    """
+    url_lower = TEST_DATABASE_URL.lower()
+    if "postgresql" not in url_lower:
+        return
+    test_db_name = (urlparse(TEST_DATABASE_URL).path or "").strip("/")
+    main_db_name = (urlparse(settings.DATABASE_URL).path or "").strip("/")
+    if not test_db_name or test_db_name == main_db_name:
+        return
+    # Only allow safe identifiers to avoid injection (DB name comes from env/URL)
+    if not re.fullmatch(r"[a-zA-Z0-9_]+", test_db_name):
+        return
+    bootstrap_engine = create_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        isolation_level="AUTOCOMMIT",
+    )
+    try:
+        with bootstrap_engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT 1 FROM pg_database WHERE datname = :name"),
+                {"name": test_db_name},
+            ).first()
+            if row is None:
+                conn.execute(text(f'CREATE DATABASE "{test_db_name}"'))
+    finally:
+        bootstrap_engine.dispose()
+
+
+_ensure_test_database_exists()
 
 # Create test engine
 test_engine = create_engine(

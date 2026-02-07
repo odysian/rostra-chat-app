@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class RoomCreate(BaseModel):
@@ -20,11 +20,10 @@ class RoomCreate(BaseModel):
 class RoomResponse(BaseModel):
     """Schema for room in responses"""
 
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     name: str
     created_by: int
     created_at: datetime
     unread_count: int | None = None  # Optional field for unread count
-
-    class Config:
-        from_attributes = True

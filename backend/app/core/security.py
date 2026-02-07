@@ -1,21 +1,28 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from app.core.config import settings
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+from app.core.config import settings
+
+# Argon2id (default) is the PHC winner; memory-hard and resistant to GPU attacks
+_ph = PasswordHasher()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    """Verify plain password against hashed password."""
-    return pwd_context.verify(plain_password, hashed_password)
+    """Verify plain password against Argon2 hash."""
+    try:
+        _ph.verify(hashed_password, plain_password)
+        return True
+    except (VerifyMismatchError, Exception):
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    """Hash plain password."""
-    return pwd_context.hash(password)
+    """Hash plain password with Argon2id."""
+    return _ph.hash(password)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
