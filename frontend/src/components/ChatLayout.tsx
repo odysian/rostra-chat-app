@@ -47,6 +47,8 @@ export default function ChatLayout() {
 
   const selectedRoomRef = useRef<Room | null>(null);
   const subscribedRoomIdsRef = useRef<number[]>([]);
+  /** Room IDs we've already sent subscribe for (avoids re-subscribing when effect re-runs or list grows) */
+  const subscribedSentRef = useRef<Set<number>>(new Set());
   const hasInitialSubscriptionsDoneRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
   useEffect(() => {
@@ -190,6 +192,7 @@ export default function ChatLayout() {
 
   const handleLogout = () => {
     subscribedRoomIds.forEach((id) => unsubscribe(id));
+    subscribedSentRef.current.clear();
     setSubscribedRoomIds([]);
     setSelectedRoom(null);
     setOnlineUsersByRoom({});
@@ -217,11 +220,22 @@ export default function ChatLayout() {
   // EFFECTS
   // ============================================================================
 
-  // Subscribe to all rooms in subscribedRoomIds when connected
+  // Subscribe only to rooms we haven't sent subscribe for yet (avoids duplicate subscribe on re-run or when list grows)
   useEffect(() => {
-    if (connected && subscribedRoomIds.length > 0) {
-      subscribedRoomIds.forEach((id) => subscribe(id));
-    }
+    if (!connected || subscribedRoomIds.length === 0) return;
+
+    subscribedRoomIds.forEach((id) => {
+      if (!subscribedSentRef.current.has(id)) {
+        subscribe(id);
+        subscribedSentRef.current.add(id);
+      }
+    });
+
+    // Drop ref entries for rooms no longer in the list (unsubscribed elsewhere)
+    const idSet = new Set(subscribedRoomIds);
+    subscribedSentRef.current.forEach((id) => {
+      if (!idSet.has(id)) subscribedSentRef.current.delete(id);
+    });
   }, [connected, subscribedRoomIds, subscribe]);
 
   // ============================================================================
