@@ -2,11 +2,11 @@
 Cache service for unread message counts.
 
 Uses Redis hashes to store per-user unread counts:
-- Key pattern: unread:user_{user_id}
+- Key pattern: rostra:unread:user_{user_id}
 - Hash structure: {room_id: count, room_id: count, ...}
 
 Example:
-    unread:user_123 → {"456": "5", "789": "2"}
+    rostra:unread:user_123 → {"456": "5", "789": "2"}
 """
 
 import logging
@@ -29,7 +29,7 @@ class UnreadCountCache:
     @staticmethod
     def _get_key(user_id: int) -> str:
         """Generate Redis key for user's unread counts"""
-        return f"unread:user_{user_id}"
+        return f"rostra:unread:user_{user_id}"
 
     @staticmethod
     def get_unread_counts(user_id: int, db: Session) -> Dict[int, int]:
