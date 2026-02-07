@@ -200,6 +200,8 @@ export default function MessageList({
 
   return (
     <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 flex flex-col">
+      {/* Spacer to push messages to bottom when container isn't full */}
+      <div className="grow" />
       {messages.map((item, index) => {
         if ("type" in item && item.type === "system") {
           return (
