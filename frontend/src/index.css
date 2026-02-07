@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+/* Tell the browser this is a dark-themed site (affects system UI on mobile) */
+:root {
+  color-scheme: dark;
+}
+
 @theme {
   --font-cinzel: 'Cinzel', serif;
 }
