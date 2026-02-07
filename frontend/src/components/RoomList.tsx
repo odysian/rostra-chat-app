@@ -246,15 +246,15 @@ export default function RoomList({
 
       {/* Browse Rooms and Create Room Buttons - ALWAYS RENDERS */}
       <div className="border-t border-zinc-800">
-        {/* Browse Rooms Button */}
+        {/* Rooms (Browse / Your Rooms) Button */}
         <div className="px-3 py-2">
           <button
             onClick={() => setShowDiscovery(true)}
             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-zinc-300 hover:text-amber-500 hover:bg-zinc-800 rounded transition-colors"
-            title="Browse public rooms"
+            title="Manage rooms"
           >
             <Compass className="w-4 h-4" />
-            {sidebarOpen && <span>Browse Rooms</span>}
+            {sidebarOpen && <span>Rooms</span>}
           </button>
         </div>
 

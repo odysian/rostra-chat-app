@@ -260,3 +260,58 @@ def join_room(
     )
 
     return {"message": "Successfully joined room", "room_id": room_id}
+
+
+@router.post("/{room_id}/leave", status_code=status.HTTP_200_OK)
+@limiter.limit("10/minute")
+def leave_room(
+    request: Request,
+    room_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """
+    Leave a room (remove user from room membership).
+
+    - Returns 404 if room doesn't exist
+    - Returns 400 if user is not a member
+    - Returns 403 if user is the room creator (creators cannot leave their own rooms)
+    - Rate limited to 10 leaves per minute
+    """
+    # Check if room exists
+    room = room_crud.get_room_by_id(db, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
+
+    # Check if user is a member
+    membership = user_room_crud.get_user_room(db, current_user.id, room_id)  # type: ignore
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Not a member of this room",
+        )
+
+    # Prevent room creator from leaving (keeps an owner for the room; they must delete instead)
+    if room.created_by == current_user.id:  # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Room creators cannot leave their own rooms. Delete the room instead.",
+        )
+
+    # Remove membership
+    db.delete(membership)
+    db.commit()
+
+    # Audit log
+    logger.info(
+        f"User {current_user.username} (ID: {current_user.id}) left room {room_id} '{room.name}'",
+        extra={
+            "user_id": current_user.id,
+            "room_id": room_id,
+            "action": "room_leave",
+        },
+    )
+
+    return {"message": "Successfully left room", "room_id": room_id}

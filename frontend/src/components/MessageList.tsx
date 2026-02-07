@@ -33,19 +33,23 @@ export default function MessageList({
   const [retryCount, setRetryCount] = useState(0);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Fetch History & Deduplicate
+  // Fetch history when room changes. Defer fetch to next tick so React Strict Mode's
+  // double-invoke runs cleanup before the first fetch starts (avoids duplicate OPTIONS + GET).
   useEffect(() => {
-    let timeoutId: number;
+    const abortController = new AbortController();
+    let timeoutId: number | undefined;
+    let deferredId: number;
+
+    if (token) {
+      setError("");
+      setLoading(true);
+    }
 
     async function fetchMessages() {
       if (!token) return;
 
-      // Reset timeout error state
       setTimeoutError(false);
-      setLoading(true);
-      setError("");
 
-      // 5-second timeout for local testing
       timeoutId = window.setTimeout(() => {
         setTimeoutError(true);
         setError("Loading messages is taking longer than expected. The server may be waking up.");
@@ -53,7 +57,7 @@ export default function MessageList({
       }, 5000);
 
       try {
-        const fetchedMessages = await getRoomMessages(roomId, token);
+        const fetchedMessages = await getRoomMessages(roomId, token, abortController.signal);
         const history = fetchedMessages.reverse();
         clearTimeout(timeoutId);
 
@@ -72,6 +76,9 @@ export default function MessageList({
         setTimeoutError(false);
       } catch (err) {
         clearTimeout(timeoutId);
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
         setError(
           err instanceof Error ? err.message : "Failed to load messages",
         );
@@ -83,9 +90,11 @@ export default function MessageList({
       }
     }
 
-    fetchMessages();
+    deferredId = window.setTimeout(fetchMessages, 0);
 
     return () => {
+      clearTimeout(deferredId);
+      abortController.abort();
       if (timeoutId) {
         clearTimeout(timeoutId);
       }

@@ -51,16 +51,25 @@ function getDelay(attempt: number): number {
   return delay + Math.random() * 1000;
 }
 
-// Create request with timeout
+// Create request with timeout; supports optional external AbortSignal (e.g. for effect cleanup).
 function createRequestWithTimeout(url: string, options: RequestInit): Promise<Response> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), RETRY_CONFIG.timeout);
+
+  const externalSignal = options.signal;
+  const onAbort = () => controller.abort();
+  if (externalSignal) {
+    externalSignal.addEventListener("abort", onAbort);
+  }
 
   return fetch(url, {
     ...options,
     signal: controller.signal,
   }).finally(() => {
     clearTimeout(timeoutId);
+    if (externalSignal) {
+      externalSignal.removeEventListener("abort", onAbort);
+    }
   });
 }
 
@@ -117,19 +126,11 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
         return response.json();
       }
     } catch (error: unknown) {
-      // Handle aborted requests
-      if (error instanceof Error && error.name === 'AbortError') {
-        const timeoutError = new Error(`Request timeout after ${RETRY_CONFIG.timeout}ms`);
-        if (!shouldRetry(timeoutError, attempt)) {
-          throw timeoutError;
-        }
-        lastError = timeoutError;
-
-        // Wait before retry
-        if (attempt < RETRY_CONFIG.maxRetries) {
-          await new Promise(resolve => setTimeout(resolve, getDelay(attempt)));
-        }
-      } else if (error instanceof Error) {
+      // Aborted requests (timeout or caller cancellation) are not retried
+      if (error instanceof Error && error.name === "AbortError") {
+        throw error;
+      }
+      if (error instanceof Error) {
         // Other errors
         if (!shouldRetry(error, attempt)) {
           throw error;
@@ -250,12 +251,30 @@ export async function joinRoom(
   );
 }
 
+// Leave a room
+export async function leaveRoom(
+  roomId: number,
+  token: string
+): Promise<{ message: string; room_id: number }> {
+  return apiCall<{ message: string; room_id: number }>(
+    `/rooms/${roomId}/leave`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+}
+
 // Message API calls
 export async function getRoomMessages(
   roomId: number,
   token: string,
+  signal?: AbortSignal,
 ): Promise<Message[]> {
   return apiCall<Message[]>(`/rooms/${roomId}/messages`, {
+    signal,
     headers: {
       Authorization: `Bearer ${token}`,
     },
