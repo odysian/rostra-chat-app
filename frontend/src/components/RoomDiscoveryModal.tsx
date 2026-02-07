@@ -127,6 +127,12 @@ export function RoomDiscoveryModal({
 
     try {
       await joinRoom(roomId, token);
+      // Clear "optimistically left" so effectiveJoinedIds shows joined (leave-then-join without closing modal)
+      setOptimisticLeftIds((prev) => {
+        const next = new Set(prev);
+        next.delete(roomId);
+        return next;
+      });
       onRoomJoined();
     } catch (err: unknown) {
       setOptimisticJoinedIds((prev) => {
@@ -155,6 +161,12 @@ export function RoomDiscoveryModal({
 
     try {
       await leaveRoom(roomId, token);
+      // Clear "optimistically joined" so we don't double-count if they re-join later in same session
+      setOptimisticJoinedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(roomId);
+        return next;
+      });
       onRoomJoined();
     } catch (err: unknown) {
       setOptimisticLeftIds((prev) => {
