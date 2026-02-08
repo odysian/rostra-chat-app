@@ -1,71 +1,71 @@
 # Rostra Chat
 
-Real-time chat app built to learn WebSockets. First time working with persistent connections instead of regular HTTP requests.
+Real-time chat app built to learn WebSockets.
 
 **Live Demo:** https://rostra.odysian.dev
+
 ## What It Does
 
 - Real-time messaging using WebSockets
-- Multi-room chat functionality
-- User authentication
-- Message history per room
-- Shows who's online in each room
+- Multi-room chat with room discovery, joining, and leaving
+- Unread message counters (server-authoritative, cached in Redis)
+- User authentication with JWT
+- Online presence per room
+- Room membership access control
 
 ## Tech Stack
 
 **Backend:**
 - FastAPI (Python)
 - PostgreSQL (via Supabase)
+- Redis (Upstash) for caching unread counts
 - WebSockets for real-time communication
-- JWT authentication
+- JWT authentication, rate-limited auth endpoints
 
 **Frontend:**
 - React with TypeScript
 - Tailwind CSS
-- WebSocket client
+- Centralized WebSocket context with multi-room subscriptions
 
 **Deployment:**
 - Frontend: Vercel
 - Database: Supabase (PostgreSQL)
 - Backend: Render
+- Cache: Upstash Redis
 - All free tier
 
 ## What I Learned
 
-### WebSockets
-- How persistent connections differ from HTTP requests
-- Managing connection state (connect, disconnect, reconnect)
-- Broadcasting messages to multiple clients
-- Handling user presence (join/leave events)
-
-### Real-time Architecture
-- Connection manager pattern for tracking active WebSocket connections
-- Message routing between users in the same room
-- State synchronization between server and clients
-- Dealing with disconnections and cleanup
-
-### Authentication with WebSockets
+### WebSockets & Real-time Architecture
+- Persistent connections vs HTTP request/response
+- Connection manager pattern for tracking active connections per room
+- Broadcasting messages and managing user presence (join/leave events)
+- Centralized WebSocket context with multi-room subscriptions (LRU capping at 10)
+- Preventing duplicate subscriptions on React effect re-runs
 - Authenticating via JWT on initial WebSocket connection
-- Using the authenticated user context for all subsequent messages
+
+### Room System & Access Control
+- Room membership model with a `user_room` join table
+- Room discovery modal with browse/join/leave workflows
+- Server-authoritative unread counts with Redis caching
+- Fixing N+1 queries when fetching rooms with unread counts
 
 ### TypeScript
 - First project using TypeScript on frontend
-- Type definitions for WebSocket messages
+- Typed WebSocket message schemas for different actions
 - Props and state typing in React
 
-### Deployment Challenges
-- Free tier limitations (Render spins down after inactivity)
+### Deployment & Infrastructure
+- Free tier trade-offs (Render cold starts, Supabase connection limits)
+- Adding Redis (Upstash) as a caching layer on a shared instance with key prefixing
 - WebSocket deployment is trickier than REST APIs
-- Database connection management with Supabase
-- CORS configuration for WebSocket connections
-- Environment variables across three platforms
+- Environment variables across four platforms
 
 ### Key Insights
-- **WebSocket lifecycle:** Had to learn proper cleanup. Unsubscribe from rooms on disconnect and remove from connection manager
-- **Message types:** Created typed message schemas for different actions (subscribe, send_message, etc.). Helped to debug and keep code structured.
-- **Error handling:** WebSocket errors are different from HTTP, can't rely on status codes
+- **WebSocket lifecycle:** Proper cleanup matters: unsubscribe from rooms on disconnect and remove from connection manager
+- **Race conditions:** Switching rooms fast can cause message fetch races; needed careful state management
 - **State management:** Keeping client and server in sync is harder than with REST
-- **Free hosting:** WebSocket connections on free tiers means users wait 30+ seconds on first connection
+- **Free hosting:** Cold starts mean users wait 30+ seconds on first connection; added loading overlay with feedback
 
 ## Running Locally
 
@@ -138,20 +138,22 @@ backend/
 │   ├── api/              # REST endpoints (auth, rooms, messages)
 │   ├── websocket/        # WebSocket handlers and connection manager
 │   ├── crud/             # Database operations
-│   ├── models/           # SQLAlchemy models
+│   ├── models/           # SQLAlchemy models (includes user_room membership)
 │   ├── schemas/          # Pydantic schemas
+│   ├── services/         # Business logic (Redis caching, etc.)
 │   └── core/             # Config, database, security
 ├── alembic/              # Database migrations
-└── test_websocket.html   # WebSocket testing tool
+└── tests/                # Pytest suite
 ```
 
 ### Frontend
 ```
 frontend/
 ├── src/
-│   ├── components/       # Chat UI components
-│   ├── pages/            # Login, Register, Chat
-│   ├── context/          # Auth and WebSocket context
+│   ├── components/       # ChatLayout, RoomList, RoomDiscoveryModal, etc.
+│   ├── pages/            # Login, Register, Chat, Landing
+│   ├── context/          # Auth and centralized WebSocket context
+│   ├── hooks/            # Custom React hooks
 │   ├── services/         # API calls
 │   └── types/            # TypeScript definitions
 ```
@@ -164,7 +166,7 @@ frontend/
 
 **Backend (Render):**
 - Free tier with cold starts (~30 second spin-up)
-- Connects to Supabase PostgreSQL
+- Connects to Supabase PostgreSQL and Upstash Redis
 - WebSocket support enabled
 
 **Database (Supabase):**
@@ -172,18 +174,9 @@ frontend/
 - Connection pooling enabled
 - SSL required for connections
 
-## Challenges & Limitations
-
-**Free Tier Trade-offs:**
-- Render backend spins down after 15 minutes of inactivity
-- First connection after cold start can take a bit longer
-- Supabase has connection limits on free tier
-
-**Learning Curve:**
-- WebSocket state management more complex than REST
-- Debugging real-time issues harder than request/response
-- TypeScript learning curve on frontend
-- Refactoring bloated return statements in React
+**Cache (Upstash Redis):**
+- Shared instance with `rostra:` key prefix
+- Caches unread message counts
 
 ## Contact
 
