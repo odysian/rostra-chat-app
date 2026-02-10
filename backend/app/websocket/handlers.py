@@ -2,14 +2,16 @@
 
 from typing import Any, Dict
 
-from app.core.database import get_db
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.database import AsyncSessionLocal
 from app.core.logging import logger
 from app.core.security import decode_access_token
 from app.crud import message as message_crud
 from app.crud import room as room_crud
 from app.crud import user as user_crud
 from app.crud import user_room as user_room_crud
-from app.models.user import User
 from app.models.user_room import UserRoom
 from app.schemas.message import MessageCreate
 from app.services.cache_service import UnreadCountCache
@@ -27,24 +29,19 @@ from app.websocket.schemas import (
     WSUserJoined,
     WSUserLeft,
 )
-from fastapi import Depends, WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import ValidationError
-from sqlalchemy.orm import Session
 
 
-async def websocket_endpoint(
-    websocket: WebSocket, token: str, db: Session = Depends(get_db)
-) -> None:
+async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
     """
     Main WebSocket endpoint for real-time chat.
 
-    Authenticates user, accepts connection, routes messages to handlers,
-    and cleans up on disconnect.
-
-    Args:
-        websocket: The WebSocket connection
-        token: JWT token from query parameter
-        db: Database session
+    Key architectural change from sync version:
+    - No db parameter — sessions are created per-message, not per-connection.
+    - Auth extracts plain values (user_id, username) so no ORM object
+      crosses session boundaries.
+    - Each message gets its own short-lived session, like a mini HTTP request.
     """
 
     # Authenticate before accepting connection
@@ -54,15 +51,20 @@ async def websocket_endpoint(
         await websocket.close(code=1008, reason="Invalid token")
         return
 
-    user = user_crud.get_user_by_id(db, int(user_id))
-    if not user:
-        logger.warning(f"WebSocket connection rejected: User {user_id} not found")
-        await websocket.close(code=1008, reason="User not found")
-        return
+    # Short-lived session just for auth lookup
+    async with AsyncSessionLocal() as db:
+        user = await user_crud.get_user_by_id(db, int(user_id))
+        if not user:
+            logger.warning(f"WebSocket connection rejected: User {user_id} not found")
+            await websocket.close(code=1008, reason="User not found")
+            return
+        # Extract plain values before session closes — no ORM object leak
+        user_id_int: int = user.id
+        username: str = user.username
 
     # Accept connection and register with manager
-    await manager.connect(websocket, user.id)
-    logger.info(f"User connected: {user.username} (ID: {user.id})")
+    await manager.connect(websocket, user_id_int)
+    logger.info(f"User connected: {username} (ID: {user_id_int})")
 
     try:
         # Message handling loop
@@ -70,22 +72,30 @@ async def websocket_endpoint(
             data = await websocket.receive_json()
             action = data.get("action")
 
-            # Route to handlers
-            if action == "subscribe":
-                await handle_subscribe(websocket, data, user, db)
+            if action == "unsubscribe":
+                # Unsubscribe has no DB operations — no session needed
+                await handle_unsubscribe(websocket, data, user_id_int, username)
 
-            elif action == "unsubscribe":
-                await handle_unsubscribe(websocket, data, user, db)
-
-            elif action == "send_message":
-                await handle_send_message(websocket, data, user, db)
+            elif action in ("subscribe", "send_message"):
+                # New session per message — like a mini HTTP request.
+                # Session opens, handler does its work, session closes.
+                # Connection returned to pool immediately.
+                async with AsyncSessionLocal() as db:
+                    if action == "subscribe":
+                        await handle_subscribe(
+                            websocket, data, user_id_int, username, db
+                        )
+                    else:
+                        await handle_send_message(
+                            websocket, data, user_id_int, username, db
+                        )
 
             else:
-                logger.warning(f"Unknown action from {user.username}: {action}")
+                logger.warning(f"Unknown action from {username}: {action}")
                 await send_error(websocket, f"Unknown action: {action}")
 
     except WebSocketDisconnect:
-        logger.info(f"User disconnected: {user.username} (ID: {user.id})")
+        logger.info(f"User disconnected: {username} (ID: {user_id_int})")
         rooms_user_was_in = manager.disconnect(websocket)
 
         for room_id in rooms_user_was_in:
@@ -94,17 +104,21 @@ async def websocket_endpoint(
                 WSUserLeft(
                     type="user_left",
                     room_id=room_id,
-                    user=WSUser(id=user.id, username=user.username),
+                    user=WSUser(id=user_id_int, username=username),
                 ).model_dump(mode="json"),
             )
 
     except Exception as e:
-        logger.error(f"WebSocket error for {user.username}: {e}", exc_info=True)
+        logger.error(f"WebSocket error for {username}: {e}", exc_info=True)
         manager.disconnect(websocket)
 
 
 async def handle_subscribe(
-    websocket: WebSocket, data: Dict[str, Any], user: User, db: Session
+    websocket: WebSocket,
+    data: Dict[str, Any],
+    user_id: int,
+    username: str,
+    db: AsyncSession,
 ) -> None:
     """
     Handle room subscription request.
@@ -117,24 +131,24 @@ async def handle_subscribe(
     try:
         msg = WSSubscribe(**data)
     except ValidationError as e:
-        logger.warning(f"Invalid subscribe message from {user.username}: {e}")
+        logger.warning(f"Invalid subscribe message from {username}: {e}")
         await send_error(websocket, "Invalid subscribe message format", e.errors())
         return
 
     # Verify room exists
-    room = room_crud.get_room_by_id(db, msg.room_id)
+    room = await room_crud.get_room_by_id(db, msg.room_id)
     if not room:
         logger.warning(
-            f"User {user.username} tried to subscribe to non-existent room {msg.room_id}"
+            f"User {username} tried to subscribe to non-existent room {msg.room_id}"
         )
         await send_error(websocket, "Room not found")
         return
 
     # Check if user is a member
-    membership = user_room_crud.get_user_room(db, user.id, msg.room_id)
+    membership = await user_room_crud.get_user_room(db, user_id, msg.room_id)
     if not membership:
         logger.warning(
-            f"User {user.username} tried to subscribe to room {msg.room_id} without membership"
+            f"User {username} tried to subscribe to room {msg.room_id} without membership"
         )
         await send_error(websocket, "Not a member of this room")
         return
@@ -142,11 +156,11 @@ async def handle_subscribe(
     # Subscribe to room
     manager.subscribe_to_room(websocket, msg.room_id)
     logger.info(
-        f"User {user.username} subscribed to room '{room.name}' (ID: {room.id})"
+        f"User {username} subscribed to room '{room.name}' (ID: {room.id})"
     )
 
-    # Get online users
-    online_users = manager.get_room_users(msg.room_id, db)
+    # Get online users (uses the same short-lived session)
+    online_users = await manager.get_room_users(msg.room_id, db)
     online_users_data = [WSUser(id=u.id, username=u.username) for u in online_users]
 
     # Send confirmation to subscriber
@@ -159,7 +173,7 @@ async def handle_subscribe(
     notification = WSUserJoined(
         type="user_joined",
         room_id=msg.room_id,
-        user=WSUser(id=user.id, username=user.username),
+        user=WSUser(id=user_id, username=username),
     )
 
     await manager.broadcast_to_room(
@@ -168,21 +182,24 @@ async def handle_subscribe(
 
 
 async def handle_unsubscribe(
-    websocket: WebSocket, data: Dict[str, Any], user: User, db: Session
+    websocket: WebSocket,
+    data: Dict[str, Any],
+    user_id: int,
+    username: str,
 ) -> None:
-    """Handle room unsubscription request"""
+    """Handle room unsubscription request. No DB session needed."""
 
     # Validate message
     try:
         msg = WSUnsubscribe(**data)
     except ValidationError as e:
-        logger.warning(f"Invalid unsubscribe message from {user.username}: {e}")
+        logger.warning(f"Invalid unsubscribe message from {username}: {e}")
         await send_error(websocket, "Invalid unsubscribe message format", e.errors())
         return
 
     # Unsubscribe from room
     manager.unsubscribe_from_room(websocket, msg.room_id)
-    logger.info(f"User {user.username} unsubscribed from room ID {msg.room_id}")
+    logger.info(f"User {username} unsubscribed from room ID {msg.room_id}")
 
     # Send confirmation
     response = WSUnsubscribed(type="unsubscribed", room_id=msg.room_id)
@@ -192,13 +209,17 @@ async def handle_unsubscribe(
     notification = WSUserLeft(
         type="user_left",
         room_id=msg.room_id,
-        user=WSUser(id=user.id, username=user.username),
+        user=WSUser(id=user_id, username=username),
     )
     await manager.broadcast_to_room(msg.room_id, notification.model_dump(mode="json"))
 
 
 async def handle_send_message(
-    websocket: WebSocket, data: Dict[str, Any], user: User, db: Session
+    websocket: WebSocket,
+    data: Dict[str, Any],
+    user_id: int,
+    username: str,
+    db: AsyncSession,
 ) -> None:
     """
     Handle message send request.
@@ -211,27 +232,27 @@ async def handle_send_message(
     try:
         msg = WSSendMessage(**data)
     except ValidationError as e:
-        logger.warning("Invalid send_message from %s: %s", user.username, e)
+        logger.warning("Invalid send_message from %s: %s", username, e)
         await send_error(websocket, "Invalid message format", e.errors())
         return
 
     # Verify room exists
-    room = room_crud.get_room_by_id(db, msg.room_id)
+    room = await room_crud.get_room_by_id(db, msg.room_id)
     if not room:
         logger.warning(
             "User %s tried to send message to non-existent room %s",
-            user.username,
+            username,
             msg.room_id,
         )
         await send_error(websocket, "Room not found")
         return
 
     # Check if user is a member
-    membership = user_room_crud.get_user_room(db, user.id, msg.room_id)
+    membership = await user_room_crud.get_user_room(db, user_id, msg.room_id)
     if not membership:
         logger.warning(
             "User %s tried to send message to room %s without membership",
-            user.username,
+            username,
             msg.room_id,
         )
         await send_error(websocket, "Not a member of this room")
@@ -239,32 +260,31 @@ async def handle_send_message(
 
     # Save to database first
     message_create = MessageCreate(room_id=msg.room_id, content=msg.content)
-    db_message = message_crud.create_message(db, message_create, user.id)
+    db_message = await message_crud.create_message(db, message_create, user_id)
 
     # Sending a message implies the user has read up to now; keep last_read_at in sync
-    user_room_crud.mark_room_read(db, user.id, msg.room_id)
+    await user_room_crud.mark_room_read(db, user_id, msg.room_id)
 
     # ========== CACHE UPDATES START ==========
     # Reset sender's unread count (they just sent a message = caught up)
-    UnreadCountCache.reset_unread(user.id, msg.room_id)
+    await UnreadCountCache.reset_unread(user_id, msg.room_id)
 
     # Increment unread count for all OTHER members of the room
-    other_memberships = (
-        db.query(UserRoom)
-        .filter(
+    result = await db.execute(
+        select(UserRoom).where(
             UserRoom.room_id == msg.room_id,
-            UserRoom.user_id != user.id,  # Exclude sender
+            UserRoom.user_id != user_id,
         )
-        .all()
     )
+    other_memberships = result.scalars().all()
 
     for other_member in other_memberships:
-        UnreadCountCache.increment_unread(other_member.user_id, msg.room_id)
+        await UnreadCountCache.increment_unread(other_member.user_id, msg.room_id)
     # ========== CACHE UPDATES END ==========
 
     logger.info(
         "Message saved: User %s → Room '%s' (ID: %s)",
-        user.username,
+        username,
         room.name,
         room.id,
         extra={"message_id": db_message.id, "content_length": len(msg.content)},
@@ -277,7 +297,7 @@ async def handle_send_message(
             id=db_message.id,
             room_id=db_message.room_id,
             user_id=db_message.user_id,
-            username=user.username,
+            username=username,
             content=db_message.content,
             created_at=db_message.created_at,
         ),

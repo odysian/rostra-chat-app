@@ -4,14 +4,14 @@ from app.crud import user as user_crud
 from app.models.user import User
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # HTTP Bearer token security scheme
 security = HTTPBearer()
 
 
-def get_current_user(
-    db: Session = Depends(get_db),
+async def get_current_user(
+    db: AsyncSession = Depends(get_db),
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ) -> User:
     """
@@ -22,13 +22,12 @@ def get_current_user(
 
     Usage in endpoints:
         @router.get("/me")
-        def get_me(current_user: User = Depends(get_current_user)):
+        async def get_me(current_user: User = Depends(get_current_user)):
             return current_user
     """
-    # Extract token from "Authorization: Bearer <token>" header
     token = credentials.credentials
 
-    # Decode JWT to get user_id
+    # decode_access_token is CPU-only (JWT parsing), no await needed
     user_id = decode_access_token(token)
     if user_id is None:
         raise HTTPException(
@@ -37,8 +36,7 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    # Fetch user from database
-    user = user_crud.get_user_by_id(db, int(user_id))
+    user = await user_crud.get_user_by_id(db, int(user_id))
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

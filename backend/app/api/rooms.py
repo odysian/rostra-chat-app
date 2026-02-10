@@ -11,17 +11,17 @@ from app.models.user import User
 from app.schemas.room import RoomCreate, RoomResponse
 from app.services.cache_service import UnreadCountCache
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
 
 @router.get("/discover", response_model=List[RoomResponse])
 @limiter.limit("30/minute")
-def discover_rooms(
+async def discover_rooms(
     request: Request,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get all available public rooms for discovery/browsing.
@@ -35,17 +35,17 @@ def discover_rooms(
     Returns:
         List of all rooms in the system
     """
-    rooms = room_crud.get_all_rooms(db)
+    rooms = await room_crud.get_all_rooms(db)
     return rooms
 
 
 @router.get("", response_model=List[RoomResponse])
-def get_rooms(
+async def get_rooms(
     include_unread: bool = Query(
         False, description="Include unread message counts per room"
     ),
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get rooms the current user is a member of.
@@ -55,13 +55,10 @@ def get_rooms(
     """
 
     if include_unread:
-        # Get unread counts from cache (falls back to DB on miss)
-        unread_counts = UnreadCountCache.get_unread_counts(
+        unread_counts = await UnreadCountCache.get_unread_counts(
             current_user.id, db  # type: ignore[arg-type]
         )
-        # Get rooms (simple query, no JOIN needed)
-        rooms = room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
-        # Attach cached unread counts
+        rooms = await room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
         return [
             RoomResponse(
                 id=cast(int, room.id),
@@ -73,8 +70,7 @@ def get_rooms(
             for room in rooms
         ]
 
-    # No unread counts needed - simple room list
-    rooms = room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
+    rooms = await room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
     return [
         RoomResponse(
             id=cast(int, room.id),
@@ -87,46 +83,43 @@ def get_rooms(
 
 
 @router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
-def create_room(
+async def create_room(
     room: RoomCreate,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Create a new room.
 
     Requires authentication. Room creator is set from JWT token.
     """
-    # Check if room name already exists
-    existing_room = room_crud.get_room_by_name(db, room.name)
+    existing_room = await room_crud.get_room_by_name(db, room.name)
     if existing_room:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Room name already exists"
         )
 
-    # Create room with authenticated user as creator
-    return room_crud.create_room(db, room, current_user.id)  # type:ignore
+    return await room_crud.create_room(db, room, current_user.id)  # type:ignore
 
 
 @router.get("/{room_id}", response_model=RoomResponse)
-def get_room(
+async def get_room(
     room_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Get a specific room by ID.
 
     Requires authentication and room membership.
     """
-    room = room_crud.get_room_by_id(db, room_id)
+    room = await room_crud.get_room_by_id(db, room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
         )
 
-    # Check if user is a member (SECURITY CHECK)
-    membership = user_room_crud.get_user_room(db, current_user.id, room_id)  # type: ignore
+    membership = await user_room_crud.get_user_room(db, current_user.id, room_id)  # type: ignore
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this room"
@@ -136,10 +129,10 @@ def get_room(
 
 
 @router.patch("/{room_id}/read", status_code=status.HTTP_200_OK)
-def mark_room_read(
+async def mark_room_read(
     room_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Mark a room as read for the current user.
@@ -154,29 +147,24 @@ def mark_room_read(
         403: User is not a member of this room
         404: Room not found
     """
-    # Verify room exists (fail fast with better error message)
-    room = room_crud.get_room_by_id(db, room_id)
+    room = await room_crud.get_room_by_id(db, room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
         )
 
-    # Mark room as read (only updates existing membership)
     try:
-        user_room = user_room_crud.mark_room_read(
+        user_room = await user_room_crud.mark_room_read(
             db, current_user.id, room_id  # type: ignore[arg-type]
         )
-    except ValueError as e:
-        # User is not a member
+    except ValueError:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not a member of this room. Join the room first.",
         )
 
-    # Reset unread count in cache
-    UnreadCountCache.reset_unread(current_user.id, room_id)  # type: ignore[arg-type]
+    await UnreadCountCache.reset_unread(current_user.id, room_id)  # type: ignore[arg-type]
 
-    # Extract last_read_at to avoid type checker issues with SQLAlchemy Column types
     last_read_at = user_room.last_read_at  # type: ignore[assignment]
 
     return {
@@ -187,10 +175,10 @@ def mark_room_read(
 
 
 @router.delete("/{room_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_room(
+async def delete_room(
     room_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Delete a room by ID.
@@ -198,7 +186,7 @@ def delete_room(
     Requires auth and room ownership.
     """
 
-    room = room_crud.get_room_by_id(db, room_id)
+    room = await room_crud.get_room_by_id(db, room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
@@ -210,18 +198,18 @@ def delete_room(
             detail="Only room creator can delete this room",
         )
 
-    room_crud.delete_room(db, room_id)
+    await room_crud.delete_room(db, room_id)
 
     return None
 
 
 @router.post("/{room_id}/join", status_code=status.HTTP_200_OK)
 @limiter.limit("10/minute")
-def join_room(
+async def join_room(
     request: Request,
     room_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Join a room (add user to room membership).
@@ -231,15 +219,13 @@ def join_room(
     - Returns 409 if user is already a member
     - Rate limited to 10 joins per minute to prevent spam
     """
-    # Check if room exists
-    room = room_crud.get_room_by_id(db, room_id)
+    room = await room_crud.get_room_by_id(db, room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
         )
 
-    # Check if already a member
-    existing_membership = user_room_crud.get_user_room(
+    existing_membership = await user_room_crud.get_user_room(
         db, current_user.id, room_id  # type: ignore
     )
 
@@ -248,8 +234,7 @@ def join_room(
             status_code=status.HTTP_409_CONFLICT, detail="Already a member of this room"
         )
 
-    # Add membership
-    from datetime import datetime, timezone
+    from datetime import timezone
 
     from app.models.user_room import UserRoom
 
@@ -259,9 +244,8 @@ def join_room(
         joined_at=datetime.now(timezone.utc),
     )
     db.add(membership)
-    db.commit()
+    await db.commit()
 
-    # Audit log after successful commit
     logger.info(
         f"User {current_user.username} (ID: {current_user.id}) joined room {room_id} '{room.name}'",
         extra={
@@ -276,11 +260,11 @@ def join_room(
 
 @router.post("/{room_id}/leave", status_code=status.HTTP_200_OK)
 @limiter.limit("10/minute")
-def leave_room(
+async def leave_room(
     request: Request,
     room_id: int,
     current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
     """
     Leave a room (remove user from room membership).
@@ -290,33 +274,28 @@ def leave_room(
     - Returns 403 if user is the room creator (creators cannot leave their own rooms)
     - Rate limited to 10 leaves per minute
     """
-    # Check if room exists
-    room = room_crud.get_room_by_id(db, room_id)
+    room = await room_crud.get_room_by_id(db, room_id)
     if not room:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
         )
 
-    # Check if user is a member
-    membership = user_room_crud.get_user_room(db, current_user.id, room_id)  # type: ignore
+    membership = await user_room_crud.get_user_room(db, current_user.id, room_id)  # type: ignore
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Not a member of this room",
         )
 
-    # Prevent room creator from leaving (keeps an owner for the room; they must delete instead)
     if room.created_by == current_user.id:  # type: ignore
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Room creators cannot leave their own rooms. Delete the room instead.",
         )
 
-    # Remove membership
-    db.delete(membership)
-    db.commit()
+    await db.delete(membership)
+    await db.commit()
 
-    # Audit log
     logger.info(
         f"User {current_user.username} (ID: {current_user.id}) left room {room_id} '{room.name}'",
         extra={

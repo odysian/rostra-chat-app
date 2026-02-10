@@ -5,19 +5,19 @@ All tests follow the TESTPLAN.md specification exactly.
 """
 
 import pytest
-from fastapi.testclient import TestClient
+from httpx import AsyncClient
 
 # ============================================================================
 # POST /api/rooms
 # ============================================================================
 
 
-def test_create_room_with_valid_name_returns_201(client: TestClient, create_user):
+async def test_create_room_with_valid_name_returns_201(client: AsyncClient, create_user):
     """Room created with valid name returns 201 with room object."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": "Test Room"},
         headers={"Authorization": f"Bearer {token}"},
@@ -33,17 +33,17 @@ def test_create_room_with_valid_name_returns_201(client: TestClient, create_user
     assert data["created_by"] == user_data["user"]["id"]
 
 
-def test_creator_automatically_added_as_room_member(
-    client: TestClient, create_user, db_session
+async def test_creator_automatically_added_as_room_member(
+    client: AsyncClient, create_user, db_session
 ):
     """Creator is automatically added as room member."""
     from app.crud import user_room as user_room_crud
 
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
     # Create room
-    room_response = client.post(
+    room_response = await client.post(
         "/api/rooms",
         json={"name": "Member Test Room"},
         headers={"Authorization": f"Bearer {token}"},
@@ -54,7 +54,7 @@ def test_creator_automatically_added_as_room_member(
     # Check if creator is in member list
     # Note: Current API doesn't have a member list endpoint
     # So we check user_room table directly
-    user_room = user_room_crud.get_user_room(
+    user_room = await user_room_crud.get_user_room(
         db_session, user_data["db_user"].id, room_id
     )
     # Creator becomes member when they first access the room (mark_room_read)
@@ -62,13 +62,13 @@ def test_creator_automatically_added_as_room_member(
     assert room_id is not None
 
 
-def test_room_appears_in_creator_room_list(client: TestClient, create_user):
+async def test_room_appears_in_creator_room_list(client: AsyncClient, create_user):
     """Room appears in creator's room list."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
     # Create room
-    room_response = client.post(
+    room_response = await client.post(
         "/api/rooms",
         json={"name": "List Test Room"},
         headers={"Authorization": f"Bearer {token}"},
@@ -77,7 +77,7 @@ def test_room_appears_in_creator_room_list(client: TestClient, create_user):
     room_id = room_response.json()["id"]
 
     # Get user's room list
-    rooms_response = client.get(
+    rooms_response = await client.get(
         "/api/rooms",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -89,9 +89,9 @@ def test_room_appears_in_creator_room_list(client: TestClient, create_user):
     assert room_id in room_ids
 
 
-def test_create_room_without_auth_returns_401(client: TestClient):
+async def test_create_room_without_auth_returns_401(client: AsyncClient):
     """Creating room without authentication returns 401."""
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": "Unauthorized Room"},
     )
@@ -99,12 +99,12 @@ def test_create_room_without_auth_returns_401(client: TestClient):
     assert response.status_code == 401
 
 
-def test_create_room_with_empty_name_returns_422(client: TestClient, create_user):
+async def test_create_room_with_empty_name_returns_422(client: AsyncClient, create_user):
     """Creating room with empty name returns 422."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": ""},
         headers={"Authorization": f"Bearer {token}"},
@@ -115,13 +115,13 @@ def test_create_room_with_empty_name_returns_422(client: TestClient, create_user
     assert "name" in error_detail or "length" in error_detail
 
 
-def test_create_room_with_name_too_short_returns_422(client: TestClient, create_user):
+async def test_create_room_with_name_too_short_returns_422(client: AsyncClient, create_user):
     """Creating room with name too short returns 422."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
     # Name is 1-2 characters (below minimum of 3)
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": "ab"},
         headers={"Authorization": f"Bearer {token}"},
@@ -134,14 +134,14 @@ def test_create_room_with_name_too_short_returns_422(client: TestClient, create_
     )
 
 
-def test_create_room_with_name_too_long_returns_422(client: TestClient, create_user):
+async def test_create_room_with_name_too_long_returns_422(client: AsyncClient, create_user):
     """Creating room with name too long returns 422."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
     # Name is 51+ characters (above maximum of 50)
     long_name = "a" * 51
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": long_name},
         headers={"Authorization": f"Bearer {token}"},
@@ -154,12 +154,12 @@ def test_create_room_with_name_too_long_returns_422(client: TestClient, create_u
     )
 
 
-def test_create_room_with_only_whitespace_returns_422(client: TestClient, create_user):
+async def test_create_room_with_only_whitespace_returns_422(client: AsyncClient, create_user):
     """Creating room with only whitespace returns 422."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": "   "},
         headers={"Authorization": f"Bearer {token}"},
@@ -169,12 +169,12 @@ def test_create_room_with_only_whitespace_returns_422(client: TestClient, create
     assert response.status_code == 422
 
 
-def test_create_room_with_emoji_and_unicode(client: TestClient, create_user):
+async def test_create_room_with_emoji_and_unicode(client: AsyncClient, create_user):
     """Creating room with emoji and unicode succeeds."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": "Room 😀 测试"},
         headers={"Authorization": f"Bearer {token}"},
@@ -186,14 +186,14 @@ def test_create_room_with_emoji_and_unicode(client: TestClient, create_user):
     assert "😀" in data["name"] or "测试" in data["name"]
 
 
-def test_create_room_trims_whitespace(client: TestClient, create_user, db_session):
+async def test_create_room_trims_whitespace(client: AsyncClient, create_user, db_session):
     """Creating room trims whitespace from name."""
     from app.crud import room as room_crud
 
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": "  roomname  "},
         headers={"Authorization": f"Bearer {token}"},
@@ -203,18 +203,18 @@ def test_create_room_trims_whitespace(client: TestClient, create_user, db_sessio
     data = response.json()
 
     # Verify stored name is trimmed (if trimming is implemented)
-    db_room = room_crud.get_room_by_id(db_session, data["id"])
+    db_room = await room_crud.get_room_by_id(db_session, data["id"])
     assert db_room is not None
     # If trimming is implemented, name should be "roomname"
     # If not, it will be "  roomname  "
 
 
-def test_create_room_with_name_at_min_length(client: TestClient, create_user):
+async def test_create_room_with_name_at_min_length(client: AsyncClient, create_user):
     """Creating room with name at minimum length (3 chars) succeeds."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": "abc"},  # Exactly 3 characters
         headers={"Authorization": f"Bearer {token}"},
@@ -225,13 +225,13 @@ def test_create_room_with_name_at_min_length(client: TestClient, create_user):
     assert data["name"] == "abc"
 
 
-def test_create_room_with_name_at_max_length(client: TestClient, create_user):
+async def test_create_room_with_name_at_max_length(client: AsyncClient, create_user):
     """Creating room with name at maximum length (50 chars) succeeds."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
     long_name = "a" * 50  # Exactly 50 characters
-    response = client.post(
+    response = await client.post(
         "/api/rooms",
         json={"name": long_name},
         headers={"Authorization": f"Bearer {token}"},
@@ -242,16 +242,16 @@ def test_create_room_with_name_at_max_length(client: TestClient, create_user):
     assert len(data["name"]) == 50
 
 
-def test_create_multiple_rooms_with_different_names(client: TestClient, create_user):
+async def test_create_multiple_rooms_with_different_names(client: AsyncClient, create_user):
     """Creating multiple rooms with different names succeeds."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
     room_names = ["Room One", "Room Two", "Room Three"]
     created_room_ids = []
 
     for name in room_names:
-        response = client.post(
+        response = await client.post(
             "/api/rooms",
             json={"name": name},
             headers={"Authorization": f"Bearer {token}"},
@@ -260,7 +260,7 @@ def test_create_multiple_rooms_with_different_names(client: TestClient, create_u
         created_room_ids.append(response.json()["id"])
 
     # All should appear in user's room list
-    rooms_response = client.get(
+    rooms_response = await client.get(
         "/api/rooms",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -272,13 +272,13 @@ def test_create_multiple_rooms_with_different_names(client: TestClient, create_u
         assert room_id in room_ids
 
 
-def test_create_room_with_duplicate_name(client: TestClient, create_user):
+async def test_create_room_with_duplicate_name(client: AsyncClient, create_user):
     """Creating room with duplicate name returns error."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
     # Create first room
-    response1 = client.post(
+    response1 = await client.post(
         "/api/rooms",
         json={"name": "Duplicate Test Room"},
         headers={"Authorization": f"Bearer {token}"},
@@ -286,7 +286,7 @@ def test_create_room_with_duplicate_name(client: TestClient, create_user):
     assert response1.status_code == 201
 
     # Try to create another room with same name
-    response2 = client.post(
+    response2 = await client.post(
         "/api/rooms",
         json={"name": "Duplicate Test Room"},
         headers={"Authorization": f"Bearer {token}"},
@@ -305,18 +305,18 @@ def test_create_room_with_duplicate_name(client: TestClient, create_user):
 # ============================================================================
 
 
-def test_get_rooms_returns_all_user_rooms(client: TestClient, create_user, create_room):
+async def test_get_rooms_returns_all_user_rooms(client: AsyncClient, create_user, create_room):
     """GET /api/rooms returns all rooms user is member of."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
     # Create 3 rooms
-    room1 = create_room(token, "Room 1")
-    room2 = create_room(token, "Room 2")
-    room3 = create_room(token, "Room 3")
+    room1 = await create_room(token, "Room 1")
+    room2 = await create_room(token, "Room 2")
+    room3 = await create_room(token, "Room 3")
 
     # Get rooms
-    response = client.get(
+    response = await client.get(
         "/api/rooms",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -335,12 +335,12 @@ def test_get_rooms_returns_all_user_rooms(client: TestClient, create_user, creat
         assert "created_at" in room
 
 
-def test_get_rooms_returns_empty_array_if_no_rooms(client: TestClient, create_user):
+async def test_get_rooms_returns_empty_array_if_no_rooms(client: AsyncClient, create_user):
     """GET /api/rooms returns empty array if user has no rooms."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    response = client.get(
+    response = await client.get(
         "/api/rooms",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -352,9 +352,9 @@ def test_get_rooms_returns_empty_array_if_no_rooms(client: TestClient, create_us
     assert isinstance(rooms, list)
 
 
-def test_get_rooms_without_auth_returns_401(client: TestClient):
+async def test_get_rooms_without_auth_returns_401(client: AsyncClient):
     """Getting rooms without authentication returns 401."""
-    response = client.get("/api/rooms")
+    response = await client.get("/api/rooms")
 
     assert response.status_code == 401
 
@@ -364,17 +364,17 @@ def test_get_rooms_without_auth_returns_401(client: TestClient):
 # ============================================================================
 
 
-def test_get_room_details_returns_room_and_members(
-    client: TestClient, create_user, create_room
+async def test_get_room_details_returns_room_and_members(
+    client: AsyncClient, create_user, create_room
 ):
     """Getting room details returns room info and member list."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    room = create_room(token, "Details Room")
+    room = await create_room(token, "Details Room")
     room_id = room["id"]
 
-    response = client.get(
+    response = await client.get(
         f"/api/rooms/{room_id}",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -391,32 +391,32 @@ def test_get_room_details_returns_room_and_members(
     # This test verifies what the API actually returns
 
 
-def test_get_room_without_auth_returns_401(
-    client: TestClient, create_user, create_room
+async def test_get_room_without_auth_returns_401(
+    client: AsyncClient, create_user, create_room
 ):
     """Getting room without authentication returns 401."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    room = create_room(token, "Auth Test Room")
+    room = await create_room(token, "Auth Test Room")
     room_id = room["id"]
 
-    response = client.get(f"/api/rooms/{room_id}")
+    response = await client.get(f"/api/rooms/{room_id}")
 
     assert response.status_code == 401
 
 
-def test_get_room_not_member_returns_403(client: TestClient, create_user, create_room):
+async def test_get_room_not_member_returns_403(client: AsyncClient, create_user, create_room):
     """Getting room details when not a member returns 403 (not 404)."""
     # User A creates room
-    user_a = create_user(email="usera@example.com", username="usera")
-    room = create_room(user_a["access_token"], "Private Room")
+    user_a = await create_user(email="usera@example.com", username="usera")
+    room = await create_room(user_a["access_token"], "Private Room")
     room_id = room["id"]
 
     # User B (not member) tries to get room details
-    user_b = create_user(email="userb@example.com", username="userb")
+    user_b = await create_user(email="userb@example.com", username="userb")
 
-    response = client.get(
+    response = await client.get(
         f"/api/rooms/{room_id}",
         headers={"Authorization": f"Bearer {user_b['access_token']}"},
     )
@@ -425,12 +425,12 @@ def test_get_room_not_member_returns_403(client: TestClient, create_user, create
     assert response.status_code == 403
 
 
-def test_get_nonexistent_room_returns_404(client: TestClient, create_user):
+async def test_get_nonexistent_room_returns_404(client: AsyncClient, create_user):
     """Getting nonexistent room returns 404."""
-    user_data = create_user()
+    user_data = await create_user()
     token = user_data["access_token"]
 
-    response = client.get(
+    response = await client.get(
         "/api/rooms/99999",
         headers={"Authorization": f"Bearer {token}"},
     )
@@ -448,18 +448,18 @@ def test_get_nonexistent_room_returns_404(client: TestClient, create_user):
 # These tests are included per test plan but will fail until endpoint is added
 
 
-def test_join_room_returns_200_and_adds_membership(
-    client: TestClient, create_user, create_room
+async def test_join_room_returns_200_and_adds_membership(
+    client: AsyncClient, create_user, create_room
 ):
     """Joining room returns 200 and adds user to member list."""
     # User A creates room
-    user_a = create_user(email="usera@example.com", username="usera")
-    room = create_room(user_a["access_token"], "Test Room")
+    user_a = await create_user(email="usera@example.com", username="usera")
+    room = await create_room(user_a["access_token"], "Test Room")
     room_id = room["id"]
 
     # User B joins room
-    user_b = create_user(email="userb@example.com", username="userb")
-    response = client.post(
+    user_b = await create_user(email="userb@example.com", username="userb")
+    response = await client.post(
         f"/api/rooms/{room_id}/join",
         headers={"Authorization": f"Bearer {user_b['access_token']}"}
     )
@@ -470,24 +470,24 @@ def test_join_room_returns_200_and_adds_membership(
     assert data["room_id"] == room_id
 
 
-def test_after_joining_room_appears_in_user_room_list(
-    client: TestClient, create_user, create_room
+async def test_after_joining_room_appears_in_user_room_list(
+    client: AsyncClient, create_user, create_room
 ):
     """After joining, room appears in user's room list."""
     # User A creates room
-    user_a = create_user(email="usera@example.com", username="usera")
-    room = create_room(user_a["access_token"], "Test Room")
+    user_a = await create_user(email="usera@example.com", username="usera")
+    room = await create_room(user_a["access_token"], "Test Room")
     room_id = room["id"]
 
     # User B joins room
-    user_b = create_user(email="userb@example.com", username="userb")
-    client.post(
+    user_b = await create_user(email="userb@example.com", username="userb")
+    await client.post(
         f"/api/rooms/{room_id}/join",
         headers={"Authorization": f"Bearer {user_b['access_token']}"}
     )
 
     # Get user B's room list
-    response = client.get(
+    response = await client.get(
         "/api/rooms",
         headers={"Authorization": f"Bearer {user_b['access_token']}"}
     )
@@ -498,24 +498,24 @@ def test_after_joining_room_appears_in_user_room_list(
     assert room_id in room_ids
 
 
-def test_after_joining_user_can_send_messages(
-    client: TestClient, create_user, create_room
+async def test_after_joining_user_can_send_messages(
+    client: AsyncClient, create_user, create_room
 ):
     """After joining, user can send messages to room."""
     # User A creates room
-    user_a = create_user(email="usera@example.com", username="usera")
-    room = create_room(user_a["access_token"], "Test Room")
+    user_a = await create_user(email="usera@example.com", username="usera")
+    room = await create_room(user_a["access_token"], "Test Room")
     room_id = room["id"]
 
     # User B joins room
-    user_b = create_user(email="userb@example.com", username="userb")
-    client.post(
+    user_b = await create_user(email="userb@example.com", username="userb")
+    await client.post(
         f"/api/rooms/{room_id}/join",
         headers={"Authorization": f"Bearer {user_b['access_token']}"}
     )
 
     # User B sends message
-    response = client.post(
+    response = await client.post(
         "/api/messages",
         json={"room_id": room_id, "content": "Hello from user B"},
         headers={"Authorization": f"Bearer {user_b['access_token']}"}
@@ -527,22 +527,22 @@ def test_after_joining_user_can_send_messages(
     assert data["room_id"] == room_id
 
 
-def test_join_room_without_auth_returns_401(client: TestClient, create_user, create_room):
+async def test_join_room_without_auth_returns_401(client: AsyncClient, create_user, create_room):
     """Joining room without authentication returns 401."""
-    user_a = create_user(email="usera@example.com", username="usera")
-    room = create_room(user_a["access_token"], "Test Room")
+    user_a = await create_user(email="usera@example.com", username="usera")
+    room = await create_room(user_a["access_token"], "Test Room")
     room_id = room["id"]
 
-    response = client.post(f"/api/rooms/{room_id}/join")
+    response = await client.post(f"/api/rooms/{room_id}/join")
 
     assert response.status_code == 401
 
 
-def test_join_nonexistent_room_returns_404(client: TestClient, create_user):
+async def test_join_nonexistent_room_returns_404(client: AsyncClient, create_user):
     """Joining nonexistent room returns 404."""
-    user = create_user()
+    user = await create_user()
 
-    response = client.post(
+    response = await client.post(
         "/api/rooms/99999/join",
         headers={"Authorization": f"Bearer {user['access_token']}"}
     )
@@ -550,16 +550,16 @@ def test_join_nonexistent_room_returns_404(client: TestClient, create_user):
     assert response.status_code == 404
 
 
-def test_join_room_already_member_returns_409(
-    client: TestClient, create_user, create_room
+async def test_join_room_already_member_returns_409(
+    client: AsyncClient, create_user, create_room
 ):
     """Joining room when already a member returns 409."""
-    user = create_user()
-    room = create_room(user["access_token"], "Test Room")
+    user = await create_user()
+    room = await create_room(user["access_token"], "Test Room")
     room_id = room["id"]
 
     # Try to join again (user is already a member as creator)
-    response = client.post(
+    response = await client.post(
         f"/api/rooms/{room_id}/join",
         headers={"Authorization": f"Bearer {user['access_token']}"}
     )
@@ -574,49 +574,49 @@ def test_join_room_already_member_returns_409(
 # ============================================================================
 
 
-def test_leave_room_returns_200_and_removes_membership(
-    client: TestClient, create_user, create_room
+async def test_leave_room_returns_200_and_removes_membership(
+    client: AsyncClient, create_user, create_room
 ):
     """Leaving room returns 200 and removes membership."""
     pytest.skip("Leave endpoint not implemented")
 
 
-def test_after_leaving_room_not_in_user_room_list(
-    client: TestClient, create_user, create_room
+async def test_after_leaving_room_not_in_user_room_list(
+    client: AsyncClient, create_user, create_room
 ):
     """After leaving, room is not in user's room list."""
     pytest.skip("Leave endpoint not implemented")
 
 
-def test_after_leaving_user_cannot_send_messages(
-    client: TestClient, create_user, create_room
+async def test_after_leaving_user_cannot_send_messages(
+    client: AsyncClient, create_user, create_room
 ):
     """After leaving, user cannot send messages to room."""
     pytest.skip("Leave endpoint not implemented")
 
 
-def test_leave_room_without_auth_returns_401(client: TestClient):
+async def test_leave_room_without_auth_returns_401(client: AsyncClient):
     """Leaving room without authentication returns 401."""
     pytest.skip("Leave endpoint not implemented")
 
 
-def test_leave_nonexistent_room_returns_404(client: TestClient, create_user):
+async def test_leave_nonexistent_room_returns_404(client: AsyncClient, create_user):
     """Leaving nonexistent room returns 404."""
     pytest.skip("Leave endpoint not implemented")
 
 
-def test_leave_room_not_member_returns_400(
-    client: TestClient, create_user, create_room
+async def test_leave_room_not_member_returns_400(
+    client: AsyncClient, create_user, create_room
 ):
     """Leaving room when not a member returns 400."""
     pytest.skip("Leave endpoint not implemented")
 
 
-def test_last_user_leaving_room(client: TestClient, create_user, create_room):
+async def test_last_user_leaving_room(client: AsyncClient, create_user, create_room):
     """Test behavior when last user leaves room."""
     pytest.skip("Leave endpoint not implemented")
 
 
-def test_creator_leaving_own_room(client: TestClient, create_user, create_room):
+async def test_creator_leaving_own_room(client: AsyncClient, create_user, create_room):
     """Test if creator can leave their own room."""
     pytest.skip("Leave endpoint not implemented")

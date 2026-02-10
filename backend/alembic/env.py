@@ -2,7 +2,7 @@ from logging.config import fileConfig
 
 from alembic import context
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import Base, sync_engine
 
 # Import all models so Alembic can discover them
 from app.models import message, room, user, user_room  # noqa: F401
@@ -35,7 +35,7 @@ def run_migrations_offline() -> None:
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode."""
-    connectable = engine
+    connectable = sync_engine
 
     with connectable.connect() as connection:
         context.configure(
