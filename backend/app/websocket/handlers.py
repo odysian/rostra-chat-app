@@ -266,11 +266,8 @@ async def handle_send_message(
     await user_room_crud.mark_room_read(db, user_id, msg.room_id)
 
     # ========== CACHE UPDATES START ==========
-    # NOTE: UnreadCountCache is still sync — will be converted in Phase 5.
-    # These calls will fail at runtime until then.
-
     # Reset sender's unread count (they just sent a message = caught up)
-    UnreadCountCache.reset_unread(user_id, msg.room_id)
+    await UnreadCountCache.reset_unread(user_id, msg.room_id)
 
     # Increment unread count for all OTHER members of the room
     result = await db.execute(
@@ -282,7 +279,7 @@ async def handle_send_message(
     other_memberships = result.scalars().all()
 
     for other_member in other_memberships:
-        UnreadCountCache.increment_unread(other_member.user_id, msg.room_id)
+        await UnreadCountCache.increment_unread(other_member.user_id, msg.room_id)
     # ========== CACHE UPDATES END ==========
 
     logger.info(

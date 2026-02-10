@@ -55,9 +55,7 @@ async def get_rooms(
     """
 
     if include_unread:
-        # NOTE: UnreadCountCache is still sync — will be converted in Phase 5.
-        # This path will fail at runtime until then.
-        unread_counts = UnreadCountCache.get_unread_counts(
+        unread_counts = await UnreadCountCache.get_unread_counts(
             current_user.id, db  # type: ignore[arg-type]
         )
         rooms = await room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
@@ -165,8 +163,7 @@ async def mark_room_read(
             detail="Not a member of this room. Join the room first.",
         )
 
-    # NOTE: UnreadCountCache.reset_unread is still sync — will be converted in Phase 5
-    UnreadCountCache.reset_unread(current_user.id, room_id)  # type: ignore[arg-type]
+    await UnreadCountCache.reset_unread(current_user.id, room_id)  # type: ignore[arg-type]
 
     last_read_at = user_room.last_read_at  # type: ignore[assignment]
 
