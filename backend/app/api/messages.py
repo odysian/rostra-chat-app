@@ -1,5 +1,7 @@
 # type: ignore
-from typing import List
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
@@ -8,13 +10,11 @@ from app.crud import room as room_crud
 from app.crud import user_room as user_room_crud
 from app.models.user import User
 from app.schemas.message import MessageCreate, MessageResponse
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
 
-@router.get("/rooms/{room_id}/messages", response_model=List[MessageResponse])
+@router.get("/rooms/{room_id}/messages", response_model=list[MessageResponse])
 async def get_room_messages(
     room_id: int,
     limit: int = 50,
@@ -72,7 +72,9 @@ async def create_message(
             status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
         )
 
-    membership = await user_room_crud.get_user_room(db, current_user.id, message.room_id)
+    membership = await user_room_crud.get_user_room(
+        db, current_user.id, message.room_id
+    )
     if not membership:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this room"

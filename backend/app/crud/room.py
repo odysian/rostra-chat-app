@@ -1,3 +1,5 @@
+from datetime import UTC
+
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -78,7 +80,7 @@ async def create_room(db: AsyncSession, room: RoomCreate, user_id: int):
     Uses a single transaction to ensure atomicity - both room and membership are
     created together or not at all.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
 
     db_room = Room(name=room.name, created_by=user_id)
     db.add(db_room)
@@ -90,7 +92,7 @@ async def create_room(db: AsyncSession, room: RoomCreate, user_id: int):
     user_room = UserRoom(
         user_id=user_id,
         room_id=db_room.id,
-        joined_at=datetime.now(timezone.utc),
+        joined_at=datetime.now(UTC),
     )
     db.add(user_room)
 

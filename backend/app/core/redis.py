@@ -7,7 +7,6 @@ Falls back gracefully if Redis is unavailable.
 
 import logging
 import os
-from typing import Optional
 
 from redis.asyncio import Redis
 
@@ -17,10 +16,10 @@ logger = logging.getLogger(__name__)
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # Global async Redis client (singleton)
-redis_client: Optional[Redis] = None
+redis_client: Redis | None = None
 
 
-async def init_redis() -> Optional[Redis]:
+async def init_redis() -> Redis | None:
     """
     Initialize async Redis connection.
 
@@ -46,7 +45,7 @@ async def init_redis() -> Optional[Redis]:
         return None
 
 
-async def get_redis() -> Optional[Redis]:
+async def get_redis() -> Redis | None:
     """Get the global async Redis client (None if unavailable)."""
     return redis_client
 

@@ -10,7 +10,7 @@ Example:
 """
 
 import logging
-from typing import Any, Dict, Optional, cast
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,7 +34,7 @@ class UnreadCountCache:
         return f"rostra:unread:user_{user_id}"
 
     @staticmethod
-    async def get_unread_counts(user_id: int, db: AsyncSession) -> Dict[int, int]:
+    async def get_unread_counts(user_id: int, db: AsyncSession) -> dict[int, int]:
         """
         Get unread counts for all user's rooms.
 
@@ -73,8 +73,8 @@ class UnreadCountCache:
     async def _populate_from_db(
         user_id: int,
         db: AsyncSession,
-        redis_client: Optional[Any] = None,
-    ) -> Dict[int, int]:
+        redis_client: Any | None = None,
+    ) -> dict[int, int]:
         """
         Query database for unread counts and populate Redis.
 
@@ -87,12 +87,10 @@ class UnreadCountCache:
             Dict mapping room_id → unread_count
         """
         # Get all rooms user is a member of
-        result = await db.execute(
-            select(UserRoom).where(UserRoom.user_id == user_id)
-        )
+        result = await db.execute(select(UserRoom).where(UserRoom.user_id == user_id))
         memberships = result.scalars().all()
 
-        unread_counts: Dict[int, int] = {}
+        unread_counts: dict[int, int] = {}
         for membership in memberships:
             rid = cast(int, membership.room_id)
             count = await user_room_crud.get_unread_count(db, user_id, rid)

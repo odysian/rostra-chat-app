@@ -13,8 +13,8 @@ _async_url = _parsed_url.set(drivername="postgresql+asyncpg")
 async_engine = create_async_engine(
     _async_url,
     echo=False,
-    pool_size=10,       # Default connections in pool
-    max_overflow=20,    # Extra connections allowed under load
+    pool_size=10,  # Default connections in pool
+    max_overflow=20,  # Extra connections allowed under load
     pool_recycle=3600,  # Recycle connections after 1 hour (prevents stale connections)
 )
 

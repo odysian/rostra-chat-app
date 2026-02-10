@@ -1,17 +1,18 @@
 from contextlib import asynccontextmanager
 
-from app.api import auth, messages, rooms
-from app.core.config import settings
-from app.core.logging import logger
-from app.core.rate_limit import limiter
-from app.core.redis import close_redis, init_redis
-from app.websocket.handlers import websocket_endpoint
 from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+from app.api import auth, messages, rooms
+from app.core.config import settings
+from app.core.logging import logger
+from app.core.rate_limit import limiter
+from app.core.redis import close_redis, init_redis
+from app.websocket.handlers import websocket_endpoint
 
 logger.info("Starting ChatApp API")
 

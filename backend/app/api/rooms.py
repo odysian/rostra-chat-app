@@ -1,5 +1,8 @@
-from datetime import datetime
-from typing import List, cast
+from datetime import UTC, datetime
+from typing import cast
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
@@ -10,13 +13,11 @@ from app.crud import user_room as user_room_crud
 from app.models.user import User
 from app.schemas.room import RoomCreate, RoomResponse
 from app.services.cache_service import UnreadCountCache
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
 
-@router.get("/discover", response_model=List[RoomResponse])
+@router.get("/discover", response_model=list[RoomResponse])
 @limiter.limit("30/minute")
 async def discover_rooms(
     request: Request,
@@ -39,7 +40,7 @@ async def discover_rooms(
     return rooms
 
 
-@router.get("", response_model=List[RoomResponse])
+@router.get("", response_model=list[RoomResponse])
 async def get_rooms(
     include_unread: bool = Query(
         False, description="Include unread message counts per room"
@@ -56,7 +57,8 @@ async def get_rooms(
 
     if include_unread:
         unread_counts = await UnreadCountCache.get_unread_counts(
-            current_user.id, db  # type: ignore[arg-type]
+            current_user.id,
+            db,  # type: ignore[arg-type]
         )
         rooms = await room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
         return [
@@ -155,7 +157,9 @@ async def mark_room_read(
 
     try:
         user_room = await user_room_crud.mark_room_read(
-            db, current_user.id, room_id  # type: ignore[arg-type]
+            db,
+            current_user.id,
+            room_id,  # type: ignore[arg-type]
         )
     except ValueError:
         raise HTTPException(
@@ -226,7 +230,9 @@ async def join_room(
         )
 
     existing_membership = await user_room_crud.get_user_room(
-        db, current_user.id, room_id  # type: ignore
+        db,
+        current_user.id,
+        room_id,  # type: ignore
     )
 
     if existing_membership:
@@ -234,14 +240,12 @@ async def join_room(
             status_code=status.HTTP_409_CONFLICT, detail="Already a member of this room"
         )
 
-    from datetime import timezone
-
     from app.models.user_room import UserRoom
 
     membership = UserRoom(
         user_id=current_user.id,  # type: ignore
         room_id=room_id,
-        joined_at=datetime.now(timezone.utc),
+        joined_at=datetime.now(UTC),
     )
     db.add(membership)
     await db.commit()

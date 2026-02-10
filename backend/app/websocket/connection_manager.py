@@ -1,10 +1,8 @@
-from typing import Dict, List, Optional, Set
-
+from fastapi import WebSocket
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.user import User
-from fastapi import WebSocket
 
 
 class ConnectionManager:
@@ -23,9 +21,9 @@ class ConnectionManager:
 
     def __init__(self):
         # WebSocket -> User ID mapping
-        self.active_connections: Dict[WebSocket, int] = {}
+        self.active_connections: dict[WebSocket, int] = {}
         # Room ID -> Set of WebSockets mapping
-        self.room_subscriptions: Dict[int, Set[WebSocket]] = {}
+        self.room_subscriptions: dict[int, set[WebSocket]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: int):
         """
@@ -39,7 +37,7 @@ class ConnectionManager:
         await websocket.accept()
         self.active_connections[websocket] = user_id
 
-    def disconnect(self, websocket: WebSocket) -> List[int]:
+    def disconnect(self, websocket: WebSocket) -> list[int]:
         """
         Remove a WebSocket connection and clean up all its subscriptions.
 
@@ -98,7 +96,7 @@ class ConnectionManager:
                 del self.room_subscriptions[room_id]
 
     async def broadcast_to_room(
-        self, room_id: int, message: dict, exclude: Optional[WebSocket] = None
+        self, room_id: int, message: dict, exclude: WebSocket | None = None
     ):
         """
         Send a message to all subscribers of a room.
@@ -117,7 +115,7 @@ class ConnectionManager:
             if connection != exclude:
                 await connection.send_json(message)
 
-    async def get_room_users(self, room_id: int, db: AsyncSession) -> List[User]:
+    async def get_room_users(self, room_id: int, db: AsyncSession) -> list[User]:
         """
         Get list of users currently subscribed to a room.
 

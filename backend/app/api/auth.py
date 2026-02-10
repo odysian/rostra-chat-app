@@ -1,3 +1,6 @@
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.rate_limit import limiter
@@ -5,8 +8,6 @@ from app.core.security import create_access_token, verify_password
 from app.crud import user as user_crud
 from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserLogin, UserResponse
-from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
@@ -15,7 +16,9 @@ router = APIRouter()
     "/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED
 )
 @limiter.limit("5/minute")
-async def register(request: Request, user: UserCreate, db: AsyncSession = Depends(get_db)):
+async def register(
+    request: Request, user: UserCreate, db: AsyncSession = Depends(get_db)
+):
     """
     Register a new user.
 

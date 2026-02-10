@@ -1,5 +1,3 @@
-from typing import List
-
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -25,7 +23,7 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "ChatApp"
 
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = []
+    BACKEND_CORS_ORIGINS: list[str] = []
 
 
 settings = Settings()  # type: ignore

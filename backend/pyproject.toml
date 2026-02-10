@@ -1,0 +1,39 @@
+[tool.ruff]
+# Same line length as Black
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+# Enable these rule sets
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes (undefined names, unused imports)
+    "I",   # isort (import sorting)
+    "B",   # flake8-bugbear (common bugs)
+    "S",   # flake8-bandit (security issues)
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade (modern Python syntax)
+]
+
+# Ignore these specific rules
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "B008",  # do not perform function calls in argument defaults (FastAPI uses this pattern)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Allow certain things in tests
+"tests/*" = [
+    "S101",  # Allow assert statements in tests
+    "S105",  # Allow hardcoded passwords in tests
+]
+# FastAPI-specific patterns
+"app/main.py" = ["S101"]  # Assert used for type narrowing in exception handler
+"app/schemas/*.py" = ["S105"]  # Token types are not actual passwords
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true

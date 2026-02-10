@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -9,9 +9,7 @@ from app.models.user_room import UserRoom
 async def get_user_room(db: AsyncSession, user_id: int, room_id: int):
     """Get user_room record for a specific user and room."""
     result = await db.execute(
-        select(UserRoom).where(
-            UserRoom.user_id == user_id, UserRoom.room_id == room_id
-        )
+        select(UserRoom).where(UserRoom.user_id == user_id, UserRoom.room_id == room_id)
     )
     return result.scalar_one_or_none()
 
@@ -29,7 +27,7 @@ async def mark_room_read(db: AsyncSession, user_id: int, room_id: int):
     Raises:
         ValueError: If user is not a member of the room
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     user_room = await get_user_room(db, user_id, room_id)
 

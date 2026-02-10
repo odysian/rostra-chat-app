@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from app.core.database import Base
 from sqlalchemy import TIMESTAMP, Column, ForeignKey, Integer, UniqueConstraint
 from sqlalchemy.orm import relationship
+
+from app.core.database import Base
 
 
 class UserRoom(Base):
@@ -18,7 +19,7 @@ class UserRoom(Base):
     )
     last_read_at = Column(TIMESTAMP(timezone=True), nullable=True)
     joined_at = Column(
-        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 
     # Relationships

@@ -1,7 +1,9 @@
 # type: ignore
 
-from typing import Any, Dict
+from typing import Any
 
+from fastapi import WebSocket, WebSocketDisconnect
+from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,8 +31,6 @@ from app.websocket.schemas import (
     WSUserJoined,
     WSUserLeft,
 )
-from fastapi import WebSocket, WebSocketDisconnect
-from pydantic import ValidationError
 
 
 async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
@@ -115,7 +115,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
 
 async def handle_subscribe(
     websocket: WebSocket,
-    data: Dict[str, Any],
+    data: dict[str, Any],
     user_id: int,
     username: str,
     db: AsyncSession,
@@ -155,9 +155,7 @@ async def handle_subscribe(
 
     # Subscribe to room
     manager.subscribe_to_room(websocket, msg.room_id)
-    logger.info(
-        f"User {username} subscribed to room '{room.name}' (ID: {room.id})"
-    )
+    logger.info(f"User {username} subscribed to room '{room.name}' (ID: {room.id})")
 
     # Get online users (uses the same short-lived session)
     online_users = await manager.get_room_users(msg.room_id, db)
@@ -183,7 +181,7 @@ async def handle_subscribe(
 
 async def handle_unsubscribe(
     websocket: WebSocket,
-    data: Dict[str, Any],
+    data: dict[str, Any],
     user_id: int,
     username: str,
 ) -> None:
@@ -216,7 +214,7 @@ async def handle_unsubscribe(
 
 async def handle_send_message(
     websocket: WebSocket,
-    data: Dict[str, Any],
+    data: dict[str, Any],
     user_id: int,
     username: str,
     db: AsyncSession,
