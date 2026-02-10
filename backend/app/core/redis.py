@@ -1,7 +1,7 @@
 """
-Redis client for caching unread counts.
+Async Redis client for caching unread counts.
 
-This module provides a singleton Redis connection used throughout the application.
+Singleton pattern — initialized once at startup, closed at shutdown.
 Falls back gracefully if Redis is unavailable.
 """
 
@@ -9,49 +9,51 @@ import logging
 import os
 from typing import Optional
 
-import redis
+from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
 
 # Redis configuration from environment
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
-# Global Redis client (singleton pattern)
-redis_client: Optional[redis.Redis] = None
+# Global async Redis client (singleton)
+redis_client: Optional[Redis] = None
 
 
-def init_redis() -> Optional[redis.Redis]:
+async def init_redis() -> Optional[Redis]:
     """
-    Initialize Redis connection.
+    Initialize async Redis connection.
 
-    Returns:
-        Redis client if successful, None if connection fails
+    Called during app startup (lifespan). Returns the client if
+    successful, None if Redis is unavailable.
     """
     global redis_client
 
     try:
-        client = redis.Redis.from_url(
+        client = Redis.from_url(
             REDIS_URL,
-            decode_responses=True,  # Auto-decode bytes to str
-            socket_connect_timeout=5,  # Timeout after 5 seconds
+            decode_responses=True,
+            socket_connect_timeout=5,
+            socket_timeout=5,  # Read timeout — prevents hanging on slow responses
         )
-        # Test connection (client is always Redis here; type stub may suggest optional)
-        if client is not None:
-            client.ping()
+        await client.ping()
         redis_client = client
-        logger.info("✓ Redis connected: %s", REDIS_URL)
+        logger.info("Redis connected: %s", REDIS_URL)
         return redis_client
-    except (redis.ConnectionError, redis.TimeoutError) as e:
-        logger.warning("✗ Redis unavailable: %s. App will fall back to PostgreSQL.", e)
+    except Exception as e:
+        logger.warning("Redis unavailable: %s. App will fall back to PostgreSQL.", e)
         redis_client = None
         return None
 
 
-def get_redis() -> Optional[redis.Redis]:
-    """
-    Get the global Redis client.
-
-    Returns:
-        Redis client if available, None otherwise
-    """
+async def get_redis() -> Optional[Redis]:
+    """Get the global async Redis client (None if unavailable)."""
     return redis_client
+
+
+async def close_redis() -> None:
+    """Close Redis connection on shutdown."""
+    global redis_client
+    if redis_client:
+        await redis_client.close()
+        redis_client = None

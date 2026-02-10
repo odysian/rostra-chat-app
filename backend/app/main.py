@@ -2,10 +2,10 @@ from contextlib import asynccontextmanager
 
 from app.api import auth, messages, rooms
 from app.core.config import settings
-from app.core.database import Base, engine, get_db
+from app.core.database import get_db
 from app.core.logging import logger
 from app.core.rate_limit import limiter
-from app.core.redis import init_redis
+from app.core.redis import close_redis, init_redis
 from app.websocket.handlers import websocket_endpoint
 from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,9 +21,9 @@ logger.info("Starting ChatApp API")
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan events: startup and shutdown."""
-    init_redis()
+    await init_redis()
     yield
-    # Shutdown: Redis client does not require explicit close for basic usage
+    await close_redis()
 
 
 app = FastAPI(
