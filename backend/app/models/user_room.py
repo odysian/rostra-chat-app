@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import TIMESTAMP, Column, ForeignKey, Integer, UniqueConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import TIMESTAMP, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -9,16 +9,16 @@ from app.core.database import Base
 class UserRoom(Base):
     __tablename__ = "user_room"
 
-    # Columns
-    id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(
+    # Columns with proper type hints for mypy
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
-    room_id = Column(
+    room_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False
     )
-    last_read_at = Column(TIMESTAMP(timezone=True), nullable=True)
-    joined_at = Column(
+    last_read_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
+    joined_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), default=lambda: datetime.now(UTC), nullable=False
     )
 

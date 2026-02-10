@@ -55,7 +55,7 @@ class UnreadCountCache:
 
         try:
             key = UnreadCountCache._get_key(user_id)
-            cached_data = await redis_client.hgetall(key)
+            cached_data = await redis_client.hgetall(key)  # type: ignore[misc]
 
             if cached_data:
                 logger.debug("Cache hit for user %s", user_id)
@@ -129,7 +129,7 @@ class UnreadCountCache:
 
         try:
             key = UnreadCountCache._get_key(user_id)
-            await redis_client.hincrby(key, str(room_id), 1)
+            await redis_client.hincrby(key, str(room_id), 1)  # type: ignore[misc]
             await redis_client.expire(key, CACHE_TTL)
         except Exception as e:
             logger.error(
@@ -152,7 +152,7 @@ class UnreadCountCache:
 
         try:
             key = UnreadCountCache._get_key(user_id)
-            await redis_client.hset(key, str(room_id), "0")
+            await redis_client.hset(key, str(room_id), "0")  # type: ignore[misc]
             await redis_client.expire(key, CACHE_TTL)
         except Exception as e:
             logger.error(

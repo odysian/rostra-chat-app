@@ -1,5 +1,3 @@
-# type: ignore
-
 from typing import Any
 
 from fastapi import WebSocket, WebSocketDisconnect
