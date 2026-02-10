@@ -16,9 +16,9 @@ class UserRoom(Base):
     room_id = Column(
         Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False
     )
-    last_read_at = Column(TIMESTAMP, nullable=True)
+    last_read_at = Column(TIMESTAMP(timezone=True), nullable=True)
     joined_at = Column(
-        TIMESTAMP, default=lambda: datetime.now(timezone.utc), nullable=False
+        TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
 
     # Relationships
