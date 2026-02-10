@@ -1,9 +1,10 @@
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
-from app.crud import user as user_crud
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.user import User
 from fastapi import WebSocket
-from sqlalchemy.orm import Session
 
 
 class ConnectionManager:
@@ -87,7 +88,7 @@ class ConnectionManager:
 
         Args:
             websocket: The WebSocket connection
-            room_id: ID of the room to subscribe to
+            room_id: ID of the room to unsubscribe from
         """
 
         if room_id in self.room_subscriptions:
@@ -97,7 +98,7 @@ class ConnectionManager:
                 del self.room_subscriptions[room_id]
 
     async def broadcast_to_room(
-        self, room_id: int, message: dict, exclude: WebSocket = None  # type: ignore
+        self, room_id: int, message: dict, exclude: Optional[WebSocket] = None
     ):
         """
         Send a message to all subscribers of a room.
@@ -105,6 +106,7 @@ class ConnectionManager:
         Args:
             room_id: ID of the room to broadcast to
             message: Dictionary to send as JSON
+            exclude: Optional WebSocket to skip (e.g. the sender)
         """
 
         if room_id not in self.room_subscriptions:
@@ -115,13 +117,15 @@ class ConnectionManager:
             if connection != exclude:
                 await connection.send_json(message)
 
-    def get_room_users(self, room_id: int, db: Session) -> List[User]:
+    async def get_room_users(self, room_id: int, db: AsyncSession) -> List[User]:
         """
         Get list of users currently subscribed to a room.
 
+        Now async — uses select() + await db.execute() instead of db.query().
+
         Args:
             room_id: ID of the room
-            db: Database session
+            db: Async database session
 
         Returns:
             List of User objects currently in the room
@@ -140,8 +144,8 @@ class ConnectionManager:
             return []
 
         # Fetch User objects from database
-        users = db.query(User).filter(User.id.in_(user_ids)).all()
-        return users
+        result = await db.execute(select(User).where(User.id.in_(user_ids)))
+        return list(result.scalars().all())
 
 
 manager = ConnectionManager()
