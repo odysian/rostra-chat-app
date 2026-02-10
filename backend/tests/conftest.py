@@ -1,8 +1,8 @@
 """
 Pytest configuration and shared fixtures for tests.
 
-Sets up test database with transactions that rollback after each test,
-and disables rate limiting for tests (except specific rate limit tests).
+Sets up an async test database with savepoint-based transaction rollback,
+an httpx.AsyncClient for making requests, and rate limiter helpers.
 
 If TEST_DATABASE_URL points to a separate PostgreSQL database (e.g. chatdb_test),
 that database is created automatically when missing (e.g. after docker-compose
@@ -12,14 +12,15 @@ volume wipe), so pytest can run without manual CREATE DATABASE.
 import os
 import re
 from pathlib import Path
-from typing import Generator
 from urllib.parse import urlparse
 
 import pytest
 from dotenv import load_dotenv
-from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-from sqlalchemy.orm import Session, sessionmaker
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import create_engine, event, text
+from sqlalchemy.engine import make_url
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 # Ensure factory fixtures module is imported so its @pytest.fixture
 # definitions (create_user, create_room, create_message) are registered.
@@ -47,19 +48,17 @@ TEST_DATABASE_URL_ENV = os.environ.pop("TEST_DATABASE_URL", None)
 from app.api import auth, messages, rooms
 from app.core.config import settings
 from app.core.database import Base, get_db
-from app.core.logging import logger
 from app.core.rate_limit import limiter
 
 # Import all models so SQLAlchemy can discover them for table creation
 from app.models import message, room, user, user_room  # noqa: F401
 from app.websocket.handlers import websocket_endpoint
-from fastapi import Depends, FastAPI, Request, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
-from sqlalchemy.orm import Session
 
 
 def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
@@ -121,11 +120,10 @@ def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
         """Health check endpoint"""
         return {"message": "Chat API is running"}
 
+    # Updated: WebSocket route no longer takes a db parameter (Phase 4 change)
     @test_app.websocket("/ws/connect")
-    async def websocket_route(
-        websocket: WebSocket, token: str, db: Session = Depends(get_db)
-    ):
-        await websocket_endpoint(websocket, token, db)
+    async def websocket_route(websocket: WebSocket, token: str):
+        await websocket_endpoint(websocket, token)
 
     return test_app
 
@@ -173,14 +171,27 @@ def _ensure_test_database_exists() -> None:
 
 _ensure_test_database_exists()
 
-# Create test engine
-test_engine = create_engine(
-    TEST_DATABASE_URL,
-    echo=False,
+# Sync test engine — used for DDL (table create/drop) which runs once per session.
+# Same reason Alembic uses a sync engine: DDL is a one-off operation.
+sync_test_engine = create_engine(TEST_DATABASE_URL, echo=False)
+
+# Build async test URL from TEST_DATABASE_URL (swap driver to asyncpg)
+_parsed_test_url = make_url(TEST_DATABASE_URL)
+_async_test_url = _parsed_test_url.set(drivername="postgresql+asyncpg")
+
+# Async test engine — used for per-test sessions (db_session fixture).
+# NullPool ensures each test gets a fresh connection, avoiding stale
+# connections from previous tests' event loops in the pool.
+async_test_engine = create_async_engine(
+    _async_test_url, echo=False, poolclass=NullPool
 )
 
-# Create test session factory
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+# Async test session factory
+TestAsyncSessionLocal = async_sessionmaker(
+    async_test_engine,
+    class_=AsyncSession,
+    expire_on_commit=False,
+)
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -188,64 +199,75 @@ def setup_test_database():
     """
     Create all tables in test database once per test session.
 
-    This runs before all tests and creates the schema.
-    Creates tables directly from models (faster than Alembic for tests).
+    Uses a sync engine for DDL to avoid event loop scope issues with
+    session-scoped async fixtures. Table creation is a one-off operation
+    that doesn't need to be async.
     """
-    # Create schema if using PostgreSQL
-    if "postgresql" in TEST_DATABASE_URL.lower():
-        with test_engine.connect() as conn:
-            conn.execute(text("CREATE SCHEMA IF NOT EXISTS rostra"))
-            conn.commit()
+    with sync_test_engine.connect() as conn:
+        conn.execute(text("CREATE SCHEMA IF NOT EXISTS rostra"))
+        conn.commit()
 
-    # Create all tables from models
-    Base.metadata.create_all(bind=test_engine)
+    Base.metadata.create_all(bind=sync_test_engine)
 
     yield
 
     # Cleanup: drop all tables after tests (but keep schema)
-    Base.metadata.drop_all(bind=test_engine)
+    Base.metadata.drop_all(bind=sync_test_engine)
 
 
 @pytest.fixture(scope="function")
-def db_session() -> Generator[Session, None, None]:
+async def db_session():
     """
-    Create a database session with transaction rollback.
+    Async test session with savepoint-based transaction rollback.
 
-    Each test gets a fresh transaction that rolls back after the test,
-    ensuring test isolation.
+    How the savepoint pattern works:
+    1. We open a real database connection and start a transaction.
+    2. We create a SAVEPOINT (begin_nested) inside that transaction.
+    3. The test's application code calls await db.commit() — but that
+       only commits to the SAVEPOINT, not the outer transaction.
+    4. The event listener re-opens a new savepoint after each commit,
+       so multiple commits within one test all stay inside the outer tx.
+    5. After the test, we rollback the outer transaction, undoing
+       ALL changes — even the ones the app "committed".
+
+    This gives us test isolation without actually persisting anything.
     """
-    # Start a transaction
-    connection = test_engine.connect()
-    transaction = connection.begin()
+    async with async_test_engine.connect() as connection:
+        # Start the outer transaction (this is what we'll rollback)
+        transaction = await connection.begin()
 
-    # Create session bound to this connection
-    session = TestingSessionLocal(bind=connection)
+        # Bind a session to this specific connection
+        session = TestAsyncSessionLocal(bind=connection)
 
-    try:
-        yield session
-    finally:
-        # Rollback transaction to undo all changes
-        session.close()
-        transaction.rollback()
-        connection.close()
+        # Create a savepoint so app-level commit() doesn't escape
+        nested = await connection.begin_nested()
 
+        # Re-open savepoint after each app-level commit
+        @event.listens_for(session.sync_session, "after_transaction_end")
+        def restart_savepoint(session_inner, transaction_inner):
+            nonlocal nested
+            if transaction_inner.nested and not transaction_inner._parent.nested:
+                nested = connection.sync_connection.begin_nested()
 
-@pytest.fixture(scope="function")
-def client(db_session: Session, request) -> Generator[TestClient, None, None]:
-    """
-    Create a test client with database dependency override.
-
-    Overrides get_db to use the test session with rollback transactions.
-
-    By default, uses an app without rate limiting middleware. Tests that need rate limiting
-    should use the `enable_rate_limiting` fixture, which creates an app with middleware.
-    """
-
-    def override_get_db():
         try:
-            yield db_session
+            yield session
         finally:
-            pass  # Don't close - handled by db_session fixture
+            await session.close()
+            await transaction.rollback()
+
+
+@pytest.fixture(scope="function")
+async def client(db_session, request):
+    """
+    Async test client with database dependency override.
+
+    Uses httpx.AsyncClient with ASGITransport to send requests directly
+    to the FastAPI app (no HTTP server needed). Overrides get_db to use
+    the test session with savepoint rollback.
+    """
+
+    async def override_get_db():
+        yield db_session
 
     # Check if this test needs rate limiting (via enable_rate_limiting fixture)
     has_rate_limiting = "enable_rate_limiting" in request.fixturenames
@@ -256,14 +278,14 @@ def client(db_session: Session, request) -> Generator[TestClient, None, None]:
     else:
         test_app = app  # Use default app without rate limiting
 
-    # Override DB dependency
+    # Override DB dependency so all endpoints use the test session
     test_app.dependency_overrides[get_db] = override_get_db
 
-    try:
-        yield TestClient(test_app)
-    finally:
-        # Cleanup: remove overrides
-        test_app.dependency_overrides.clear()
+    transport = ASGITransport(app=test_app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        yield ac
+
+    test_app.dependency_overrides.clear()
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -295,14 +317,13 @@ def enable_rate_limiting():
     The client fixture will detect this fixture and create an app with rate limiting middleware.
 
     Example:
-        def test_rate_limit(enable_rate_limiting, client):
+        async def test_rate_limit(enable_rate_limiting, client):
             # Rate limiting is now active
             ...
 
     Note: This fixture clears the limiter storage to ensure a clean state for each test.
     """
     # Clear limiter storage to start fresh for this test
-    # SlowAPI's MemoryStorage.reset() clears all stored rate limit data
     if hasattr(limiter, "_storage") and hasattr(limiter._storage, "reset"):
         limiter._storage.reset()
 

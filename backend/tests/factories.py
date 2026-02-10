@@ -17,35 +17,29 @@ from app.crud import user as user_crud
 from app.schemas.message import MessageCreate
 from app.schemas.room import RoomCreate
 from app.schemas.user import UserCreate
-from fastapi.testclient import TestClient
-from sqlalchemy.orm import Session
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture
-def create_user(db_session: Session):
+def create_user(db_session: AsyncSession):
     """
     Factory fixture to create a user directly in the database.
 
     This avoids hitting the /api/auth/register and /api/auth/login endpoints,
     so tests using this fixture are not affected by SlowAPI rate limits.
 
-    Args:
-        email: User email (default: "test@example.com")
-        username: Username (default: "testuser")
-        password: Password (default: "testpass123")
-
-    Returns:
+    Returns a callable that creates a user and returns:
         dict with keys: user (dict), access_token (str), db_user (User model)
     """
 
-    def _create_user(
+    async def _create_user(
         email: str = "test@example.com",
         username: str = "testuser",
         password: str = "testpass123",
     ):
-        # Create user via CRUD (handles hashing, uniqueness, etc.)
+        # Create user via async CRUD (handles hashing, uniqueness, etc.)
         user_in = UserCreate(email=email, username=username, password=password)
-        db_user = user_crud.create_user(db_session, user_in)
+        db_user = await user_crud.create_user(db_session, user_in)
 
         # Issue an access token for this user
         access_token = create_access_token({"sub": str(db_user.id)})
@@ -72,21 +66,15 @@ def create_user(db_session: Session):
 
 
 @pytest.fixture
-def create_room(db_session: Session):
+def create_room(db_session: AsyncSession):
     """
     Factory fixture to create a room directly in the database.
 
-    Args:
-        creator_token: Access token of the user creating the room (not used here)
-        name: Room name (default: "Test Room")
-
-    Returns:
-        RoomResponse-like dict with room data
+    Returns a callable that creates a room and returns a RoomResponse-like dict.
     """
 
-    def _create_room(creator_token: str, name: str = "Test Room"):
+    async def _create_room(creator_token: str, name: str = "Test Room"):
         # Decode user id from token
-        # We only need the user id for created_by; HTTP auth is not involved.
         from app.core.security import decode_access_token
 
         user_id_str = decode_access_token(creator_token)
@@ -94,7 +82,7 @@ def create_room(db_session: Session):
         user_id = int(user_id_str)
 
         room_in = RoomCreate(name=name)
-        db_room = room_crud.create_room(db_session, room_in, user_id)
+        db_room = await room_crud.create_room(db_session, room_in, user_id)
 
         return {
             "id": db_room.id,
@@ -111,20 +99,14 @@ def create_room(db_session: Session):
 
 
 @pytest.fixture
-def create_message(db_session: Session):
+def create_message(db_session: AsyncSession):
     """
     Factory fixture to create a message directly in the database.
 
-    Args:
-        user_token: Access token of the user sending the message
-        room_id: ID of the room
-        content: Message content (default: "Test message")
-
-    Returns:
-        MessageResponse-like dict with message data
+    Returns a callable that creates a message and returns a MessageResponse-like dict.
     """
 
-    def _create_message(user_token: str, room_id: int, content: str = "Test message"):
+    async def _create_message(user_token: str, room_id: int, content: str = "Test message"):
         from app.core.security import decode_access_token
 
         user_id_str = decode_access_token(user_token)
@@ -132,7 +114,7 @@ def create_message(db_session: Session):
         user_id = int(user_id_str)
 
         msg_in = MessageCreate(room_id=room_id, content=content)
-        db_message = message_crud.create_message(db_session, msg_in, user_id)
+        db_message = await message_crud.create_message(db_session, msg_in, user_id)
 
         return {
             "id": db_message.id,
