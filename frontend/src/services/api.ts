@@ -5,6 +5,7 @@ import type {
   User,
   Room,
   Message,
+  PaginatedMessages,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -280,8 +281,17 @@ export async function getRoomMessages(
   roomId: number,
   token: string,
   signal?: AbortSignal,
-): Promise<Message[]> {
-  return apiCall<Message[]>(`/rooms/${roomId}/messages`, {
+  cursor?: string,
+): Promise<PaginatedMessages> {
+  // Build query string with cursor if provided
+  const params = new URLSearchParams();
+  if (cursor) {
+    params.set("cursor", cursor);
+  }
+  const query = params.toString();
+  const path = `/rooms/${roomId}/messages${query ? `?${query}` : ""}`;
+
+  return apiCall<PaginatedMessages>(path, {
     signal,
     headers: {
       Authorization: `Bearer ${token}`,

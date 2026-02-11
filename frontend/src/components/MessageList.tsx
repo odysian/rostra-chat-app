@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getRoomMessages } from "../services/api";
 import type { Message } from "../types";
@@ -13,16 +13,23 @@ interface SystemMessage {
 
 type ChatItem = Message | SystemMessage;
 
+type PendingScrollAdjustment =
+  | { type: "initial" }
+  | { type: "prepend"; previousScrollTop: number; previousScrollHeight: number }
+  | { type: "append"; behavior: ScrollBehavior };
+
 interface MessageListProps {
   roomId: number;
   incomingMessages?: Message[];
   onIncomingMessagesProcessed?: () => void;
+  scrollToLatestSignal?: number;
 }
 
 export default function MessageList({
   roomId,
   incomingMessages = [],
   onIncomingMessagesProcessed,
+  scrollToLatestSignal = 0,
 }: MessageListProps) {
   const { token } = useAuth();
   const [messages, setMessages] = useState<ChatItem[]>([]);
@@ -31,7 +38,44 @@ export default function MessageList({
   const [timeoutError, setTimeoutError] = useState(false);
   // Local retry counter so the effect can refetch when user clicks "Retry"
   const [retryCount, setRetryCount] = useState(0);
+
+  // Pagination state
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isInitialPositioned, setIsInitialPositioned] = useState(false);
+
+  // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+  const pendingScrollAdjustmentRef = useRef<PendingScrollAdjustment | null>(null);
+
+  const isNearBottom = useCallback((container: HTMLDivElement): boolean => {
+    const distanceFromBottom =
+      container.scrollHeight - container.scrollTop - container.clientHeight;
+    return distanceFromBottom < 100;
+  }, []);
+
+  // Apply scroll corrections after each message mutation so initial load, prepends,
+  // and real-time appends do not fight each other.
+  useLayoutEffect(() => {
+    const container = scrollContainerRef.current;
+    const adjustment = pendingScrollAdjustmentRef.current;
+    if (!container || !adjustment) return;
+
+    if (adjustment.type === "initial") {
+      container.scrollTop = container.scrollHeight;
+      setIsInitialPositioned(true);
+    } else if (adjustment.type === "prepend") {
+      const newScrollHeight = container.scrollHeight;
+      const heightDelta = newScrollHeight - adjustment.previousScrollHeight;
+      container.scrollTop = adjustment.previousScrollTop + heightDelta;
+    } else {
+      messagesEndRef.current?.scrollIntoView({ behavior: adjustment.behavior });
+    }
+
+    pendingScrollAdjustmentRef.current = null;
+  }, [messages]);
 
   // Fetch history when room changes. Defer fetch to next tick so React Strict Mode's
   // double-invoke runs cleanup before the first fetch starts (avoids duplicate OPTIONS + GET).
@@ -42,6 +86,9 @@ export default function MessageList({
     if (token) {
       setError("");
       setLoading(true);
+      setNextCursor(null);
+      setIsInitialPositioned(false);
+      pendingScrollAdjustmentRef.current = null;
     }
 
     async function fetchMessages() {
@@ -56,22 +103,24 @@ export default function MessageList({
       }, 5000);
 
       try {
-        const fetchedMessages = await getRoomMessages(roomId, token, abortController.signal);
+        // Fetch initial messages (no cursor)
+        const { messages: fetchedMessages, next_cursor } = await getRoomMessages(
+          roomId,
+          token,
+          abortController.signal
+        );
         const history = fetchedMessages.reverse();
         clearTimeout(timeoutId);
 
+        pendingScrollAdjustmentRef.current = { type: "initial" };
         setMessages((prev) => {
-          const uniqueMap = new Map<string | number, ChatItem>();
-          history.forEach((msg) => uniqueMap.set(msg.id, msg));
-
-          prev.forEach((msg) => {
-            if (!uniqueMap.has(msg.id)) {
-              uniqueMap.set(msg.id, msg);
-            }
-          });
-
-          return Array.from(uniqueMap.values());
+          const historyIds = new Set<string | number>(history.map((msg) => msg.id));
+          const liveMessages = prev.filter((msg) => !historyIds.has(msg.id));
+          return [...history, ...liveMessages];
         });
+
+        // Store cursor for pagination
+        setNextCursor(next_cursor);
         setTimeoutError(false);
       } catch (err) {
         clearTimeout(timeoutId);
@@ -105,30 +154,125 @@ export default function MessageList({
     setLoading(true);
     setError("");
     setTimeoutError(false);
+    setIsInitialPositioned(false);
+    pendingScrollAdjustmentRef.current = null;
     // Bump local retry counter so the effect above refetches messages
     setRetryCount((prev) => prev + 1);
   };
+
+  // Load older messages when scrolling to top
+  const loadOlderMessages = useCallback(async () => {
+    if (!token || !nextCursor || isLoadingMore || !isInitialPositioned) return;
+
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+
+    // Record current scroll position before fetching
+    const previousScrollHeight = scrollContainer.scrollHeight;
+    const previousScrollTop = scrollContainer.scrollTop;
+
+    setIsLoadingMore(true);
+
+    try {
+      const { messages: olderMessages, next_cursor } = await getRoomMessages(
+        roomId,
+        token,
+        undefined,
+        nextCursor
+      );
+
+      // Reverse to get oldest-first order (API returns newest-first)
+      const reversedOlderMessages = olderMessages.reverse();
+
+      pendingScrollAdjustmentRef.current = {
+        type: "prepend",
+        previousScrollHeight,
+        previousScrollTop,
+      };
+      setMessages((prev) => {
+        const existingIds = new Set(prev.map((msg) => msg.id));
+        const uniqueOlderMessages = reversedOlderMessages.filter(
+          (msg) => !existingIds.has(msg.id),
+        );
+
+        if (uniqueOlderMessages.length === 0) {
+          pendingScrollAdjustmentRef.current = null;
+          return prev;
+        }
+
+        return [...uniqueOlderMessages, ...prev];
+      });
+
+      // Update cursor
+      setNextCursor(next_cursor);
+    } catch (err) {
+      console.error("Failed to load older messages:", err);
+      // Don't show error UI for pagination failures - user can just retry by scrolling
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [token, roomId, nextCursor, isLoadingMore, isInitialPositioned]);
 
 
 
   // Append incoming messages (delivered per-message so none are dropped when many arrive quickly)
   useEffect(() => {
     if (incomingMessages.length === 0) return;
+    const scrollContainer = scrollContainerRef.current;
+    const shouldStickToBottom = scrollContainer ? isNearBottom(scrollContainer) : false;
+
     setMessages((prev) => {
       const ids = new Set(prev.map((item) => item.id));
       const toAdd = incomingMessages.filter((m) => !ids.has(m.id));
       if (toAdd.length === 0) return prev;
+
+      if (shouldStickToBottom) {
+        pendingScrollAdjustmentRef.current = { type: "append", behavior: "smooth" };
+      }
+
       return [...prev, ...toAdd];
     });
     onIncomingMessagesProcessed?.();
-  }, [incomingMessages, onIncomingMessagesProcessed]);
+  }, [incomingMessages, onIncomingMessagesProcessed, isNearBottom]);
+
+  // Sending a local message should always bring the user back to latest chat context.
+  useEffect(() => {
+    if (!isInitialPositioned) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTop = container.scrollHeight;
+  }, [scrollToLatestSignal, isInitialPositioned]);
 
   // user_joined / user_left are not shown as chat messages; ChatLayout uses them only for the online users sidebar
 
-  // Auto-scroll
+  // IntersectionObserver to detect scroll-to-top
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    if (!isInitialPositioned) return;
+
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // When sentinel becomes visible, load older messages
+        if (entries[0].isIntersecting && nextCursor && !isLoadingMore) {
+          loadOlderMessages();
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: "100px", // Start loading before sentinel is fully visible
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [nextCursor, isLoadingMore, loadOlderMessages, isInitialPositioned]);
 
   // Date Formatting
   const getSmartDate = (isoString: string) => {
@@ -199,7 +343,27 @@ export default function MessageList({
   }
 
   return (
-    <div className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 flex flex-col">
+    <div
+      ref={scrollContainerRef}
+      className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 flex flex-col"
+    >
+      {/* Sentinel for IntersectionObserver - triggers load when scrolled to top */}
+      <div ref={sentinelRef} className="h-px" />
+
+      {/* Loading indicator or "beginning of conversation" message */}
+      {isLoadingMore && (
+        <div className="flex justify-center py-4">
+          <span className="text-xs text-zinc-500">Loading older messages...</span>
+        </div>
+      )}
+      {!isLoadingMore && nextCursor === null && messages.length > 0 && (
+        <div className="flex justify-center py-4">
+          <span className="text-xs text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">
+            This is the beginning of the conversation
+          </span>
+        </div>
+      )}
+
       {/* Spacer to push messages to bottom when container isn't full */}
       <div className="grow" />
       {messages.map((item, index) => {
