@@ -51,6 +51,7 @@ export default function RoomList({
 
   // Discovery modal state
   const [showDiscovery, setShowDiscovery] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
   const prevSidebarOpenRef = useRef(sidebarOpen);
 
   // When sidebar transitions from open to closed (e.g. user taps message area on mobile), close discovery modal to avoid stray content. Do not close when sidebar is already collapsed and user opens discovery from the compass.
@@ -324,11 +325,7 @@ export default function RoomList({
               </span>
               <button
                 type="button"
-                onClick={() => {
-                  if (window.confirm("Are you sure you want to log out?")) {
-                    onLogout();
-                  }
-                }}
+                onClick={() => setShowLogoutModal(true)}
                 className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 text-sm text-red-400 hover:text-red-300 hover:bg-zinc-800 rounded transition-colors"
                 title="Logout"
               >
@@ -419,6 +416,41 @@ export default function RoomList({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>,
+          document.body
+        )}
+
+      {/* Logout Confirmation Modal - matches other destructive action prompts */}
+      {showLogoutModal &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
+              <h3 className="text-xl font-semibold text-zinc-100 mb-2">
+                Log Out?
+              </h3>
+              <p className="text-zinc-400 mb-6">
+                Are you sure you want to log out of this session?
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutModal(false)}
+                  className="px-4 py-2 bg-zinc-700 text-zinc-200 rounded hover:bg-zinc-600 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLogoutModal(false);
+                    onLogout();
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                >
+                  Log Out
+                </button>
+              </div>
             </div>
           </div>,
           document.body

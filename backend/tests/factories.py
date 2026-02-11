@@ -106,7 +106,9 @@ def create_message(db_session: AsyncSession):
     Returns a callable that creates a message and returns a MessageResponse-like dict.
     """
 
-    async def _create_message(user_token: str, room_id: int, content: str = "Test message"):
+    async def _create_message(
+        user_token: str, room_id: int, content: str = "Test message"
+    ):
         from app.core.security import decode_access_token
 
         user_id_str = decode_access_token(user_token)

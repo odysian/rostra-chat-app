@@ -89,14 +89,6 @@ export default function UsersPanel({
           fixed inset-y-0 right-0 z-50 md:z-auto
         `}
       >
-        {/* Connection Status */}
-        <div className="border-b border-zinc-800 px-4 py-2">
-          <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()}`}></div>
-            <span className="text-xs text-zinc-400">{getConnectionStatusText()}</span>
-          </div>
-        </div>
-
         {/* Online Users Header */}
         <div className="border-b border-zinc-800">
           <button
@@ -139,7 +131,7 @@ export default function UsersPanel({
                       {getUserInitials(user.username)}
                     </div>
                     <span
-                      className={`text-sm font-medium truncate flex items-center gap-1.5 min-w-0 flex-1 ${isCurrentUser ? "text-amber-500" : "text-zinc-300"}`}
+                      className={`text-sm truncate flex items-center gap-1.5 min-w-0 flex-1 ${isCurrentUser ? "text-amber-500 font-semibold" : "text-zinc-300 font-medium"}`}
                     >
                       {user.username}
                       {isRoomOwner && (
@@ -151,7 +143,12 @@ export default function UsersPanel({
                         </span>
                       )}
                     </span>
-                    <div className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <div
+                      className={`w-2 h-2 rounded-full shrink-0 ${
+                        isCurrentUser ? getConnectionStatusColor() : "bg-emerald-500"
+                      }`}
+                      title={isCurrentUser ? getConnectionStatusText() : "Online"}
+                    />
                   </div>
                 );
               })

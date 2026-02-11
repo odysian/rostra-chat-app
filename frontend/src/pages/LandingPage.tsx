@@ -34,13 +34,22 @@ export default function LandingPage() {
               Get Started
             </button>
           </div>
+
+          <a
+            href="https://github.com/odysian/rostra-chat-app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex mt-5 text-sm text-amber-500 hover:text-amber-400 transition-colors underline underline-offset-4 focus:outline-none focus:ring-2 focus:ring-amber-500/50 rounded-sm"
+          >
+            View Source on GitHub
+          </a>
         </div>
 
       </div>
 
       <footer className="relative border-t border-zinc-800 py-4 px-6 text-center">
         <p className="text-zinc-600 text-xs">
-          Real-time chat application
+          © 2026 Rostra
         </p>
       </footer>
     </div>
