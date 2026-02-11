@@ -9,6 +9,7 @@ from slowapi.middleware import SlowAPIMiddleware
 
 from app.api import auth, messages, rooms
 from app.core.config import settings
+from app.core.database import async_engine
 from app.core.logging import logger
 from app.core.rate_limit import limiter
 from app.core.redis import close_redis, init_redis
@@ -81,6 +82,22 @@ app.include_router(messages.router, prefix=settings.API_V1_STR, tags=["messages"
 def root():
     """Health check endpoint"""
     return {"message": "Chat API is running"}
+
+
+@app.get(f"{settings.API_V1_STR}/health/db")
+async def db_health():
+    """Return database connection pool health metrics for operational monitoring."""
+    pool = async_engine.pool
+    pool_size = pool.size()
+    checked_out = pool.checkedout()
+    overflow = pool.overflow()
+
+    return {
+        "pool_size": pool_size,
+        "checked_out": checked_out,
+        "overflow": overflow,
+        "status": "healthy" if pool_size > 0 else "degraded",
+    }
 
 
 @app.websocket("/ws/connect")

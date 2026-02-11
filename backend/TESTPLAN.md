@@ -7,7 +7,8 @@ tests/
 ├── factories.py             # factory fixtures for users, rooms, messages
 ├── test_auth.py             # register, login, refresh, rate limiting
 ├── test_rooms.py            # create, list, get, join, leave
-└── test_messages.py         # send, get history, access control
+├── test_messages.py         # send, get history, access control
+└── test_health.py           # service health and operational checks
 ```
 
 ## Implementation Rules for Cursor
@@ -458,6 +459,17 @@ When implementing these tests:
   - Send message with <script>alert('xss')</script>
   - Verify stored content has < > converted to entities
   - GET messages returns sanitized content
+
+---
+
+### GET /api/health/db
+
+**Happy Path:**
+- `test_db_health_returns_pool_metrics_and_status`
+  - Returns 200
+  - Response includes `pool_size`, `checked_out`, `overflow`, and `status`
+  - Metric fields are integers
+  - `status` is either `healthy` or `degraded`
 
 ---
 

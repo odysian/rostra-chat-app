@@ -47,7 +47,7 @@ TEST_DATABASE_URL_ENV = os.environ.pop("TEST_DATABASE_URL", None)
 # Import app creation components
 from app.api import auth, messages, rooms
 from app.core.config import settings
-from app.core.database import Base, get_db
+from app.core.database import Base, async_engine, get_db
 from app.core.rate_limit import limiter
 
 # Import all models so SQLAlchemy can discover them for table creation
@@ -119,6 +119,21 @@ def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
     def root():
         """Health check endpoint"""
         return {"message": "Chat API is running"}
+
+    @test_app.get(f"{settings.API_V1_STR}/health/db")
+    async def db_health():
+        """Return database connection pool health metrics for operational monitoring."""
+        pool = async_engine.pool
+        pool_size = pool.size()
+        checked_out = pool.checkedout()
+        overflow = pool.overflow()
+
+        return {
+            "pool_size": pool_size,
+            "checked_out": checked_out,
+            "overflow": overflow,
+            "status": "healthy" if pool_size > 0 else "degraded",
+        }
 
     # Updated: WebSocket route no longer takes a db parameter (Phase 4 change)
     @test_app.websocket("/ws/connect")
