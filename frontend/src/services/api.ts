@@ -17,6 +17,14 @@ export function setUnauthorizedHandler(handler: () => void) {
   onUnauthorized = handler;
 }
 
+// Fire a lightweight request to wake sleeping backends before auth/data calls.
+export async function warmUpBackend(signal?: AbortSignal): Promise<void> {
+  await createRequestWithTimeout(`${BASE_URL}/`, {
+    method: "GET",
+    signal,
+  });
+}
+
 // Retry configuration for cold starts
 const RETRY_CONFIG = {
   maxRetries: 4,

@@ -1,7 +1,20 @@
+import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { warmUpBackend } from "../services/api";
 
 export default function LandingPage() {
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    // Best-effort ping to reduce cold-start delay before the user signs in.
+    void warmUpBackend(controller.signal).catch(() => {});
+
+    return () => {
+      controller.abort();
+    };
+  }, []);
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-200 flex flex-col">
