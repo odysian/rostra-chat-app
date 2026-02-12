@@ -19,7 +19,10 @@ This is a learning-focused development environment. The developer (Chris) is a c
 Before considering any task complete, run the relevant checks:
 
 ### Backend (FastAPI/Python)
+Run these commands from the `backend/` directory:
 ```bash
+cd backend
+
 # Lint and type check
 ruff check .
 mypy . --ignore-missing-imports

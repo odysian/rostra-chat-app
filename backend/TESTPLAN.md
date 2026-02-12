@@ -350,13 +350,42 @@ When implementing these tests:
 
 ---
 
-### GET /api/rooms/:id/messages
+### Cursor Utilities (`backend/tests/test_cursor.py`)
 
 **Happy Path:**
+- `test_encode_decode_roundtrip_preserves_values`
+  - Encoding and decoding a cursor preserves timestamp and ID
+
+- `test_encode_with_microseconds_precision`
+  - Encoding preserves microsecond precision in timestamp
+
+**Error Cases:**
+- `test_decode_invalid_base64_raises_value_error`
+  - Decoding invalid base64 raises ValueError
+
+- `test_decode_invalid_json_raises_value_error`
+  - Decoding malformed JSON raises ValueError
+
+- `test_decode_missing_fields_raises_value_error`
+  - Decoding JSON missing required fields raises ValueError
+
+- `test_decode_invalid_timestamp_format_raises_value_error`
+  - Decoding invalid ISO timestamp raises ValueError
+
+---
+
+### GET /api/rooms/:id/messages
+
+**Note:** This endpoint now returns `PaginatedMessages` response with `messages` array and `next_cursor` field. All existing tests have been updated to expect this format.
+
+**Happy Path:**
+- `test_get_messages_returns_paginated_response`
+  - GET returns PaginatedMessages with messages array and next_cursor field
+
 - `test_get_messages_returns_room_history`
   - Room has 5 messages
-  - GET returns all 5 messages
-  - Messages ordered by created_at ascending (oldest first)
+  - GET returns all 5 messages in the messages array
+  - Messages ordered by created_at descending (newest first)
 
 - `test_get_messages_includes_sender_info`
   - Each message includes:
@@ -365,7 +394,29 @@ When implementing these tests:
 
 - `test_get_messages_from_empty_room_returns_empty_array`
   - Room has no messages
-  - Returns 200 with empty array (not 404)
+  - Returns 200 with empty messages array (not 404)
+
+**Pagination Behavior:**
+- `test_get_messages_without_cursor_returns_recent_messages`
+  - Fetching without cursor returns most recent messages
+
+- `test_get_messages_with_cursor_returns_older_messages`
+  - Fetching with cursor returns messages older than cursor position
+
+- `test_get_messages_next_cursor_null_at_end_of_history`
+  - next_cursor is null when no more messages exist
+
+- `test_get_messages_next_cursor_present_when_more_exist`
+  - next_cursor is present when more messages exist
+
+- `test_get_messages_respects_limit_parameter`
+  - Limit parameter controls number of messages returned (1-100)
+
+- `test_get_messages_with_same_timestamp_orders_by_id`
+  - Messages with same timestamp ordered by ID (tiebreaker)
+
+- `test_pagination_stable_with_concurrent_inserts`
+  - Pagination remains stable when new messages are inserted during pagination
 
 **Error Cases:**
 - `test_get_messages_without_auth_returns_401`
@@ -376,6 +427,15 @@ When implementing these tests:
   - Assert 403 Forbidden (CRITICAL SECURITY TEST)
 
 - `test_get_messages_nonexistent_room_returns_404`
+
+- `test_get_messages_invalid_cursor_returns_400`
+  - Invalid cursor format returns 400 with error detail
+
+- `test_get_messages_limit_too_small_returns_422`
+  - Limit < 1 returns 422
+
+- `test_get_messages_limit_too_large_returns_422`
+  - Limit > 100 returns 422
 
 **Edge Cases:**
 - `test_get_messages_with_emoji_and_unicode`
