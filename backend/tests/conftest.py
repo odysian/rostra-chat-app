@@ -143,8 +143,9 @@ def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
     return test_app
 
 
-# Create default test app without rate limiting
-app = create_test_app(include_rate_limiting=False)
+# Create default test app without rate limiting.
+# Keep a distinct name so it doesn't collide with the `app` pytest fixture below.
+default_test_app = create_test_app(include_rate_limiting=False)
 
 # Use TEST_DATABASE_URL from env if provided, otherwise use main DATABASE_URL
 TEST_DATABASE_URL = TEST_DATABASE_URL_ENV or settings.DATABASE_URL
@@ -291,7 +292,7 @@ async def client(db_session, request):
     if has_rate_limiting:
         test_app = create_test_app(include_rate_limiting=True)
     else:
-        test_app = app  # Use default app without rate limiting
+        test_app = default_test_app  # Use default app without rate limiting
 
     # Override DB dependency so all endpoints use the test session
     test_app.dependency_overrides[get_db] = override_get_db
@@ -321,6 +322,43 @@ def clear_rate_limiter_storage():
     # Clear again after test for good measure
     if hasattr(limiter, "_storage") and hasattr(limiter._storage, "reset"):
         limiter._storage.reset()
+
+
+@pytest.fixture
+def app(monkeypatch):
+    """
+    FastAPI app instance for synchronous WebSocket tests (TestClient).
+
+    Creates a per-test async engine + session factory pointing at the test
+    database.  Uses a regular connection pool (not NullPool) because
+    NullPool's per-request connect/dispose lifecycle interferes with
+    concurrent WebSocket handlers that broadcast across connections.
+
+    Both HTTP routes (via get_db override) and the WebSocket handler
+    (via monkeypatch of its AsyncSessionLocal reference) use this engine
+    so all code sees the same test database.
+    """
+    ws_engine = create_async_engine(
+        _async_test_url, echo=False, pool_size=5, max_overflow=0
+    )
+    WSSessionLocal = async_sessionmaker(
+        ws_engine, class_=AsyncSession, expire_on_commit=False
+    )
+
+    monkeypatch.setattr("app.websocket.handlers.AsyncSessionLocal", WSSessionLocal)
+
+    test_app = create_test_app(include_rate_limiting=False)
+
+    async def override_get_db():
+        async with WSSessionLocal() as session:
+            yield session
+
+    test_app.dependency_overrides[get_db] = override_get_db
+
+    yield test_app
+
+    test_app.dependency_overrides.clear()
+    ws_engine.sync_engine.dispose()
 
 
 @pytest.fixture
