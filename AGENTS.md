@@ -59,6 +59,16 @@ alembic upgrade head
 
 If any of these fail, fix the issue before moving on. Do not leave broken tests, lint errors, or type errors behind.
 
+### Documentation (after every feature)
+The files in `docs/` are auto-loaded into every conversation via CLAUDE.md. Keeping them accurate eliminates the repeated file reads a fresh session otherwise needs to understand the codebase. **This is not optional — treat doc updates like failing tests.**
+
+- [ ] **ARCHITECTURE.md** — Update if you changed: DB schema (tables, columns, indexes), API endpoints (new/modified routes, request/response shapes), WebSocket events (new actions or event types), or system-level concerns (new services, middleware, infrastructure).
+- [ ] **PATTERNS.md** — Update if you introduced a new code pattern, changed an existing convention, or added a new naming convention. If you followed an existing pattern unchanged, no update needed.
+- [ ] **REVIEW_CHECKLIST.md** — Update if the feature introduced a new category of checks (e.g. file uploads, rate limiting) or if you discovered a check that was missing.
+- [ ] **TESTPLAN.md** — Update before writing any new tests (existing rule, listed here for completeness).
+
+**How to update:** Edit the specific section that changed — add new rows to tables, new items to lists, new sections where appropriate. Do not rewrite entire files. Keep the same structure and formatting.
+
 ## Code Style
 
 ### Python (Backend)
@@ -70,12 +80,11 @@ If any of these fail, fix the issue before moving on. Do not leave broken tests,
 - Environment variables via `pydantic-settings`, never hardcoded secrets
 - Logging over print statements
 
-### TypeScript (Frontend)
+### TypeScript (Frontend — React + Vite SPA)
 - Explicit types — avoid `any`. If you must, use `unknown` and narrow
 - Functional components with hooks (no class components)
 - Props interfaces defined above component: `interface Props { ... }`
-- Use `'use client'` directive only when actually needed (prefer server components in Next.js App Router)
-- Fetch data in server components or route handlers, not in `useEffect` when avoidable
+- This is a Vite SPA with react-router-dom, **not** Next.js — no server components, no `'use client'` directive
 - Error boundaries for user-facing components
 
 ### SQL/Database
@@ -87,35 +96,25 @@ If any of these fail, fix the issue before moving on. Do not leave broken tests,
 
 ## File Structure Conventions
 
-### Backend (FastAPI)
-```
-app/
-├── main.py              # App factory, middleware, CORS
-├── config.py            # Settings via pydantic-settings
-├── database.py          # Engine, session, Base
-├── models/              # SQLAlchemy models (one file per domain)
-├── schemas/             # Pydantic request/response models
-├── routers/             # Route handlers (one file per domain)
-├── services/            # Business logic (keep routers thin)
-├── dependencies/        # FastAPI dependencies (auth, db session)
-├── middleware/           # Custom middleware
-└── utils/               # Shared helpers
-```
+See ARCHITECTURE.md (auto-loaded via CLAUDE.md) for the **actual** directory tree with file-level detail. The conventions below describe where new code should go:
 
-### Frontend (Next.js App Router)
-```
-src/
-├── app/                 # App router pages and layouts
-│   ├── layout.tsx
-│   ├── page.tsx
-│   └── (routes)/
-├── components/          # Reusable UI components
-│   ├── ui/              # Primitives (Button, Input, Card)
-│   └── features/        # Feature-specific components
-├── lib/                 # Utilities, API client, types
-├── hooks/               # Custom React hooks
-└── styles/              # Global styles if needed
-```
+### Backend (FastAPI)
+- **Routes** go in `app/api/` (one file per domain: `auth.py`, `rooms.py`, `messages.py`)
+- **DB models** go in `app/models/` (one file per table)
+- **Pydantic schemas** go in `app/schemas/` (one file per domain, mirrors models/)
+- **Query functions** go in `app/crud/` (one file per domain, mirrors models/)
+- **Business logic** beyond simple CRUD goes in `app/services/`
+- **Framework config** (settings, DB engine, security, Redis, rate limiting) lives in `app/core/`
+- **WebSocket** code (manager, handlers, schemas) lives in `app/websocket/`
+- **Shared helpers** go in `app/utils/`
+
+### Frontend (React + Vite)
+- **Components** go in `src/components/` (one file per component, PascalCase)
+- **Context providers** go in `src/context/` (Auth, WebSocket)
+- **Page-level route components** go in `src/pages/`
+- **API client and WebSocket service** go in `src/services/`
+- **Shared TypeScript types** go in `src/types/index.ts`
+- **Custom hooks** go in `src/hooks/`
 
 ## Common Mistakes to Avoid
 

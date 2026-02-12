@@ -1,1 +1,4 @@
 @AGENTS.md
+@docs/ARCHITECTURE.md
+@docs/PATTERNS.md
+@docs/REVIEW_CHECKLIST.md

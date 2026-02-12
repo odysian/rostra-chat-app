@@ -2,7 +2,7 @@
 
 ## Overview
 
-Rostra is a real-time chat application. Users register and log in with username/password, create or join named rooms, and send text messages. Messages are delivered in real time over WebSockets; the app also shows who is currently in each room (online users). Unread counts per room are tracked via a `user_room` table (last read timestamp), and rooms can be created and deleted (delete restricted to the room creator). The stack is a React (Vite) frontend, FastAPI backend, and PostgreSQL database; all tables live in the `rostra` schema.
+Rostra is a real-time chat application. Users register and log in with username/password, discover and join named rooms, and send text messages. Messages are delivered in real time over WebSockets; the app also shows who is currently in each room (online users). Room access is controlled by explicit membership — users must join a room before they can view messages, send messages, or subscribe via WebSocket. Unread counts per room are tracked via a `user_room` table (last read timestamp) and cached in Redis with PostgreSQL fallback. Message history supports cursor-based pagination for infinite scroll. Rooms can be created and deleted (delete restricted to the room creator); members can leave rooms (except the creator). The stack is a React (Vite) frontend, FastAPI backend, PostgreSQL database, and Redis cache; all tables live in the `rostra` schema.
 
 ## Tech Stack
 
@@ -16,6 +16,10 @@ Rostra is a real-time chat application. Users register and log in with username/
 | Migrations  | Alembic                 | All schema changes in `backend/alembic/versions/` |
 | Auth        | JWT (python-jose) + bcrypt (passlib) | Stateless auth; token in `Authorization: Bearer` and in WebSocket query param |
 | Real-time   | Native WebSocket (FastAPI) | Single `/ws/connect` endpoint; token in query string |
+| Cache       | Redis (async via redis.asyncio) | Unread count caching with 24h TTL; graceful fallback to PostgreSQL if Redis unavailable |
+| Rate limiting | slowapi | Protects auth endpoints (5–10/min) and room management (10–30/min) |
+| DB driver   | asyncpg (via SQLAlchemy async) | Async PostgreSQL driver; all CRUD operations use AsyncSession |
+| Pagination  | Cursor-based (base64-encoded) | Opaque `(created_at, id)` cursor tokens for message history; no offset pagination |
 
 ## System Diagram
 
@@ -41,15 +45,19 @@ Rostra is a real-time chat application. Users register and log in with username/
 │  FastAPI (uvicorn)                                                        │
 │  - CORS from settings.BACKEND_CORS_ORIGINS                               │
 │  - Security headers: X-Content-Type-Options, X-Frame-Options             │
+│  - Rate limiting: slowapi on auth + room management endpoints            │
 │  - Routers: auth, rooms, messages; WebSocket route in main.py            │
-│  - DB: get_db() dependency (SessionLocal); sync engine                    │
-└───────────────────────────────┬─────────────────────────────────────────┘
-                                │
-                                ▼
-┌─────────────────────────────────────────────────────────────────────────┐
-│  PostgreSQL (schema: rostra)                                              │
-│  - users, rooms, messages, user_room                                      │
-└─────────────────────────────────────────────────────────────────────────┘
+│  - DB: AsyncSession via get_db() dependency; async engine                │
+└──────────────────┬──────────────────────────────┬───────────────────────┘
+                   │                              │
+                   ▼                              ▼
+┌──────────────────────────────────┐  ┌───────────────────────────────────┐
+│  PostgreSQL (schema: rostra)     │  │  Redis                            │
+│  - users, rooms, messages,       │  │  - Unread count cache             │
+│    user_room                     │  │  - Key: rostra:unread:user_{id}   │
+│  - Composite index for           │  │  - 24h TTL; fallback to PG        │
+│    cursor pagination             │  │                                   │
+└──────────────────────────────────┘  └───────────────────────────────────┘
 ```
 
 ## Database Schema
@@ -77,7 +85,7 @@ All tables are in schema **rostra**.
 
 - **users**: `ix_users_id`, `ix_users_username` (unique), `ix_users_email` (unique).
 - **rooms**: `ix_rooms_id`, `ix_rooms_name` (unique).
-- **messages**: `ix_messages_id`. (Note: no explicit index on `(room_id, created_at)` for message listing; queries use `room_id` and `order_by(created_at.desc())`.)
+- **messages**: `ix_messages_id`, `ix_messages_room_created_id` composite index on `(room_id, created_at DESC, id DESC)` — covers cursor-based pagination queries (WHERE + ORDER BY + seek).
 - **user_room**: `ix_user_room_user` (user_id), `ix_user_room_room` (room_id); unique constraint `uq_user_room` on (user_id, room_id).
 
 ## API Contracts
@@ -89,31 +97,35 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Method | Path   | Auth | Description |
 |--------|--------|------|-------------|
 | GET    | /      | No   | Health check; returns `{"message": "Chat API is running"}`. |
+| GET    | /api/health/db | No | DB pool metrics; returns `{ pool_size, checked_out, overflow, status }`. |
 
 ### Auth (`/api/auth`)
 
 | Method | Path           | Auth | Description |
 |--------|----------------|------|-------------|
-| POST   | /auth/register | No   | Body: `UserCreate` (username, email, password). Returns `UserResponse`. 400 if username or email taken. |
-| POST   | /auth/login    | No   | Body: `UserLogin` (username, password). Returns `{ access_token, token_type: "bearer" }`. 401 if invalid. |
+| POST   | /auth/register | No   | Body: `UserCreate` (username, email, password). Returns `UserResponse`. 400 if username or email taken. **Rate limited: 5/min.** |
+| POST   | /auth/login    | No   | Body: `UserLogin` (username, password). Returns `{ access_token, token_type: "bearer" }`. 401 if invalid. **Rate limited: 10/min.** |
 | GET    | /auth/me       | Yes  | Returns current user `UserResponse`. 401 if invalid/missing token. |
 
 ### Rooms (`/api/rooms`)
 
 | Method | Path              | Auth | Description |
 |--------|-------------------|------|-------------|
-| GET    | /rooms            | Yes  | List all rooms. Query: `include_unread=true` to include `unread_count` per room (single optimized query). |
-| POST   | /rooms            | Yes  | Body: `RoomCreate` (name). Creates room with current user as creator. 400 if name exists. |
-| GET    | /rooms/{room_id}  | Yes  | Get one room. 404 if not found. |
-| PATCH  | /rooms/{room_id}/read | Yes | Mark room as read for current user (upserts user_room, sets last_read_at). 404 if room not found. Returns `{ status, room_id, last_read_at }`. |
+| GET    | /rooms            | Yes  | List rooms the current user is a member of. Query: `include_unread=true` to include `unread_count` per room (Redis cache with PG fallback). |
+| GET    | /rooms/discover   | Yes  | List all public rooms for discovery (includes rooms user has not joined). **Rate limited: 30/min.** |
+| POST   | /rooms            | Yes  | Body: `RoomCreate` (name, 3–50 chars). Creates room; creator is automatically added as first member. 400 if name exists. |
+| GET    | /rooms/{room_id}  | Yes  | Get one room. 403 if not a member. 404 if not found. |
+| POST   | /rooms/{room_id}/join | Yes | Join a room (add membership). 409 if already a member. 404 if room not found. **Rate limited: 10/min.** |
+| POST   | /rooms/{room_id}/leave | Yes | Leave a room. 403 if user is room creator (creators must delete, not leave). 404 if not found. **Rate limited: 10/min.** |
+| PATCH  | /rooms/{room_id}/read | Yes | Mark room as read for current user (updates last_read_at, resets Redis cache). 403 if not a member. 404 if room not found. Returns `{ status, room_id, last_read_at }`. |
 | DELETE | /rooms/{room_id}  | Yes  | Delete room. 403 unless current user is room creator. 404 if not found. |
 
 ### Messages (mounted at `/api`)
 
 | Method | Path                     | Auth | Description |
 |--------|--------------------------|------|-------------|
-| GET    | /rooms/{room_id}/messages | No   | List recent messages for room (default limit 50). Eager-loads user for username. 404 if room not found. |
-| POST   | /messages                | Yes  | Body: `MessageCreate` (room_id, content). Creates message as current user. 404 if room not found. |
+| GET    | /rooms/{room_id}/messages | Yes  | Cursor-paginated message history. Query: `cursor` (opaque string), `limit` (1–100, default 50). Returns `PaginatedMessages { messages, next_cursor }`. `next_cursor` is null when no older messages exist. 403 if not a room member. 400 if cursor is malformed. 404 if room not found. |
+| POST   | /messages                | Yes  | Body: `MessageCreate` (room_id, content 1–1000 chars). Creates message as current user. 403 if not a room member. 404 if room not found. |
 
 ### WebSocket
 
@@ -123,9 +135,9 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 
 **Client → Server (actions):**
 
-- `{ "action": "subscribe", "room_id": int }` — Subscribe to room; server checks room exists.
-- `{ "action": "unsubscribe", "room_id": int }` — Unsubscribe.
-- `{ "action": "send_message", "room_id": int, "content": str }` — Send message (1–1000 chars); persisted then broadcast; marks room read for sender.
+- `{ "action": "subscribe", "room_id": int }` — Subscribe to room; server checks room exists and user is a member. Returns online user list on success.
+- `{ "action": "unsubscribe", "room_id": int }` — Unsubscribe from room.
+- `{ "action": "send_message", "room_id": int, "content": str }` — Send message (1–1000 chars); checks membership, persists to DB, marks room read for sender, updates Redis unread cache for other members, then broadcasts.
 
 **Server → Client (events):**
 
@@ -142,9 +154,88 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 |----------|--------|-----------------------------|
 | Real-time delivery | WebSockets instead of polling | Single long-lived connection; subscribe/unsubscribe per room; broadcast on new message. |
 | Auth for WebSocket | JWT in query param before accept | `websocket_endpoint` decodes token and closes with 1008 if invalid; no HTTP headers on WS handshake. |
-| Auth for REST | JWT in `Authorization: Bearer` | `get_current_user` dependency uses `HTTPBearer()`; used on rooms and messages POST; GET messages is intentionally public. |
-| Room access | No room membership table for “allowed to join” | Any authenticated user can list rooms, subscribe via WS, and send messages to any room; only room creator can delete. |
-| Unread counts | Single query with JOINs | `get_all_rooms_with_unread` uses LEFT JOINs and CASE to compute unread per room in one query (no N+1). |
-| Message history | REST only | Messages are loaded via GET `/rooms/{room_id}/messages`; new messages via WebSocket; no WS history replay. |
+| Auth for REST | JWT in `Authorization: Bearer` | `get_current_user` dependency uses `HTTPBearer()`; all room and message endpoints require auth. |
+| Room access | Explicit membership via `user_room` table | Users must join a room before they can view, send, or subscribe. Membership checked on subscribe, send_message, GET messages, mark read. Room creators cannot leave (must delete). |
+| Unread counts | Redis cache with PG fallback | `UnreadCountCache` uses Redis hash `rostra:unread:user_{id}` with 24h TTL. Atomic `HINCRBY` on new messages, `HDEL` on mark-read. Falls back to `get_all_rooms_with_unread` SQL query if Redis is unavailable. |
+| Message pagination | Cursor-based (keyset pagination) | `(created_at, id)` cursor encoded as base64 JSON. Composite index `(room_id, created_at DESC, id DESC)` for efficient seeks. `limit + 1` pattern detects `has_more` without a separate COUNT query. |
+| Message history | REST for history, WS for live | Messages loaded via paginated GET endpoint; new messages pushed via WebSocket; no WS history replay. |
+| Async everywhere | AsyncSession, async CRUD, asyncpg | All endpoints use `async def`, all DB operations use `await`. WebSocket handlers create short-lived `AsyncSessionLocal()` sessions per message (like mini HTTP requests). |
+| Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
 | Frontend auth persistence | Token in localStorage | AuthContext stores token in localStorage; 401 from API triggers redirect to /login via `setUnauthorizedHandler`. |
 | DB schema | All tables in `rostra` | `MetaData(schema="rostra")` in database.py; migrations create tables in that schema. |
+
+## Directory Structure
+
+### Backend (`backend/app/`)
+
+```
+app/
+├── main.py                  # App factory, middleware, CORS, WebSocket route
+├── core/                    # Framework-level concerns
+│   ├── config.py            # Settings via pydantic-settings
+│   ├── database.py          # Async engine, AsyncSessionLocal, Base
+│   ├── logging.py           # Structured logger setup
+│   ├── rate_limit.py        # slowapi limiter configuration
+│   ├── redis.py             # Async Redis client singleton
+│   └── security.py          # JWT encode/decode, password hashing
+├── models/                  # SQLAlchemy models (one file per domain)
+│   ├── user.py
+│   ├── room.py
+│   ├── message.py
+│   └── user_room.py
+├── schemas/                 # Pydantic request/response models
+│   ├── user.py
+│   ├── room.py
+│   └── message.py
+├── api/                     # Route handlers (one file per domain)
+│   ├── auth.py
+│   ├── rooms.py
+│   ├── messages.py
+│   └── health.py
+├── crud/                    # Database query functions
+│   ├── user.py
+│   ├── room.py
+│   ├── message.py
+│   └── user_room.py
+├── services/                # Business logic beyond CRUD
+│   └── cache_service.py     # UnreadCountCache (Redis wrapper)
+├── websocket/               # WebSocket subsystem
+│   ├── connection_manager.py  # In-memory connection + room tracking
+│   ├── handlers.py          # Action handlers (subscribe, send_message, etc.)
+│   └── schemas.py           # Pydantic models for WS actions and events
+└── utils/                   # Shared helpers
+    └── cursor.py            # Pagination cursor encode/decode
+```
+
+### Frontend (`frontend/src/`)
+
+```
+src/
+├── assets/                  # Static assets (images, fonts)
+├── components/              # React components
+│   ├── ChatLayout.tsx       # Top-level chat orchestrator (state, WS handler, subscriptions)
+│   ├── Sidebar.tsx          # Room list + create room + logout
+│   ├── RoomList.tsx         # Room listing with unread badges
+│   ├── MessageArea.tsx      # Header + MessageList + MessageInput
+│   ├── MessageList.tsx      # Scrollable messages with infinite scroll
+│   ├── MessageInput.tsx     # Text input + send button
+│   ├── UsersPanel.tsx       # Online users sidebar
+│   └── ...                  # Auth components, modals, loading states
+├── context/                 # React context providers
+│   ├── AuthContext.tsx       # Auth state, login/logout, token management
+│   ├── WebSocketContext.tsx  # WS lifecycle, subscribe/unsubscribe/send
+│   ├── webSocketContextState.ts  # Context type definitions
+│   └── useWebSocketContext.ts    # Typed hook for consuming WS context
+├── hooks/                   # Custom React hooks
+├── pages/                   # Route-level page components
+│   ├── LandingPage.tsx
+│   ├── Login.tsx
+│   └── Register.tsx
+├── services/                # External communication
+│   ├── api.ts               # REST API client (apiCall, named functions)
+│   └── websocket.ts         # WebSocketService class (connect, reconnect, send)
+├── types/                   # Shared TypeScript types
+│   └── index.ts             # User, Room, Message, WS event types
+└── styles/                  # Global CSS
+    └── index.css
+```

@@ -8,6 +8,7 @@ Real-time chat app built to learn WebSockets.
 
 - Real-time messaging using WebSockets
 - Multi-room chat with room discovery, joining, and leaving
+- Infinite scroll message history with cursor-based pagination
 - Unread message counters (server-authoritative, cached in Redis)
 - User authentication with JWT
 - Online presence per room
@@ -21,6 +22,7 @@ Real-time chat app built to learn WebSockets.
 - Redis (Upstash) for caching unread counts
 - WebSockets for real-time communication
 - JWT authentication, rate-limited auth endpoints
+- 90+ backend tests (pytest, real DB with transaction rollback)
 
 **Frontend:**
 - React with TypeScript
@@ -50,6 +52,12 @@ Real-time chat app built to learn WebSockets.
 - Server-authoritative unread counts with Redis caching
 - Fixing N+1 queries when fetching rooms with unread counts
 
+### Pagination & Performance
+- Cursor-based (keyset) pagination instead of offset — stable results even with real-time inserts
+- Composite database index `(room_id, created_at DESC, id DESC)` for efficient seeks
+- IntersectionObserver for scroll detection instead of scroll event listeners
+- Scroll position preservation when prepending older messages (useLayoutEffect)
+
 ### TypeScript
 - First project using TypeScript on frontend
 - Typed WebSocket message schemas for different actions
@@ -65,6 +73,7 @@ Real-time chat app built to learn WebSockets.
 - **WebSocket lifecycle:** Proper cleanup matters: unsubscribe from rooms on disconnect and remove from connection manager
 - **Race conditions:** Switching rooms fast can cause message fetch races; needed careful state management
 - **State management:** Keeping client and server in sync is harder than with REST
+- **Scroll management:** Three distinct scroll scenarios (initial load, prepend history, append new messages) need coordinated state — ended up with a discriminated union for pending scroll adjustments
 - **Free hosting:** Cold starts mean users wait 30+ seconds on first connection; added loading overlay with feedback
 
 ## Running Locally

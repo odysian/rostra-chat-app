@@ -15,7 +15,7 @@ Reusable code patterns and conventions in this project. All of the following are
 
 - API calls are wrapped in try/catch; error message is taken from `err instanceof Error ? err.message : "fallback"` (API client puts `response.json().detail` or status text into `Error.message`).
 - Errors are stored in local state (e.g. `error`, `setError`) and rendered in the UI (e.g. red box with message and optional Retry button).
-- No error boundary is used; failed fetches are handled per component. Delete room failure uses `alert()` in MessageArea.
+- No error boundary is used; failed fetches are handled per component. Delete room failure uses inline error state in MessageArea's delete modal.
 - 401: the API client calls `onUnauthorized()` (set by AuthContext), which clears token and redirects to `/login` via `window.location.href`.
 
 ## Authentication Pattern
@@ -41,15 +41,24 @@ Reusable code patterns and conventions in this project. All of the following are
 - Retry: exponential backoff for network/5xx/timeout (max retries 4, no retry on 401). Timeout 10s per request.
 - 401: if `onUnauthorized` is set (by AuthContext), it is called before throwing; no retry.
 - Errors: message comes from `response.json().detail` when possible, else status text; thrown as `Error(message)`.
-- Named functions per resource: `login`, `register`, `getCurrentUser`, `getRooms`, `markRoomRead`, `createRoom`, `deleteRoom`, `getRoomMessages`, `sendMessage`. Each takes required params and `token` where auth is needed.
+- Named functions per resource: `login`, `register`, `getCurrentUser`, `getRooms`, `discoverRooms`, `markRoomRead`, `createRoom`, `deleteRoom`, `joinRoom`, `leaveRoom`, `getRoomMessages` (with optional `cursor`), `sendMessage`. Each takes required params and `token` where auth is needed.
 
 ## Database Query Patterns
 
-- **ORM only:** SQLAlchemy 2 style; no raw SQL in app code. Session from `get_db()` dependency.
+- **Async ORM only:** SQLAlchemy 2 async style; no raw SQL in app code. Session from `get_db()` dependency (`AsyncSession`). All CRUD functions are `async def` and use `await db.execute(select(...))`.
 - **Relationships:** Eager load where needed to avoid N+1. Example: `get_messages_by_room` uses `.options(joinedload(Message.user))` so each message has `user` loaded for `username`.
 - **Aggregations:** Complex stats in one query. Example: `get_all_rooms_with_unread` uses a single query with LEFT JOINs to `user_room` and `messages`, `group_by` Room, and `func.count(case(...))` for unread count per room.
-- **Writes:** Create model instance, `db.add()`, `db.commit()`, `db.refresh(instance)`; return instance.
+- **Keyset pagination:** `get_messages_by_room` accepts optional `(before_created_at, before_id)` cursor. Uses `WHERE (created_at, id) < (cursor_ts, cursor_id)` with `ORDER BY created_at DESC, id DESC`. Fetches `limit + 1` rows to detect `has_more` without a COUNT query.
+- **Writes:** Create model instance, `db.add()`, `await db.commit()`, `await db.refresh(instance)`; return instance.
 - **Ids:** User ID for creates (room, message) comes from `current_user.id` in the router, not from request body.
+- **WebSocket sessions:** WebSocket handlers do not receive a long-lived session. Each action creates a short-lived `async with AsyncSessionLocal() as db:` block — like a mini HTTP request. This prevents connection-pooling issues from long-lived WebSocket connections holding sessions open.
+
+## Caching Pattern
+
+- **Redis for unread counts:** `UnreadCountCache` in `services/cache_service.py` wraps Redis operations. Uses hash key `rostra:unread:user_{id}` with room_id as field and count as value. 24h TTL.
+- **Operations:** `increment_unread(user_id, room_id)` uses atomic `HINCRBY`. `reset_unread(user_id, room_id)` uses `HDEL`. `get_unread_counts(user_id, room_ids)` uses `HMGET`.
+- **Graceful fallback:** All cache methods catch `RedisError` and log a warning. Callers fall back to the PostgreSQL query (`get_all_rooms_with_unread`). The app works without Redis — just slower for unread counts.
+- **Cache invalidation:** Sending a message increments unread for other members and resets for the sender. Marking a room as read resets the sender's count. No TTL-based staleness issues because state is updated on every relevant event.
 
 ## Component Structure Pattern
 
@@ -88,7 +97,7 @@ Reusable code patterns and conventions in this project. All of the following are
 
 ## Other Conventions
 
-- **Backend routers:** Thin; validation and auth via Depends; business logic in CRUD or websocket handlers. No separate “services” layer for HTTP; websocket has `handlers.py` and `connection_manager.py`.
+- **Backend routers:** Thin; validation and auth via Depends; business logic in CRUD or websocket handlers. Services layer (`app/services/`) for cross-cutting concerns like caching. WebSocket subsystem has `handlers.py`, `connection_manager.py`, and `schemas.py`.
 - **Schemas:** Pydantic in `schemas/` for request/response; WebSocket message shapes in `websocket/schemas.py` with Literal types for `action` and `type`.
 - **Frontend types:** Centralized in `types/index.ts` (User, Room, Message, WS* types). No Zod in the repo; validation is backend Pydantic and frontend manual (e.g. room name length in RoomList).
 - **Styling:** Tailwind only. No CSS modules. Custom font via `@theme { --font-cinzel: 'Cinzel', serif }` and class `font-cinzel`. Scrollbar styling in `index.css`.
