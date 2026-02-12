@@ -47,6 +47,11 @@ export interface Message {
   created_at: string;
 }
 
+export interface PaginatedMessages {
+  messages: Message[];
+  next_cursor: string | null;
+}
+
 // WebSocket message types
 export interface WSSubscribe {
   action: "subscribe";

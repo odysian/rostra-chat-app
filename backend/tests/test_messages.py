@@ -4,7 +4,6 @@ Tests for message endpoints: send, get history, access control.
 All tests follow the TESTPLAN.md specification exactly.
 """
 
-import pytest
 from httpx import AsyncClient
 
 # ============================================================================
@@ -36,7 +35,13 @@ async def test_get_messages_returns_room_history(
     )
 
     assert response.status_code == 200
-    returned_messages = response.json()
+    data = response.json()
+
+    # Response should be paginated
+    assert "messages" in data
+    assert "next_cursor" in data
+
+    returned_messages = data["messages"]
 
     # Should return all 5 messages
     assert len(returned_messages) == 5
@@ -64,7 +69,10 @@ async def test_get_messages_includes_sender_info(
     )
 
     assert response.status_code == 200
-    messages = response.json()
+    data = response.json()
+
+    assert "messages" in data
+    messages = data["messages"]
 
     assert len(messages) > 0
     message = messages[0]
@@ -94,9 +102,15 @@ async def test_get_messages_from_empty_room_returns_empty_array(
     )
 
     assert response.status_code == 200
-    messages = response.json()
+    data = response.json()
+
+    assert "messages" in data
+    assert "next_cursor" in data
+    messages = data["messages"]
+
     assert isinstance(messages, list)
     assert len(messages) == 0
+    assert data["next_cursor"] is None  # No more messages
 
 
 async def test_get_messages_without_auth_returns_401(
@@ -171,7 +185,9 @@ async def test_get_messages_with_emoji_and_unicode(
     )
 
     assert response.status_code == 200
-    messages = response.json()
+    data = response.json()
+
+    messages = data["messages"]
 
     assert len(messages) > 0
     # Content should be preserved
@@ -198,7 +214,9 @@ async def test_get_messages_with_newlines(
     )
 
     assert response.status_code == 200
-    messages = response.json()
+    data = response.json()
+
+    messages = data["messages"]
 
     assert len(messages) > 0
     # Content should preserve newlines
@@ -265,7 +283,9 @@ async def test_sent_message_appears_in_room_history(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert history_response.status_code == 200
-    messages = history_response.json()
+    data = history_response.json()
+
+    messages = data["messages"]
 
     # New message should be in history
     message_ids = [msg["id"] for msg in messages]
@@ -576,7 +596,9 @@ async def test_send_rapid_successive_messages(client: AsyncClient, create_user, 
         headers={"Authorization": f"Bearer {token}"},
     )
     assert history_response.status_code == 200
-    messages = history_response.json()
+    data = history_response.json()
+
+    messages = data["messages"]
     assert len(messages) == 5
 
 
@@ -606,7 +628,9 @@ async def test_message_content_is_sanitized_for_xss(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert get_response.status_code == 200
-    messages = get_response.json()
+    data = get_response.json()
+
+    messages = data["messages"]
 
     # Verify content is sanitized (or stored as-is if frontend handles sanitization)
     # Current API stores as-is - frontend should sanitize
@@ -614,3 +638,383 @@ async def test_message_content_is_sanitized_for_xss(
     # Content should either be sanitized (< converted to &lt;) or stored as-is
     stored_content = messages[0]["content"]
     assert "<script>" in stored_content or "&lt;script&gt;" in stored_content
+
+
+# ============================================================================
+# Message Pagination Tests
+# ============================================================================
+
+
+async def test_get_messages_returns_paginated_response(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """GET /api/rooms/:id/messages returns PaginatedMessages with messages array and next_cursor."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Pagination Test Room")
+    room_id = room["id"]
+
+    # Create one message
+    await create_message(token, room_id, "Test message")
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Verify paginated response structure
+    assert "messages" in data
+    assert "next_cursor" in data
+    assert isinstance(data["messages"], list)
+    assert isinstance(data["next_cursor"], str | type(None))
+
+
+async def test_get_messages_without_cursor_returns_recent_messages(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Fetching without cursor returns most recent messages."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Recent Messages Room")
+    room_id = room["id"]
+
+    # Create 3 messages
+    msg1 = await create_message(token, room_id, "Message 1")
+    msg2 = await create_message(token, room_id, "Message 2")
+    msg3 = await create_message(token, room_id, "Message 3")
+
+    # Get messages without cursor
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    messages = data["messages"]
+    assert len(messages) == 3
+
+    # Should return newest first (Message 3, 2, 1)
+    assert messages[0]["id"] == msg3["id"]
+    assert messages[1]["id"] == msg2["id"]
+    assert messages[2]["id"] == msg1["id"]
+
+
+async def test_get_messages_with_cursor_returns_older_messages(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Fetching with cursor returns messages older than cursor position."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Cursor Pagination Room")
+    room_id = room["id"]
+
+    # Create 5 messages
+    for i in range(5):
+        await create_message(token, room_id, f"Message {i}")
+
+    # Get first page (limit 2)
+    first_page = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=2",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert first_page.status_code == 200
+    first_data = first_page.json()
+
+    assert len(first_data["messages"]) == 2
+    assert first_data["next_cursor"] is not None
+
+    # Get second page using cursor
+    cursor = first_data["next_cursor"]
+    second_page = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=2&cursor={cursor}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert second_page.status_code == 200
+    second_data = second_page.json()
+
+    # Second page should have different messages (older ones)
+    assert len(second_data["messages"]) == 2
+    first_page_ids = {msg["id"] for msg in first_data["messages"]}
+    second_page_ids = {msg["id"] for msg in second_data["messages"]}
+    assert first_page_ids.isdisjoint(second_page_ids)  # No overlap
+
+
+async def test_get_messages_next_cursor_null_at_end_of_history(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """next_cursor is null when no more messages exist."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "End of History Room")
+    room_id = room["id"]
+
+    # Create exactly 3 messages
+    for i in range(3):
+        await create_message(token, room_id, f"Message {i}")
+
+    # Get all messages (limit 10, but only 3 exist)
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=10",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # All messages returned, no more pages
+    assert len(data["messages"]) == 3
+    assert data["next_cursor"] is None  # No more messages
+
+
+async def test_get_messages_next_cursor_present_when_more_exist(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """next_cursor is present when more messages exist."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "More Messages Room")
+    room_id = room["id"]
+
+    # Create 10 messages
+    for i in range(10):
+        await create_message(token, room_id, f"Message {i}")
+
+    # Get first 5 (more exist)
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=5",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data["messages"]) == 5
+    assert data["next_cursor"] is not None  # More messages available
+
+
+async def test_get_messages_respects_limit_parameter(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Limit parameter controls number of messages returned (1-100)."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Limit Test Room")
+    room_id = room["id"]
+
+    # Create 20 messages
+    for i in range(20):
+        await create_message(token, room_id, f"Message {i}")
+
+    # Test limit=1
+    response_1 = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=1",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response_1.status_code == 200
+    assert len(response_1.json()["messages"]) == 1
+
+    # Test limit=10
+    response_10 = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=10",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response_10.status_code == 200
+    assert len(response_10.json()["messages"]) == 10
+
+    # Test limit=100 (max allowed)
+    response_100 = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=100",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response_100.status_code == 200
+    # Only 20 messages exist, so should return 20
+    assert len(response_100.json()["messages"]) == 20
+
+
+async def test_get_messages_limit_too_small_returns_422(
+    client: AsyncClient, create_user, create_room
+):
+    """Limit < 1 returns 422."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Limit Too Small Room")
+    room_id = room["id"]
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=0",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+    error_detail = str(response.json()["detail"]).lower()
+    assert "limit" in error_detail or "greater" in error_detail
+
+
+async def test_get_messages_limit_too_large_returns_422(
+    client: AsyncClient, create_user, create_room
+):
+    """Limit > 100 returns 422."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Limit Too Large Room")
+    room_id = room["id"]
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=101",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+    error_detail = str(response.json()["detail"]).lower()
+    assert "limit" in error_detail or "less" in error_detail or "maximum" in error_detail
+
+
+async def test_get_messages_with_same_timestamp_orders_by_id(
+    client: AsyncClient, create_user, create_room, db_session
+):
+    """Messages with same timestamp ordered by ID (tiebreaker)."""
+    from datetime import UTC, datetime
+
+    from app.models.message import Message
+
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Same Timestamp Room")
+    room_id = room["id"]
+
+    # Manually create messages with same timestamp
+    # (Normal create_message would have slightly different timestamps)
+    same_timestamp = datetime.now(UTC)
+
+    msg1 = Message(
+        room_id=room_id,
+        user_id=user_data["user"]["id"],
+        content="Message 1",
+        created_at=same_timestamp,
+    )
+    msg2 = Message(
+        room_id=room_id,
+        user_id=user_data["user"]["id"],
+        content="Message 2",
+        created_at=same_timestamp,
+    )
+    msg3 = Message(
+        room_id=room_id,
+        user_id=user_data["user"]["id"],
+        content="Message 3",
+        created_at=same_timestamp,
+    )
+
+    db_session.add(msg1)
+    db_session.add(msg2)
+    db_session.add(msg3)
+    await db_session.commit()
+    await db_session.refresh(msg1)
+    await db_session.refresh(msg2)
+    await db_session.refresh(msg3)
+
+    # Get messages
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    messages = data["messages"]
+    assert len(messages) == 3
+
+    # All have same timestamp, so should be ordered by ID descending
+    assert messages[0]["id"] > messages[1]["id"]
+    assert messages[1]["id"] > messages[2]["id"]
+
+
+async def test_get_messages_invalid_cursor_returns_400(
+    client: AsyncClient, create_user, create_room
+):
+    """Invalid cursor format returns 400 with error detail."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Invalid Cursor Room")
+    room_id = room["id"]
+
+    # Invalid cursor (not valid base64 or malformed)
+    invalid_cursor = "not-a-valid-cursor!!!"
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages?cursor={invalid_cursor}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    error_detail = response.json()["detail"].lower()
+    assert "invalid" in error_detail and "cursor" in error_detail
+
+
+async def test_pagination_stable_with_concurrent_inserts(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Pagination remains stable when new messages are inserted during pagination."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Concurrent Insert Room")
+    room_id = room["id"]
+
+    # Create 5 initial messages
+    for i in range(5):
+        await create_message(token, room_id, f"Initial {i}")
+
+    # Get first page (limit 2)
+    first_page = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=2",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert first_page.status_code == 200
+    first_data = first_page.json()
+
+    cursor = first_data["next_cursor"]
+    first_page_ids = {msg["id"] for msg in first_data["messages"]}
+
+    # Insert new messages BETWEEN pagination requests
+    # These should NOT appear in second page (cursor stability)
+    await create_message(token, room_id, "New Message 1")
+    await create_message(token, room_id, "New Message 2")
+
+    # Get second page using cursor from before new messages
+    second_page = await client.get(
+        f"/api/rooms/{room_id}/messages?limit=2&cursor={cursor}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert second_page.status_code == 200
+    second_data = second_page.json()
+
+    second_page_ids = {msg["id"] for msg in second_data["messages"]}
+
+    # Verify no overlap between pages (cursor stability)
+    assert first_page_ids.isdisjoint(second_page_ids)
+
+    # Second page should only contain older messages (from initial 5)
+    # The new messages should have higher IDs and not appear here
+    for msg in second_data["messages"]:
+        assert "Initial" in msg["content"]  # Not "New Message"

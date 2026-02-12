@@ -31,6 +31,8 @@ export default function MessageArea({
   const [deleting, setDeleting] = useState(false);
   // Inline error message for failed room deletion (avoid disruptive alerts)
   const [deleteError, setDeleteError] = useState("");
+  // Incrementing this counter lets MessageList react to local sends and jump to latest.
+  const [scrollToLatestSignal, setScrollToLatestSignal] = useState(0);
 
   if (!selectedRoom) {
     return (
@@ -223,8 +225,12 @@ export default function MessageArea({
         roomId={selectedRoom.id}
         incomingMessages={incomingMessages}
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
+        scrollToLatestSignal={scrollToLatestSignal}
       />
-      <MessageInput roomId={selectedRoom.id} />
+      <MessageInput
+        roomId={selectedRoom.id}
+        onMessageSent={() => setScrollToLatestSignal((prev) => prev + 1)}
+      />
     </div>
   );
 }

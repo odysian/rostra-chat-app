@@ -1,12 +1,5 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Request, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
-from slowapi.middleware import SlowAPIMiddleware
-
 from app.api import auth, messages, rooms
 from app.core.config import settings
 from app.core.database import async_engine
@@ -14,6 +7,12 @@ from app.core.logging import logger
 from app.core.rate_limit import limiter
 from app.core.redis import close_redis, init_redis
 from app.websocket.handlers import websocket_endpoint
+from fastapi import FastAPI, Request, WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 logger.info("Starting ChatApp API")
 
@@ -88,9 +87,9 @@ def root():
 async def db_health():
     """Return database connection pool health metrics for operational monitoring."""
     pool = async_engine.pool
-    pool_size = pool.size()
-    checked_out = pool.checkedout()
-    overflow = pool.overflow()
+    pool_size = pool.size()  # type: ignore
+    checked_out = pool.checkedout()  # type: ignore
+    overflow = pool.overflow()  # type: ignore
 
     return {
         "pool_size": pool_size,

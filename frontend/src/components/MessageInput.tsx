@@ -5,9 +5,10 @@ import { useWebSocketContext } from "../context/useWebSocketContext";
 
 interface MessageInputProps {
   roomId: number;
+  onMessageSent?: () => void;
 }
 
-export default function MessageInput({ roomId }: MessageInputProps) {
+export default function MessageInput({ roomId, onMessageSent }: MessageInputProps) {
   const { token } = useAuth();
   const { sendMessage: wsSendMessage } = useWebSocketContext();
   const [content, setContent] = useState("");
@@ -23,6 +24,7 @@ export default function MessageInput({ roomId }: MessageInputProps) {
     try {
       wsSendMessage(roomId, content);
       setContent("");
+      onMessageSent?.();
     } catch (err) {
       console.error("Failed to send message", err);
     } finally {

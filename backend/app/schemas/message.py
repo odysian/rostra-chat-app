@@ -29,3 +29,10 @@ class MessageResponse(BaseModel):
     username: str
     content: str
     created_at: datetime
+
+
+class PaginatedMessages(BaseModel):
+    """Schema for paginated message responses with cursor"""
+
+    messages: list[MessageResponse]
+    next_cursor: str | None = None  # null when no more messages exist

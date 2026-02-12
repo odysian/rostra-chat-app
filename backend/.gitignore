@@ -22,5 +22,8 @@ env/
 .pytest_cache/
 .coverage
 
+# Tool caches
+.ruff_cache/
+.mypy_cache/
 
 steps.md
