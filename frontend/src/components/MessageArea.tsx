@@ -14,6 +14,7 @@ interface MessageAreaProps {
   onLeaveRoom: () => void;
   onBackToRooms: () => void;
   isMobile: boolean;
+  typingUsernames: string[];
 }
 
 export default function MessageArea({
@@ -24,6 +25,7 @@ export default function MessageArea({
   onRoomDeleted,
   onLeaveRoom,
   onBackToRooms,
+  typingUsernames,
 }: MessageAreaProps) {
   const { user, token } = useAuth();
   const [showRoomMenu, setShowRoomMenu] = useState(false);
@@ -50,6 +52,16 @@ export default function MessageArea({
   }
 
   const isRoomOwner = user?.id === selectedRoom.created_by;
+
+  // Format typing indicator text based on number of users
+  const formatTypingText = (usernames: string[]): string => {
+    if (usernames.length === 0) return "";
+    if (usernames.length === 1) return `${usernames[0]} is typing...`;
+    if (usernames.length === 2) return `${usernames[0]} and ${usernames[1]} are typing...`;
+    if (usernames.length === 3)
+      return `${usernames[0]}, ${usernames[1]}, and ${usernames[2]} are typing...`;
+    return `${usernames[0]}, ${usernames[1]}, and ${usernames.length - 2} others are typing...`;
+  };
 
   const handleDeleteRoom = async () => {
     if (!token) return;
@@ -227,6 +239,14 @@ export default function MessageArea({
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
         scrollToLatestSignal={scrollToLatestSignal}
       />
+
+      {/* Typing indicator */}
+      {typingUsernames.length > 0 && (
+        <div className="px-4 py-2 text-sm text-zinc-400 italic">
+          {formatTypingText(typingUsernames)}
+        </div>
+      )}
+
       <MessageInput
         roomId={selectedRoom.id}
         onMessageSent={() => setScrollToLatestSignal((prev) => prev + 1)}

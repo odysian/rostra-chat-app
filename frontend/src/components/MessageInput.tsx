@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Send } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketContext } from "../context/useWebSocketContext";
@@ -10,9 +10,23 @@ interface MessageInputProps {
 
 export default function MessageInput({ roomId, onMessageSent }: MessageInputProps) {
   const { token } = useAuth();
-  const { sendMessage: wsSendMessage } = useWebSocketContext();
+  const { sendMessage: wsSendMessage, sendTypingIndicator } = useWebSocketContext();
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
+  const typingCooldownRef = useRef(false);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setContent(e.target.value);
+
+    // Throttle: send at most one typing event per 2s
+    if (e.target.value.length > 0 && !typingCooldownRef.current) {
+      sendTypingIndicator(roomId);
+      typingCooldownRef.current = true;
+      setTimeout(() => {
+        typingCooldownRef.current = false;
+      }, 2000);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -20,6 +34,8 @@ export default function MessageInput({ roomId, onMessageSent }: MessageInputProp
     if (!content.trim() || !token) return;
 
     setSending(true);
+    // Reset cooldown so next typing session starts fresh
+    typingCooldownRef.current = false;
 
     try {
       wsSendMessage(roomId, content);
@@ -41,7 +57,7 @@ export default function MessageInput({ roomId, onMessageSent }: MessageInputProp
         <input
           type="text"
           value={content}
-          onChange={(e) => setContent(e.target.value)}
+          onChange={handleChange}
           placeholder="Type a message..."
           disabled={sending}
           className="min-w-0 flex-1 px-3 sm:px-4 py-2 bg-zinc-800 text-zinc-100 rounded border border-zinc-700 focus:outline-none focus:border-amber-500 disabled:opacity-50 text-sm sm:text-base"

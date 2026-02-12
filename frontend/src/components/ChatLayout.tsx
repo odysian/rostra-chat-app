@@ -46,6 +46,10 @@ export default function ChatLayout() {
   const [incomingMessagesForRoom, setIncomingMessagesForRoom] = useState<Message[]>([]);
   /** Error message when leave room fails (e.g. creator cannot leave) */
   const [leaveError, setLeaveError] = useState<string | null>(null);
+  /** Typing users per room: roomId → userId → {username, timeout} */
+  const [typingUsersByRoom, setTypingUsersByRoom] = useState<
+    Record<number, Record<number, { username: string; timeout: ReturnType<typeof setTimeout> }>>
+  >({});
 
   const selectedRoomRef = useRef<Room | null>(null);
   const subscribedRoomIdsRef = useRef<number[]>([]);
@@ -53,6 +57,8 @@ export default function ChatLayout() {
   const subscribedSentRef = useRef<Set<number>>(new Set());
   const hasInitialSubscriptionsDoneRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
+  /** Track all active typing timeouts for cleanup on unmount */
+  const typingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
   useEffect(() => {
     selectedRoomRef.current = selectedRoom;
     subscribedRoomIdsRef.current = subscribedRoomIds;
@@ -95,6 +101,18 @@ export default function ChatLayout() {
             [msgRoomId]: (prev[msgRoomId] ?? 0) + 1,
           }));
         }
+
+        // Clear typing indicator for the sender (they finished composing)
+        setTypingUsersByRoom((prev) => {
+          const roomTyping = prev[msgRoomId];
+          if (!roomTyping || !roomTyping[msg.message.user_id]) return prev;
+          clearTimeout(roomTyping[msg.message.user_id].timeout);
+          typingTimeoutsRef.current.delete(roomTyping[msg.message.user_id].timeout);
+          const updated = { ...roomTyping };
+          delete updated[msg.message.user_id];
+          return { ...prev, [msgRoomId]: updated };
+        });
+
         return;
       }
 
@@ -122,6 +140,38 @@ export default function ChatLayout() {
             ...prev,
             [msgRoomId]: (prev[msgRoomId] ?? []).filter((u) => u.id !== msg.user.id),
           }));
+          break;
+        case "typing_indicator":
+          {
+            const { room_id, user } = msg;
+
+            setTypingUsersByRoom((prev) => {
+              // Clone the relevant room's typing map (or start fresh)
+              const roomTyping = { ...(prev[room_id] ?? {}) };
+
+              // Clear existing timeout for this user (they're still typing)
+              if (roomTyping[user.id]) {
+                clearTimeout(roomTyping[user.id].timeout);
+                typingTimeoutsRef.current.delete(roomTyping[user.id].timeout);
+              }
+
+              // Set a 3s auto-clear timeout
+              const timeout = setTimeout(() => {
+                setTypingUsersByRoom((current) => {
+                  const updated = { ...(current[room_id] ?? {}) };
+                  delete updated[user.id];
+                  return { ...current, [room_id]: updated };
+                });
+                typingTimeoutsRef.current.delete(timeout);
+              }, 3000);
+
+              // Track timeout for cleanup
+              typingTimeoutsRef.current.add(timeout);
+
+              roomTyping[user.id] = { username: user.username, timeout };
+              return { ...prev, [room_id]: roomTyping };
+            });
+          }
           break;
       }
     };
@@ -274,9 +324,24 @@ export default function ChatLayout() {
     });
   }, [connected, subscribedRoomIds, subscribe]);
 
+  // Clean up all typing timeouts on unmount
+  useEffect(() => {
+    // Copy ref to local variable to satisfy eslint exhaustive-deps
+    const timeouts = typingTimeoutsRef.current;
+    return () => {
+      timeouts.forEach(clearTimeout);
+      timeouts.clear();
+    };
+  }, []);
+
   // ============================================================================
   // RENDER
   // ============================================================================
+
+  // Derive typing usernames for the selected room
+  const typingUsernames = selectedRoom
+    ? Object.values(typingUsersByRoom[selectedRoom.id] ?? {}).map((t) => t.username)
+    : [];
 
   return (
     <div className="flex h-dvh bg-zinc-950">
@@ -318,6 +383,7 @@ export default function ChatLayout() {
           onLeaveRoom={handleLeaveRoom}
           onBackToRooms={handleBackToRooms}
           isMobile={true}
+          typingUsernames={typingUsernames}
         />
       </div>
 
