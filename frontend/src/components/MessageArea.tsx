@@ -57,7 +57,8 @@ export default function MessageArea({
   const formatTypingText = (usernames: string[]): string => {
     if (usernames.length === 0) return "";
     if (usernames.length === 1) return `${usernames[0]} is typing...`;
-    if (usernames.length === 2) return `${usernames[0]} and ${usernames[1]} are typing...`;
+    if (usernames.length === 2)
+      return `${usernames[0]} and ${usernames[1]} are typing...`;
     if (usernames.length === 3)
       return `${usernames[0]}, ${usernames[1]}, and ${usernames[2]} are typing...`;
     return `${usernames[0]}, ${usernames[1]}, and ${usernames.length - 2} others are typing...`;
@@ -76,7 +77,9 @@ export default function MessageArea({
     } catch (err) {
       console.error("Failed to delete room:", err);
       setDeleteError(
-        err instanceof Error ? err.message : "Failed to delete room. Please try again.",
+        err instanceof Error
+          ? err.message
+          : "Failed to delete room. Please try again.",
       );
     } finally {
       setDeleting(false);
@@ -110,7 +113,10 @@ export default function MessageArea({
           </button>
 
           <div className="min-w-0 flex-1 overflow-hidden">
-            <h2 className="text-lg font-semibold text-zinc-100 truncate" title={selectedRoom.name}>
+            <h2
+              className="text-lg font-semibold text-zinc-100 truncate"
+              title={selectedRoom.name}
+            >
               # {selectedRoom.name}
             </h2>
           </div>
@@ -240,12 +246,10 @@ export default function MessageArea({
         scrollToLatestSignal={scrollToLatestSignal}
       />
 
-      {/* Typing indicator */}
-      {typingUsernames.length > 0 && (
-        <div className="px-4 py-2 text-sm text-zinc-400 italic">
-          {formatTypingText(typingUsernames)}
-        </div>
-      )}
+      {/* Typing indicator — always rendered to reserve space and avoid layout shift */}
+      <div className="px-4 text-sm text-zinc-400 italic h-7 shrink-0">
+        {typingUsernames.length > 0 && formatTypingText(typingUsernames)}
+      </div>
 
       <MessageInput
         roomId={selectedRoom.id}
