@@ -64,6 +64,11 @@ export interface WSSendMessage {
   content: string;
 }
 
+export interface WSUserTyping {
+  action: "user_typing";
+  room_id: number;
+}
+
 export interface WSNewMessage {
   type: "new_message";
   message: Message;
@@ -101,9 +106,19 @@ export interface WSError {
   message: string;
 }
 
+export interface WSTypingIndicator {
+  type: "typing_indicator";
+  room_id: number;
+  user: {
+    id: number;
+    username: string;
+  };
+}
+
 export type WebSocketMessage =
   | WSNewMessage
   | WSUserJoined
   | WSUserLeft
   | WSError
-  | WSSubscribed;
+  | WSSubscribed
+  | WSTypingIndicator;

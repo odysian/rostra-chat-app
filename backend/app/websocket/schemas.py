@@ -27,6 +27,13 @@ class WSSendMessage(BaseModel):
     content: str = Field(min_length=1, max_length=1000)
 
 
+class WSUserTyping(BaseModel):
+    """Client notifies server that user is typing in a room"""
+
+    action: Literal["user_typing"]
+    room_id: int
+
+
 # Server → Client Messages (Events)
 class WSUser(BaseModel):
     """User info for WebSocket messages"""
@@ -89,3 +96,11 @@ class WSError(BaseModel):
 
     type: Literal["error"]
     message: str
+
+
+class WSTypingIndicator(BaseModel):
+    """Server broadcasts that a user is typing"""
+
+    type: Literal["typing_indicator"]
+    room_id: int
+    user: WSUser

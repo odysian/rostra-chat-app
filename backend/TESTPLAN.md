@@ -533,6 +533,37 @@ When implementing these tests:
 
 ---
 
+### WebSocket: Typing Indicators
+
+**Happy Path:**
+- `test_user_typing_broadcasts_to_other_subscribers`
+  - Alice and Bob subscribe to the same room
+  - Alice sends user_typing action
+  - Bob receives typing_indicator event with Alice's user info
+  - Alice does NOT receive her own typing_indicator (excluded from broadcast)
+
+- `test_typing_indicator_includes_correct_user_info`
+  - User sends user_typing for a room
+  - Other subscribers receive typing_indicator with correct user.id and user.username
+
+**Error Cases:**
+- `test_user_typing_requires_room_subscription`
+  - User sends user_typing for a room they haven't subscribed to
+  - Receives error response
+  - No broadcast sent to room
+
+- `test_user_typing_rejects_invalid_format`
+  - User sends user_typing action without room_id field
+  - Receives error response with validation details
+
+**Edge Cases:**
+- `test_user_typing_to_empty_room_no_error`
+  - Only subscriber sends user_typing
+  - No error occurs (nobody else to receive broadcast)
+  - No typing_indicator sent (sender excluded, no other subscribers)
+
+---
+
 ## Rate Limit Configuration
 
 Add to `conftest.py`:

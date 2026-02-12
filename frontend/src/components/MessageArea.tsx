@@ -14,6 +14,7 @@ interface MessageAreaProps {
   onLeaveRoom: () => void;
   onBackToRooms: () => void;
   isMobile: boolean;
+  typingUsernames: string[];
 }
 
 export default function MessageArea({
@@ -24,6 +25,7 @@ export default function MessageArea({
   onRoomDeleted,
   onLeaveRoom,
   onBackToRooms,
+  typingUsernames,
 }: MessageAreaProps) {
   const { user, token } = useAuth();
   const [showRoomMenu, setShowRoomMenu] = useState(false);
@@ -51,6 +53,17 @@ export default function MessageArea({
 
   const isRoomOwner = user?.id === selectedRoom.created_by;
 
+  // Format typing indicator text based on number of users
+  const formatTypingText = (usernames: string[]): string => {
+    if (usernames.length === 0) return "";
+    if (usernames.length === 1) return `${usernames[0]} is typing...`;
+    if (usernames.length === 2)
+      return `${usernames[0]} and ${usernames[1]} are typing...`;
+    if (usernames.length === 3)
+      return `${usernames[0]}, ${usernames[1]}, and ${usernames[2]} are typing...`;
+    return `${usernames[0]}, ${usernames[1]}, and ${usernames.length - 2} others are typing...`;
+  };
+
   const handleDeleteRoom = async () => {
     if (!token) return;
 
@@ -64,7 +77,9 @@ export default function MessageArea({
     } catch (err) {
       console.error("Failed to delete room:", err);
       setDeleteError(
-        err instanceof Error ? err.message : "Failed to delete room. Please try again.",
+        err instanceof Error
+          ? err.message
+          : "Failed to delete room. Please try again.",
       );
     } finally {
       setDeleting(false);
@@ -98,7 +113,10 @@ export default function MessageArea({
           </button>
 
           <div className="min-w-0 flex-1 overflow-hidden">
-            <h2 className="text-lg font-semibold text-zinc-100 truncate" title={selectedRoom.name}>
+            <h2
+              className="text-lg font-semibold text-zinc-100 truncate"
+              title={selectedRoom.name}
+            >
               # {selectedRoom.name}
             </h2>
           </div>
@@ -227,6 +245,12 @@ export default function MessageArea({
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
         scrollToLatestSignal={scrollToLatestSignal}
       />
+
+      {/* Typing indicator — always rendered to reserve space and avoid layout shift */}
+      <div className="px-4 text-sm text-zinc-400 italic h-7 shrink-0">
+        {typingUsernames.length > 0 && formatTypingText(typingUsernames)}
+      </div>
+
       <MessageInput
         roomId={selectedRoom.id}
         onMessageSent={() => setScrollToLatestSignal((prev) => prev + 1)}
