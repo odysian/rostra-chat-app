@@ -82,6 +82,10 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     wsRef.current?.send({ action: "send_message", room_id: roomId, content });
   }, []);
 
+  const sendTypingIndicator = useCallback((roomId: number) => {
+    wsRef.current?.send({ action: "user_typing", room_id: roomId });
+  }, []);
+
   const value: WebSocketContextType = {
     connected,
     connectionStatus,
@@ -89,6 +93,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     subscribe,
     unsubscribe,
     sendMessage,
+    sendTypingIndicator,
     registerMessageHandler,
   };
 

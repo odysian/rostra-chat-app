@@ -5,6 +5,7 @@ import type {
   WSUserLeft,
   WSError,
   WSSubscribed,
+  WSTypingIndicator,
 } from "../types";
 
 export type WebSocketMessage =
@@ -12,7 +13,8 @@ export type WebSocketMessage =
   | WSUserJoined
   | WSUserLeft
   | WSError
-  | WSSubscribed;
+  | WSSubscribed
+  | WSTypingIndicator;
 
 export type ConnectionStatus =
   | "disconnected"
@@ -28,6 +30,7 @@ export interface WebSocketContextType {
   subscribe: (roomId: number) => void;
   unsubscribe: (roomId: number) => void;
   sendMessage: (roomId: number, content: string) => void;
+  sendTypingIndicator: (roomId: number) => void;
   /** Register a handler for every message (e.g. ChatLayout). Only one handler; call with undefined to clear. */
   registerMessageHandler: (handler: ((msg: WebSocketMessage) => void) | undefined) => void;
 }
