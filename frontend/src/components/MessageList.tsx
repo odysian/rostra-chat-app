@@ -18,6 +18,8 @@ type PendingScrollAdjustment =
   | { type: "prepend"; previousScrollTop: number; previousScrollHeight: number }
   | { type: "append"; behavior: ScrollBehavior };
 
+const JUMP_TO_LATEST_MIN_HIDDEN_MESSAGES = 250;
+
 interface MessageListProps {
   roomId: number;
   incomingMessages?: Message[];
@@ -43,6 +45,7 @@ export default function MessageList({
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isInitialPositioned, setIsInitialPositioned] = useState(false);
+  const [showJumpToLatest, setShowJumpToLatest] = useState(false);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -55,6 +58,33 @@ export default function MessageList({
       container.scrollHeight - container.scrollTop - container.clientHeight;
     return distanceFromBottom < 100;
   }, []);
+
+  const updateJumpToLatestVisibility = useCallback(() => {
+    const container = scrollContainerRef.current;
+
+    if (!container || !isInitialPositioned || isNearBottom(container)) {
+      setShowJumpToLatest(false);
+      return;
+    }
+
+    const viewportBottom = container.scrollTop + container.clientHeight;
+    const messageElements = container.querySelectorAll<HTMLElement>(
+      "[data-chat-message='true']",
+    );
+
+    let hiddenMessageCount = 0;
+    for (let i = messageElements.length - 1; i >= 0; i -= 1) {
+      const element = messageElements[i];
+      if (element.offsetTop < viewportBottom) {
+        break;
+      }
+      hiddenMessageCount += 1;
+    }
+
+    setShowJumpToLatest(
+      hiddenMessageCount >= JUMP_TO_LATEST_MIN_HIDDEN_MESSAGES,
+    );
+  }, [isInitialPositioned, isNearBottom]);
 
   // Apply scroll corrections after each message mutation so initial load, prepends,
   // and real-time appends do not fight each other.
@@ -88,6 +118,7 @@ export default function MessageList({
       setLoading(true);
       setNextCursor(null);
       setIsInitialPositioned(false);
+      setShowJumpToLatest(false);
       pendingScrollAdjustmentRef.current = null;
     }
 
@@ -155,6 +186,7 @@ export default function MessageList({
     setError("");
     setTimeoutError(false);
     setIsInitialPositioned(false);
+    setShowJumpToLatest(false);
     pendingScrollAdjustmentRef.current = null;
     // Bump local retry counter so the effect above refetches messages
     setRetryCount((prev) => prev + 1);
@@ -242,7 +274,36 @@ export default function MessageList({
     if (!container) return;
 
     container.scrollTop = container.scrollHeight;
+    setShowJumpToLatest(false);
   }, [scrollToLatestSignal, isInitialPositioned]);
+
+  useEffect(() => {
+    updateJumpToLatestVisibility();
+  }, [messages, updateJumpToLatestVisibility]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !isInitialPositioned) return;
+
+    const handleScroll = () => {
+      updateJumpToLatestVisibility();
+    };
+
+    container.addEventListener("scroll", handleScroll, { passive: true });
+    handleScroll();
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll);
+    };
+  }, [isInitialPositioned, updateJumpToLatestVisibility]);
+
+  const handleJumpToLatest = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
+    setShowJumpToLatest(false);
+  };
 
   // user_joined / user_left are not shown as chat messages; ChatLayout uses them only for the online users sidebar
 
@@ -343,100 +404,113 @@ export default function MessageList({
   }
 
   return (
-    <div
-      ref={scrollContainerRef}
-      className="flex-1 min-h-0 overflow-y-auto overflow-x-hidden py-4 flex flex-col"
-    >
-      {/* Sentinel for IntersectionObserver - triggers load when scrolled to top */}
-      <div ref={sentinelRef} className="h-px" />
+    <div className="relative flex-1 min-h-0">
+      <div
+        ref={scrollContainerRef}
+        className="h-full overflow-y-auto overflow-x-hidden py-4 flex flex-col"
+      >
+        {/* Sentinel for IntersectionObserver - triggers load when scrolled to top */}
+        <div ref={sentinelRef} className="h-px" />
 
-      {/* Loading indicator or "beginning of conversation" message */}
-      {isLoadingMore && (
-        <div className="flex justify-center py-4">
-          <span className="text-xs text-zinc-500">Loading older messages...</span>
-        </div>
-      )}
-      {!isLoadingMore && nextCursor === null && messages.length > 0 && (
-        <div className="flex justify-center py-4">
-          <span className="text-xs text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">
-            This is the beginning of the conversation
-          </span>
-        </div>
-      )}
+        {/* Loading indicator or "beginning of conversation" message */}
+        {isLoadingMore && (
+          <div className="flex justify-center py-4">
+            <span className="text-xs text-zinc-500">Loading older messages...</span>
+          </div>
+        )}
+        {!isLoadingMore && nextCursor === null && messages.length > 0 && (
+          <div className="flex justify-center py-4">
+            <span className="text-xs text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">
+              This is the beginning of the conversation
+            </span>
+          </div>
+        )}
 
-      {/* Spacer to push messages to bottom when container isn't full */}
-      <div className="grow" />
-      {messages.map((item, index) => {
-        if ("type" in item && item.type === "system") {
+        {/* Spacer to push messages to bottom when container isn't full */}
+        <div className="grow" />
+        {messages.map((item, index) => {
+          if ("type" in item && item.type === "system") {
+            return (
+              <div
+                key={item.id}
+                className="flex justify-center my-4 opacity-75 px-4"
+              >
+                <span className="text-xs text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">
+                  {item.content}
+                </span>
+              </div>
+            );
+          }
+
+          const message = item as Message;
+          const isoDate = message.created_at.endsWith("Z")
+            ? message.created_at
+            : message.created_at + "Z";
+          const isGrouped = shouldGroupMessage(item, messages[index - 1]);
+
+          const headerDate = getSmartDate(isoDate);
+
+          const simpleTime = new Date(isoDate).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          });
+
           return (
             <div
-              key={item.id}
-              className="flex justify-center my-4 opacity-75 px-4"
+              key={message.id}
+              data-chat-message="true"
+              className={`group flex items-start gap-3 px-4 hover:bg-white/5 transition-colors ${
+                isGrouped ? "mt-0.5 py-0.5" : "mt-4 py-0.5"
+              }`}
             >
-              <span className="text-xs text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">
-                {item.content}
-              </span>
-            </div>
-          );
-        }
-
-        const message = item as Message;
-        const isoDate = message.created_at.endsWith("Z")
-          ? message.created_at
-          : message.created_at + "Z";
-        const isGrouped = shouldGroupMessage(item, messages[index - 1]);
-
-        const headerDate = getSmartDate(isoDate);
-
-        const simpleTime = new Date(isoDate).toLocaleTimeString([], {
-          hour: "numeric",
-          minute: "2-digit",
-        });
-
-        return (
-          <div
-            key={message.id}
-            className={`group flex items-start gap-3 px-4 hover:bg-white/5 transition-colors ${
-              isGrouped ? "mt-0.5 py-0.5" : "mt-4 py-0.5"
-            }`}
-          >
-            {/* Left Sidebar */}
-            <div className="w-10 shrink-0 select-none flex justify-center">
-              {!isGrouped ? (
-                <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-sm border border-zinc-700">
-                  {message.username.substring(0, 2).toUpperCase()}
-                </div>
-              ) : (
-                // Hover Timestamp
-                <span className="hidden group-hover:block text-[10px] text-zinc-500 pt-1 text-center w-full">
-                  {simpleTime}
-                </span>
-              )}
-            </div>
-
-            {/* Right Side */}
-            <div className="flex flex-col min-w-0 flex-1">
-              {!isGrouped && (
-                <div className="flex items-baseline gap-2">
-                  <span className="font-semibold text-amber-500 text-sm hover:underline cursor-pointer">
-                    {message.username}
+              {/* Left Sidebar */}
+              <div className="w-10 shrink-0 select-none flex justify-center">
+                {!isGrouped ? (
+                  <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-sm border border-zinc-700">
+                    {message.username.substring(0, 2).toUpperCase()}
+                  </div>
+                ) : (
+                  // Hover Timestamp
+                  <span className="hidden group-hover:block text-[10px] text-zinc-500 pt-1 text-center w-full">
+                    {simpleTime}
                   </span>
-                  <span className="text-xs text-zinc-500">{headerDate}</span>
-                </div>
-              )}
+                )}
+              </div>
 
-              <div
-                className={`text-zinc-200 break-all leading-snug ${
-                  isGrouped ? "" : "mt-1"
-                }`}
-              >
-                {message.content}
+              {/* Right Side */}
+              <div className="flex flex-col min-w-0 flex-1">
+                {!isGrouped && (
+                  <div className="flex items-baseline gap-2">
+                    <span className="font-semibold text-amber-500 text-sm hover:underline cursor-pointer">
+                      {message.username}
+                    </span>
+                    <span className="text-xs text-zinc-500">{headerDate}</span>
+                  </div>
+                )}
+
+                <div
+                  className={`text-zinc-200 break-all leading-snug ${
+                    isGrouped ? "" : "mt-1"
+                  }`}
+                >
+                  {message.content}
+                </div>
               </div>
             </div>
-          </div>
-        );
-      })}
-      <div ref={messagesEndRef} />
+          );
+        })}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {showJumpToLatest && (
+        <button
+          type="button"
+          onClick={handleJumpToLatest}
+          className="absolute bottom-4 right-4 z-10 rounded-full bg-amber-500 px-3 py-2 text-xs font-semibold text-zinc-900 shadow-lg shadow-black/40 transition-colors hover:bg-amber-400"
+        >
+          Jump to latest
+        </button>
+      )}
     </div>
   );
 }
