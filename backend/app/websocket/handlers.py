@@ -23,11 +23,13 @@ from app.websocket.schemas import (
     WSSendMessage,
     WSSubscribe,
     WSSubscribed,
+    WSTypingIndicator,
     WSUnsubscribe,
     WSUnsubscribed,
     WSUser,
     WSUserJoined,
     WSUserLeft,
+    WSUserTyping,
 )
 
 
@@ -73,6 +75,10 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
             if action == "unsubscribe":
                 # Unsubscribe has no DB operations — no session needed
                 await handle_unsubscribe(websocket, data, user_id_int, username)
+
+            elif action == "user_typing":
+                # Typing indicator uses in-memory subscription check — no DB needed
+                await handle_user_typing(websocket, data, user_id_int, username)
 
             elif action in ("subscribe", "send_message"):
                 # New session per message — like a mini HTTP request.
@@ -208,6 +214,53 @@ async def handle_unsubscribe(
         user=WSUser(id=user_id, username=username),
     )
     await manager.broadcast_to_room(msg.room_id, notification.model_dump(mode="json"))
+
+
+async def handle_user_typing(
+    websocket: WebSocket,
+    data: dict[str, Any],
+    user_id: int,
+    username: str,
+) -> None:
+    """
+    Handle user typing notification. No DB session needed.
+
+    Uses in-memory subscription check instead of DB query — subscription
+    implies verified room membership (validated during subscribe).
+    """
+
+    # Validate message
+    try:
+        msg = WSUserTyping(**data)
+    except ValidationError as e:
+        logger.warning(f"Invalid user_typing message from {username}: {e}")
+        await send_error(websocket, "Invalid typing message format", e.errors())
+        return
+
+    # Check subscription in-memory (O(1), no DB query needed)
+    # Subscription implies membership because handle_subscribe validates it
+    if websocket not in manager.room_subscriptions.get(msg.room_id, set()):
+        logger.warning(
+            f"User {username} tried to send typing event without subscription to room {msg.room_id}"
+        )
+        await send_error(websocket, "Not subscribed to this room")
+        return
+
+    # Broadcast typing indicator to other room members (exclude sender)
+    typing_event = WSTypingIndicator(
+        type="typing_indicator",
+        room_id=msg.room_id,
+        user=WSUser(id=user_id, username=username),
+    )
+
+    await manager.broadcast_to_room(
+        msg.room_id, typing_event.model_dump(mode="json"), exclude=websocket
+    )
+
+    logger.debug(
+        f"Typing indicator sent: {username} → room {msg.room_id}",
+        extra={"user_id": user_id, "room_id": msg.room_id},
+    )
 
 
 async def handle_send_message(
