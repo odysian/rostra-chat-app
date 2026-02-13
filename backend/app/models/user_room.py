@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import TIMESTAMP, ForeignKey, Integer, UniqueConstraint
+from sqlalchemy import TIMESTAMP, ForeignKey, Index, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -10,7 +10,7 @@ class UserRoom(Base):
     __tablename__ = "user_room"
 
     # Columns with proper type hints for mypy
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -26,4 +26,9 @@ class UserRoom(Base):
     user = relationship("User", back_populates="user_rooms")
     room = relationship("Room", back_populates="user_rooms")
 
-    __table_args__ = (UniqueConstraint("user_id", "room_id", name="uq_user_room"),)
+    __table_args__ = (
+        UniqueConstraint("user_id", "room_id", name="uq_user_room"),
+        # Explicit index names match existing migrations (not auto-generated names)
+        Index("ix_user_room_user", "user_id"),
+        Index("ix_user_room_room", "room_id"),
+    )

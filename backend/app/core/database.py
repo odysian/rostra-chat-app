@@ -1,4 +1,4 @@
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import MetaData
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
@@ -24,11 +24,15 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,  # Prevents DetachedInstanceError after commit in async context
 )
 
-# Sync engine — used ONLY by Alembic migrations (alembic/env.py imports this)
-sync_engine = create_engine(settings.DATABASE_URL)
-
-# Schema metadata — tells SQLAlchemy all tables belong to 'rostra' schema
-meta = MetaData(schema="rostra")
+# Schema metadata — tells SQLAlchemy all tables belong to 'rostra' schema.
+# The naming convention for indexes uses table_name + column_name instead of
+# the default column_label (which includes the schema prefix). This keeps
+# auto-generated index names like 'ix_users_id' rather than 'ix_rostra_users_id',
+# matching the names already in existing migrations.
+meta = MetaData(
+    schema="rostra",
+    naming_convention={"ix": "ix_%(table_name)s_%(column_0_name)s"},
+)
 Base = declarative_base(metadata=meta)
 
 

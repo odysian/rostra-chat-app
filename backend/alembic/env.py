@@ -1,12 +1,15 @@
+from collections.abc import MutableMapping
 from logging.config import fileConfig
+from typing import Literal
+
+from sqlalchemy import create_engine, text
 
 from alembic import context
 from app.core.config import settings
-from app.core.database import Base, sync_engine
+from app.core.database import Base
 
 # Import all models so Alembic can discover them
 from app.models import message, room, user, user_room  # noqa: F401
-from sqlalchemy import text
 
 config = context.config
 
@@ -15,42 +18,49 @@ if config.config_file_name is not None:
 
 target_metadata = Base.metadata
 
+def _create_alembic_engine():
+    """Create sync engine for Alembic migrations.
 
-def include_object(object, name, type_, reflected, compare_to):
+    Attempts to override search_path to 'public' so Alembic discovers 'rostra'
+    as a named schema (needed for clean autogenerate). If the connection fails
+    — e.g. a transaction pooler like PgBouncer rejects the 'options' startup
+    parameter — falls back to a plain engine. Autogenerate may produce phantom
+    diffs with the fallback, but upgrade/downgrade still works correctly since
+    all migration operations use explicit schema="rostra".
     """
-    Filter out phantom schema changes during autogenerate.
+    engine_with_override = create_engine(
+        settings.DATABASE_URL,
+        connect_args={"options": "-csearch_path=public"},
+    )
+    try:
+        with engine_with_override.connect():
+            pass
+        return engine_with_override
+    except Exception:
+        engine_with_override.dispose()
+        return create_engine(settings.DATABASE_URL)
 
-    Supabase/managed databases often use schema prefixes (e.g., 'rostra.users'),
-    which causes Alembic to detect false positives when models don't specify
-    the schema. This function filters those out while allowing real new objects.
 
-    Args:
-        object: The object being compared
-        name: Name of the object
-        type_: Type of object ("table", "column", "index", "foreign_key_constraint", etc.)
-        reflected: True if from database, False if from metadata
-        compare_to: The object being compared against (None if new)
+sync_engine = _create_alembic_engine()
 
-    Returns:
-        True to include the change, False to ignore it.
+
+_NameType = Literal[
+    "schema", "table", "column", "index", "unique_constraint", "foreign_key_constraint"
+]
+_ParentKey = Literal["schema_name", "table_name", "schema_qualified_table_name"]
+
+
+def include_name(
+    name: str | None, type_: _NameType, parent_names: MutableMapping[_ParentKey, str | None]
+) -> bool:
+    """Control which schemas/objects Alembic considers during autogenerate.
+
+    Only process the 'rostra' schema so autogenerate compares objects within
+    the correct namespace. Without this filter, Alembic would also reflect
+    the 'public' schema and produce unwanted operations.
     """
-    # Ignore Alembic's own version table
-    if type_ == "table" and name == "alembic_version":
-        return False
-
-    # Filter all index operations
-    # Schema prefix causes false positives (ix_users_* vs ix_rostra_users_*)
-    # TODO: Manually add new indexes to migrations when needed
-    if type_ == "index":
-        return False
-
-    # Filter all foreign key constraint operations
-    # Schema prefix causes false positives (users.id vs rostra.users.id)
-    # TODO: Manually add new FKs to migrations when needed
-    if type_ == "foreign_key_constraint":
-        return False
-
-    # Include all other changes (tables, columns, etc.)
+    if type_ == "schema":
+        return name == "rostra"
     return True
 
 
@@ -65,7 +75,7 @@ def run_migrations_offline() -> None:
         dialect_opts={"paramstyle": "named"},
         include_schemas=True,
         version_table_schema=target_metadata.schema,
-        include_object=include_object,  # Filter phantom changes
+        include_name=include_name,
     )
 
     with context.begin_transaction():
@@ -82,7 +92,7 @@ def run_migrations_online() -> None:
             target_metadata=target_metadata,
             version_table_schema=target_metadata.schema,
             include_schemas=True,
-            include_object=include_object,  # Filter phantom changes
+            include_name=include_name,
         )
 
         with context.begin_transaction():
