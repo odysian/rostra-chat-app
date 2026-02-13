@@ -75,7 +75,8 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Connection lifecycle:** `connect()` → onopen/onclose/onerror set status and call `onStatusChange`. On abnormal close (code !== 1000), `attemptReconnect()` with exponential backoff (max 5 retries, 2s base, 30s max delay, jitter). On success, retry count is reset. `disconnect()` sets `shouldReconnect = false`, closes socket, clears timeout.
 - **Message handling:** `onMessage(callback)` stores a single callback; incoming JSON is passed to it. WebSocketContext sets this callback and also pushes the same message into `lastMessage` state and forwards to `messageHandlerRef.current` (so ChatLayout can register one handler and process every message without missing any between re-renders).
 - **Sending:** `send(message)` does `ws.send(JSON.stringify(message))` if state is OPEN; otherwise logs and does nothing.
-- **Context:** WebSocketProvider (inside ProtectedRoute) creates one WebSocketService per token, exposes `subscribe(roomId)`, `unsubscribe(roomId)`, `sendMessage(roomId, content)`, `registerMessageHandler(fn)`, plus `connected`, `connectionStatus`, `lastMessage`. Subscriptions are sent as `{ action: "subscribe", room_id }`; ChatLayout subscribes to a bounded set of room IDs (LRU-style when over limit).
+- **Context:** WebSocketProvider (inside ProtectedRoute) creates one WebSocketService per token, exposes `subscribe(roomId)`, `unsubscribe(roomId)`, `sendMessage(roomId, content)`, `sendTypingIndicator(roomId)`, `registerMessageHandler(fn)`, plus `connected`, `connectionStatus`, `lastMessage`. Subscriptions are sent as `{ action: "subscribe", room_id }`; ChatLayout subscribes to a bounded set of room IDs (LRU-style when over limit).
+- **Typing indicators:** Client-side throttle (2s cooldown via ref in MessageInput) limits `user_typing` events. Server broadcasts `typing_indicator` to other room subscribers (sender excluded, no DB session needed — uses in-memory subscription check). ChatLayout tracks typing state per room (`typingUsersByRoom`) with a 3s auto-clear timeout per user; receiving a `new_message` from a user also clears their typing state. MessageArea always renders a fixed-height typing indicator container (`h-7 shrink-0`) to avoid layout shifts.
 - **Token change:** `updateToken(newToken)` disconnects, sets token, re-enables reconnection, then `setTimeout(..., 100)` before `connect()` again.
 
 ## Naming Conventions (in use)
@@ -94,6 +95,14 @@ Reusable code patterns and conventions in this project. All of the following are
 | API paths | Plural, snake_case in body | `/rooms`, `/rooms/{id}/read`, body `room_id` |
 | Environment variables | SCREAMING_SNAKE | `VITE_API_URL`, `DATABASE_URL`, `SECRET_KEY` |
 | Context values | camelCase in TS | `connectionStatus`, `lastMessage`, `registerMessageHandler` |
+
+## Alembic / Migration Conventions
+
+- **Schema-aware autogenerate:** All tables live in the `rostra` schema (`MetaData(schema="rostra")`). The Alembic `env.py` uses a dedicated sync engine with `connect_args={"options": "-csearch_path=public"}` so that Alembic discovers `rostra` as a named (non-default) schema. Combined with `include_schemas=True` and an `include_name` filter that only accepts `schema == "rostra"`, this produces clean autogenerate output with no phantom diffs.
+- **Index naming convention:** `MetaData` uses `naming_convention={"ix": "ix_%(table_name)s_%(column_0_name)s"}` instead of the default `ix_%(column_0_label)s`. The default includes the schema prefix in auto-generated names (e.g. `ix_rostra_users_id`), which mismatches existing migration indexes (`ix_users_id`). The custom convention keeps index names schema-free.
+- **Explicit index names for non-standard patterns:** Indexes that don't follow the `ix_{table}_{column}` pattern (e.g. composite indexes, shortened names like `ix_user_room_user`) are defined with hardcoded names in `__table_args__` using `Index("ix_user_room_user", "user_id")`. This ensures autogenerate matches them to the database.
+- **Migration-only indexes:** The composite pagination index `ix_messages_room_created_id` (with DESC ordering) is also defined in the model's `__table_args__` so autogenerate sees it. It was originally created via raw SQL in a migration.
+- **Do not modify existing migration files.** If a migration has been applied, create a new migration for any changes. Editing applied migrations breaks `alembic upgrade` on existing databases.
 
 ## Other Conventions
 

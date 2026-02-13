@@ -138,6 +138,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 - `{ "action": "subscribe", "room_id": int }` — Subscribe to room; server checks room exists and user is a member. Returns online user list on success.
 - `{ "action": "unsubscribe", "room_id": int }` — Unsubscribe from room.
 - `{ "action": "send_message", "room_id": int, "content": str }` — Send message (1–1000 chars); checks membership, persists to DB, marks room read for sender, updates Redis unread cache for other members, then broadcasts.
+- `{ "action": "user_typing", "room_id": int }` — Notify server that user is typing. Requires active subscription to the room. Broadcasts `typing_indicator` to other subscribers (sender excluded). No DB session needed — uses in-memory subscription check.
 
 **Server → Client (events):**
 
@@ -146,6 +147,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 - `{ "type": "new_message", "message": { id, room_id, user_id, username, content, created_at } }`
 - `{ "type": "user_joined", "room_id": int, "user": { id, username } }`
 - `{ "type": "user_left", "room_id": int, "user": { id, username } }`
+- `{ "type": "typing_indicator", "room_id": int, "user": { id, username } }`
 - `{ "type": "error", "message": str, "details"?: ... }`
 
 ## Key Architectural Decisions
