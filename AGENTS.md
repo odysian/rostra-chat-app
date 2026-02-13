@@ -13,6 +13,8 @@ This is a learning-focused development environment. The developer (Chris) is a c
 - **Explain what you're doing.** When writing or modifying code, include brief comments explaining *why* (not just what) for any non-obvious logic. This is a learning environment.
 - **Do not "draw the owl."** Never produce a massive diff that touches 10+ files at once. If the task requires touching many files, produce a plan first, then execute file by file.
 - **Prefer explicit over clever.** Write readable, straightforward code. No one-liners that sacrifice clarity. No premature optimization. No unnecessary abstractions.
+- **Simplicity first.** Write the minimum code that solves the problem. No features beyond what was asked. No abstractions for single-use code. No speculative "flexibility" or "configurability." No error handling for impossible scenarios. If you write 200 lines and it could be 50, rewrite it. Ask yourself: "Would a senior engineer say this is overcomplicated?" If yes, simplify.
+- **Surgical changes only.** Touch only what the task requires. Don't "improve" adjacent code, comments, or formatting. Don't refactor things that aren't broken. Match existing style, even if you'd do it differently. If you notice unrelated dead code, mention it — don't delete it. Clean up only orphans YOUR changes created (unused imports, variables, functions). Every changed line should trace directly to the user's request.
 
 ## Verification
 
@@ -133,15 +135,41 @@ _Add to this section whenever the agent makes a mistake. Each line prevents a re
 
 ## Planning vs Execution
 
-When a task is vague or spans multiple files:
+### Think before coding
+
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+- State your assumptions explicitly. If uncertain, ask.
+- If multiple valid approaches exist, present them — don't pick silently.
+- If a simpler approach exists, say so. Push back when warranted.
+- If something is unclear, stop. Name what's confusing. Ask.
+
+### When a task is vague or spans multiple files
 
 1. **Plan first.** Outline what files will be created/modified, what the data flow looks like, and what the API contract will be. Present the plan as a checklist.
 2. **Get approval.** Wait for confirmation before writing code.
 3. **Execute step by step.** Complete one checklist item at a time. Run verification after each step.
 
-When a task is clear and scoped (fix a bug, add a field, write one test):
+### When a task is clear and scoped (fix a bug, add a field, write one test)
 
 1. **Just do it.** No plan needed. Execute, verify, done.
+
+### Goal-driven execution
+
+Transform tasks into verifiable goals. Define success criteria before writing code.
+
+- "Add validation" → "Write tests for invalid inputs, then make them pass"
+- "Fix the bug" → "Write a test that reproduces it, then make it pass"
+- "Refactor X" → "Ensure tests pass before and after"
+
+For multi-step tasks, state a brief plan with checks:
+```
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+```
+
+Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
 ## Git Conventions
 
