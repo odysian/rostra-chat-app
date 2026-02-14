@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -92,3 +92,66 @@ async def create_message(db: AsyncSession, message: MessageCreate, user_id: int)
     await db.commit()
     await db.refresh(db_message)
     return db_message
+
+
+async def search_messages(
+    db: AsyncSession,
+    room_id: int,
+    query: str,
+    limit: int = 20,
+    before_created_at: datetime | None = None,
+    before_id: int | None = None,
+) -> list[Message]:
+    """Search messages in a room using Postgres full-text search.
+
+    Uses plainto_tsquery to safely parse user input (no special syntax required).
+    Results are ordered by recency (most recent first), matching the UX
+    expectation for chat apps where users typically want "what was said recently
+    about X". This also allows Postgres to use the existing composite index
+    on (room_id, created_at DESC, id DESC) instead of sorting in memory.
+
+    Args:
+        db: Async database session
+        room_id: Room to search within
+        query: User's search text (plain English, not tsquery syntax)
+        limit: Maximum results to return (default 20)
+        before_created_at: Cursor timestamp for pagination
+        before_id: Cursor ID for pagination
+
+    Returns:
+        List of Message objects with user relationship loaded, ordered by
+        created_at DESC, id DESC.
+    """
+    ts_query = func.plainto_tsquery("english", query)
+
+    stmt = (
+        select(Message)
+        .options(selectinload(Message.user))
+        .where(
+            Message.room_id == room_id,
+            Message.search_vector.op("@@")(ts_query),
+        )
+    )
+
+    # Cursor pagination — same pattern as get_messages_by_room
+    if before_created_at is not None and before_id is not None:
+        stmt = stmt.where(
+            or_(
+                Message.created_at < before_created_at,
+                and_(
+                    Message.created_at == before_created_at,
+                    Message.id < before_id,
+                ),
+            )
+        )
+
+    # Order by recency — most recent matching messages first.
+    # Chat search is temporal: "what did someone say about X recently?"
+    # This also uses the existing (room_id, created_at DESC, id DESC) index.
+    stmt = stmt.order_by(
+        Message.created_at.desc(),
+        Message.id.desc(),
+    ).limit(limit)
+
+    result = await db.execute(stmt)
+    return list(result.scalars().all())

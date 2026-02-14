@@ -15,6 +15,105 @@ from app.utils.cursor import decode_cursor, encode_cursor
 router = APIRouter()
 
 
+@router.get("/rooms/{room_id}/messages/search", response_model=PaginatedMessages)
+async def search_room_messages(
+    room_id: int,
+    q: str = Query(min_length=1, max_length=200),
+    limit: int = Query(default=20, ge=1, le=50),
+    cursor: str | None = None,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Search messages in a room using full-text search.
+
+    Requires authentication and room membership. Uses Postgres tsvector
+    matching with stemming (e.g. "running" matches "run").
+
+    Args:
+        room_id: Room to search within
+        q: Search query (1-200 chars, plain text)
+        limit: Number of results to return (1-50, default 20)
+        cursor: Optional cursor for pagination
+
+    Raises:
+        400: Invalid cursor format
+        403: Not a member of the room
+        404: Room not found
+        422: Invalid query parameter (empty or too long)
+    """
+    # Validate room exists
+    room = await room_crud.get_room_by_id(db, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
+
+    # Validate user is a member of the room
+    membership = await user_room_crud.get_user_room(db, current_user.id, room_id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this room"
+        )
+
+    # Decode cursor if provided
+    before_created_at = None
+    before_id = None
+    if cursor:
+        try:
+            before_created_at, before_id = decode_cursor(cursor)
+        except ValueError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Invalid cursor: {str(e)}",
+            ) from e
+
+    # Trim the query — whitespace-only input shouldn't produce results
+    search_query = q.strip()
+    if not search_query:
+        return PaginatedMessages(messages=[], next_cursor=None)
+
+    # Fetch limit + 1 to detect if there are more results
+    messages = await message_crud.search_messages(
+        db, room_id, search_query, limit + 1, before_created_at, before_id
+    )
+
+    # Determine if there are more results
+    has_more = len(messages) > limit
+    if has_more:
+        messages = messages[:limit]
+
+    # Build response — same pattern as get_room_messages
+    response_messages = []
+    for msg in messages:
+        msg_id: int = msg.id  # type: ignore[assignment]
+        msg_room_id: int = msg.room_id  # type: ignore[assignment]
+        msg_user_id: int = msg.user_id  # type: ignore[assignment]
+        msg_content: str = msg.content  # type: ignore[assignment]
+        msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_username: str = msg.user.username  # type: ignore[union-attr]
+
+        response_messages.append(
+            MessageResponse(
+                id=msg_id,
+                room_id=msg_room_id,
+                user_id=msg_user_id,
+                username=msg_username,
+                content=msg_content,
+                created_at=msg_created_at,
+            )
+        )
+
+    # Create next_cursor if there are more results
+    next_cursor = None
+    if has_more and messages:
+        last_message = messages[-1]
+        cursor_created_at: datetime = last_message.created_at  # type: ignore[assignment]
+        cursor_id: int = last_message.id  # type: ignore[assignment]
+        next_cursor = encode_cursor(cursor_created_at, cursor_id)
+
+    return PaginatedMessages(messages=response_messages, next_cursor=next_cursor)
+
+
 @router.get("/rooms/{room_id}/messages", response_model=PaginatedMessages)
 async def get_room_messages(
     room_id: int,
