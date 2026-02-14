@@ -10,12 +10,21 @@ _parsed_url = make_url(settings.DATABASE_URL)
 _async_url = _parsed_url.set(drivername="postgresql+asyncpg")
 
 # Async engine for the application
+# Pool tuned for Supabase transaction pooler (PgBouncer in transaction mode):
+# - pool_pre_ping: detects dead connections before handing them out
+# - statement_cache_size=0: PgBouncer reassigns backends between transactions,
+#   so prepared statements from one backend don't exist on the next
+# - pool_recycle=300: PgBouncer drops idle connections well before 1 hour
 async_engine = create_async_engine(
     _async_url,
     echo=False,
-    pool_size=10,  # Default connections in pool
-    max_overflow=20,  # Extra connections allowed under load
-    pool_recycle=3600,  # Recycle connections after 1 hour (prevents stale connections)
+    pool_size=5,
+    max_overflow=10,
+    pool_recycle=300,
+    pool_pre_ping=True,
+    connect_args={
+        "statement_cache_size": 0,
+    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
