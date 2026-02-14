@@ -93,7 +93,7 @@ export default function UsersPanel({
         <div className="border-b border-zinc-800">
           <button
             onClick={() => setOnlineUsersExpanded(!onlineUsersExpanded)}
-            className="w-full h-12 px-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
+            className="w-full h-14 px-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
           >
             <h3 className="text-zinc-400 text-sm font-semibold uppercase tracking-wide">
               Online — {onlineUsers.length}
