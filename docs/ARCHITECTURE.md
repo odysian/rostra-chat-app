@@ -70,7 +70,7 @@ All tables are in schema **rostra**.
 |------------|---------|-------------|
 | **users**  | `id` (PK), `username`, `email`, `hashed_password`, `created_at` | User accounts; username and email unique. |
 | **rooms**  | `id` (PK), `name`, `created_by` (FK → users.id), `created_at` | Chat rooms; name unique. |
-| **messages** | `id` (PK), `room_id` (FK → rooms.id), `user_id` (FK → users.id), `content`, `created_at` | One message per row. |
+| **messages** | `id` (PK), `room_id` (FK → rooms.id), `user_id` (FK → users.id), `content`, `created_at`, `search_vector` (generated tsvector) | One message per row. `search_vector` is a stored generated column: `to_tsvector('english', content)`. |
 | **user_room** | `id` (PK), `user_id` (FK → users.id ON DELETE CASCADE), `room_id` (FK → rooms.id ON DELETE CASCADE), `last_read_at`, `joined_at` | Per-user read state per room; unique on (user_id, room_id). |
 
 ### Relationships
@@ -85,7 +85,7 @@ All tables are in schema **rostra**.
 
 - **users**: `ix_users_id`, `ix_users_username` (unique), `ix_users_email` (unique).
 - **rooms**: `ix_rooms_id`, `ix_rooms_name` (unique).
-- **messages**: `ix_messages_id`, `ix_messages_room_created_id` composite index on `(room_id, created_at DESC, id DESC)` — covers cursor-based pagination queries (WHERE + ORDER BY + seek).
+- **messages**: `ix_messages_id`, `ix_messages_room_created_id` composite index on `(room_id, created_at DESC, id DESC)` — covers cursor-based pagination queries (WHERE + ORDER BY + seek). `ix_messages_search_vector` GIN index on `search_vector` — covers full-text search queries (`@@` operator).
 - **user_room**: `ix_user_room_user` (user_id), `ix_user_room_room` (room_id); unique constraint `uq_user_room` on (user_id, room_id).
 
 ## API Contracts
@@ -124,6 +124,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 
 | Method | Path                     | Auth | Description |
 |--------|--------------------------|------|-------------|
+| GET    | /rooms/{room_id}/messages/search | Yes | Full-text search within a room. Query: `q` (1–200 chars, required), `limit` (1–50, default 20), `cursor` (opaque string). Uses Postgres `plainto_tsquery` with `'english'` config (stemming, stop word removal). Returns `PaginatedMessages { messages, next_cursor }` ordered by recency. 403 if not a room member. 404 if room not found. 422 if `q` missing/invalid. 400 if cursor malformed. |
 | GET    | /rooms/{room_id}/messages | Yes  | Cursor-paginated message history. Query: `cursor` (opaque string), `limit` (1–100, default 50). Returns `PaginatedMessages { messages, next_cursor }`. `next_cursor` is null when no older messages exist. 403 if not a room member. 400 if cursor is malformed. 404 if room not found. |
 | POST   | /messages                | Yes  | Body: `MessageCreate` (room_id, content 1–1000 chars). Creates message as current user. 403 if not a room member. 404 if room not found. |
 
@@ -165,6 +166,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
 | Frontend auth persistence | Token in localStorage | AuthContext stores token in localStorage; 401 from API triggers redirect to /login via `setUnauthorizedHandler`. |
 | DB schema | All tables in `rostra` | `MetaData(schema="rostra")` in database.py; migrations create tables in that schema. |
+| Message search | Postgres FTS with GIN-indexed tsvector | Stored generated column `to_tsvector('english', content)` on messages. `plainto_tsquery` for safe user input parsing. GIN index for fast lookups. Results ordered by recency (not relevance) — matches chat UX where users want recent matches. Scales to millions of rows; would graduate to Elasticsearch only for fuzzy/typo tolerance. |
 
 ## Directory Structure
 
@@ -218,9 +220,12 @@ src/
 │   ├── ChatLayout.tsx       # Top-level chat orchestrator (state, WS handler, subscriptions)
 │   ├── Sidebar.tsx          # Room list + create room + logout
 │   ├── RoomList.tsx         # Room listing with unread badges
-│   ├── MessageArea.tsx      # Header + MessageList + MessageInput
+│   ├── MessageArea.tsx      # Header + MessageList + MessageInput (no search state)
 │   ├── MessageList.tsx      # Scrollable messages with infinite scroll
 │   ├── MessageInput.tsx     # Text input + send button
+│   ├── SearchPanel.tsx      # Right sidebar for search (owns search state, contains SearchBar + SearchResults)
+│   ├── SearchBar.tsx        # Debounced search input with ESC-to-close
+│   ├── SearchResults.tsx    # Search results list with load-more pagination
 │   ├── UsersPanel.tsx       # Online users sidebar
 │   └── ...                  # Auth components, modals, loading states
 ├── context/                 # React context providers

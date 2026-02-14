@@ -104,6 +104,12 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Migration-only indexes:** The composite pagination index `ix_messages_room_created_id` (with DESC ordering) is also defined in the model's `__table_args__` so autogenerate sees it. It was originally created via raw SQL in a migration.
 - **Do not modify existing migration files.** If a migration has been applied, create a new migration for any changes. Editing applied migrations breaks `alembic upgrade` on existing databases.
 
+## Search Pattern
+
+- **Backend:** Full-text search via Postgres `tsvector` generated column + GIN index. CRUD function uses `plainto_tsquery` (safe for raw user input) and `@@` match operator. Results ordered by recency (`created_at DESC, id DESC`), reusing the existing composite index. Same cursor pagination pattern as message history.
+- **Frontend debounce + abort:** SearchBar debounces input by 300ms (via `setTimeout` in a `useEffect`). Each new search aborts the previous in-flight request via `AbortController` to prevent stale results from overwriting newer ones. The `AbortController` ref is stored in `SearchPanel`, which owns all search state.
+- **UI toggle:** Search opens as a right sidebar (`SearchPanel`), competing with `UsersPanel` — only one can be open at a time. ChatLayout manages panel visibility via `rightPanel: "none" | "users" | "search"` state; MessageArea fires `onToggleSearch`/`onToggleUsers` callbacks. Messages remain visible while searching. SearchPanel follows the same layout pattern as UsersPanel (w-60, fixed overlay on mobile, static on desktop). ESC key or close button closes the panel. "Load more" button (not infinite scroll) for paginated results.
+
 ## Other Conventions
 
 - **Backend routers:** Thin; validation and auth via Depends; business logic in CRUD or websocket handlers. Services layer (`app/services/`) for cross-cutting concerns like caching. WebSocket subsystem has `handlers.py`, `connection_manager.py`, and `schemas.py`.

@@ -311,9 +311,9 @@ export default function RoomList({
         </div>
 
         {/* User block: identity + logout (logout only when sidebar expanded; confirm before logout) */}
-        <div className="border-t border-zinc-800 px-3 py-2">
+        <div className="h-14 sm:h-16 shrink-0 border-t border-zinc-800 px-3 flex items-center">
           {sidebarOpen ? (
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 w-full">
               <div
                 className="w-8 h-8 shrink-0 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-xs border border-zinc-700"
                 title={user?.username ?? "User"}

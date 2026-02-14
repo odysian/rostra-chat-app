@@ -299,6 +299,26 @@ export async function getRoomMessages(
   });
 }
 
+export async function searchMessages(
+  roomId: number,
+  query: string,
+  token: string,
+  signal?: AbortSignal,
+  cursor?: string,
+): Promise<PaginatedMessages> {
+  const params = new URLSearchParams({ q: query });
+  if (cursor) params.set("cursor", cursor);
+  return apiCall<PaginatedMessages>(
+    `/rooms/${roomId}/messages/search?${params}`,
+    {
+      signal,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+}
+
 export async function sendMessage(
   roomId: number,
   content: string,

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import Sidebar from "./Sidebar";
 import MessageArea from "./MessageArea";
 import UsersPanel from "./UsersPanel";
+import SearchPanel from "./SearchPanel";
 import { useWebSocketContext } from "../context/useWebSocketContext";
 import { type WebSocketMessage } from "../context/WebSocketContext";
 import { useAuth } from "../context/AuthContext";
@@ -32,7 +33,7 @@ export default function ChatLayout() {
   const [selectedRoom, setSelectedRoom] = useState<Room | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [usersPanelOpen, setUsersPanelOpen] = useState(false);
+  const [rightPanel, setRightPanel] = useState<"none" | "users" | "search">("none");
   /** Online users per room; updated from subscribed / user_joined / user_left (so we have data even before a room is selected) */
   const [onlineUsersByRoom, setOnlineUsersByRoom] = useState<Record<number, OnlineUser[]>>({});
   /** Derived: online users for the currently selected room (for sidebar) */
@@ -378,7 +379,8 @@ export default function ChatLayout() {
           selectedRoom={selectedRoom}
           incomingMessages={incomingMessagesForRoom}
           onIncomingMessagesProcessed={handleIncomingMessagesProcessed}
-          onToggleUsers={() => setUsersPanelOpen(!usersPanelOpen)}
+          onToggleUsers={() => setRightPanel((prev) => prev === "users" ? "none" : "users")}
+          onToggleSearch={() => setRightPanel((prev) => prev === "search" ? "none" : "search")}
           onRoomDeleted={handleRoomDeleted}
           onLeaveRoom={handleLeaveRoom}
           onBackToRooms={handleBackToRooms}
@@ -387,14 +389,24 @@ export default function ChatLayout() {
         />
       </div>
 
-      {/* Right panel - Online users */}
+      {/* Right panel - Online users (mutually exclusive with search) */}
       <UsersPanel
-        isOpen={usersPanelOpen}
-        onClose={() => setUsersPanelOpen(false)}
+        isOpen={rightPanel === "users"}
+        onClose={() => setRightPanel("none")}
         currentUser={user}
         onlineUsers={onlineUsers}
         roomOwnerId={selectedRoom?.created_by ?? null}
       />
+
+      {/* Right panel - Search (mutually exclusive with users) */}
+      {selectedRoom && token && (
+        <SearchPanel
+          isOpen={rightPanel === "search"}
+          onClose={() => setRightPanel("none")}
+          roomId={selectedRoom.id}
+          token={token}
+        />
+      )}
     </div>
   );
 }

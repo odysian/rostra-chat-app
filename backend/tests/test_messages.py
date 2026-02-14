@@ -1018,3 +1018,259 @@ async def test_pagination_stable_with_concurrent_inserts(
     # The new messages should have higher IDs and not appear here
     for msg in second_data["messages"]:
         assert "Initial" in msg["content"]  # Not "New Message"
+
+
+# ============================================================================
+# GET /api/rooms/:id/messages/search
+# ============================================================================
+
+
+async def test_search_messages_returns_matching_results(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Searching for a word returns messages containing that word."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Search Test Room")
+    room_id = room["id"]
+
+    # Create messages — some match, some don't
+    await create_message(token, room_id, "The deployment went smoothly")
+    await create_message(token, room_id, "Lunch was great today")
+    await create_message(token, room_id, "We need to deploy again tomorrow")
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/search?q=deploy",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert "messages" in data
+    assert "next_cursor" in data
+
+    # Should match "deployment" and "deploy" (stemming), but not "Lunch"
+    assert len(data["messages"]) == 2
+
+    # Verify response shape matches MessageResponse
+    msg = data["messages"][0]
+    assert "id" in msg
+    assert "room_id" in msg
+    assert "user_id" in msg
+    assert "username" in msg
+    assert "content" in msg
+    assert "created_at" in msg
+
+    # Results ordered by recency (newest first)
+    assert "deploy again" in data["messages"][0]["content"]
+    assert "deployment" in data["messages"][1]["content"]
+
+
+async def test_search_messages_stemming_matches_word_variants(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Full-text search stems words: 'run' matches 'running'."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Stemming Room")
+    room_id = room["id"]
+
+    await create_message(token, room_id, "I was running late to the meeting")
+    await create_message(token, room_id, "The tests are passing now")
+
+    # Search for "run" — should match "running" via stemming
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/search?q=run",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert len(data["messages"]) == 1
+    assert "running" in data["messages"][0]["content"]
+
+
+async def test_search_messages_not_room_member_returns_403(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Non-members cannot search a room's messages."""
+    # User A creates room with messages
+    user_a = await create_user(email="searcha@test.com", username="searcha")
+    token_a = user_a["access_token"]
+    room = await create_room(token_a, "Private Search Room")
+    room_id = room["id"]
+    await create_message(token_a, room_id, "Secret information")
+
+    # User B is not a member
+    user_b = await create_user(email="searchb@test.com", username="searchb")
+    token_b = user_b["access_token"]
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/search?q=secret",
+        headers={"Authorization": f"Bearer {token_b}"},
+    )
+
+    assert response.status_code == 403
+    assert "not a member" in response.json()["detail"].lower()
+
+
+async def test_search_messages_nonexistent_room_returns_404(
+    client: AsyncClient, create_user
+):
+    """Searching in a nonexistent room returns 404."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    response = await client.get(
+        "/api/rooms/99999/messages/search?q=anything",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert "not found" in response.json()["detail"].lower()
+
+
+async def test_search_messages_empty_query_returns_422(
+    client: AsyncClient, create_user, create_room
+):
+    """Empty search query is rejected by Pydantic validation."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Empty Query Room")
+    room_id = room["id"]
+
+    # No q parameter at all
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/search",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 422
+
+
+async def test_search_messages_no_results_returns_empty_list(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Searching for a word that doesn't exist returns empty results."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "No Results Room")
+    room_id = room["id"]
+    await create_message(token, room_id, "Hello world")
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/search?q=xylophone",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["messages"]) == 0
+    assert data["next_cursor"] is None
+
+
+async def test_search_messages_respects_room_boundary(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Search results are scoped to the specified room only."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room_a = await create_room(token, "Room Alpha")
+    room_b = await create_room(token, "Room Beta")
+
+    # Same word in both rooms
+    await create_message(token, room_a["id"], "Discuss the deployment plan")
+    await create_message(token, room_b["id"], "Deployment is scheduled for Friday")
+
+    # Search only in Room Alpha
+    response = await client.get(
+        f"/api/rooms/{room_a['id']}/messages/search?q=deployment",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    # Only the Room Alpha message should appear
+    assert len(data["messages"]) == 1
+    assert data["messages"][0]["room_id"] == room_a["id"]
+
+
+async def test_search_messages_pagination_with_cursor(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Search results support cursor-based pagination."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Search Pagination Room")
+    room_id = room["id"]
+
+    # Create 5 messages that all match the search term
+    for i in range(5):
+        await create_message(token, room_id, f"Deploy version {i} to production")
+
+    # Get first page (limit 2)
+    first_page = await client.get(
+        f"/api/rooms/{room_id}/messages/search?q=deploy&limit=2",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert first_page.status_code == 200
+    first_data = first_page.json()
+
+    assert len(first_data["messages"]) == 2
+    assert first_data["next_cursor"] is not None
+
+    # Get second page using cursor
+    cursor = first_data["next_cursor"]
+    second_page = await client.get(
+        f"/api/rooms/{room_id}/messages/search?q=deploy&limit=2&cursor={cursor}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert second_page.status_code == 200
+    second_data = second_page.json()
+
+    assert len(second_data["messages"]) == 2
+
+    # Pages should have different messages (no overlap)
+    first_ids = {msg["id"] for msg in first_data["messages"]}
+    second_ids = {msg["id"] for msg in second_data["messages"]}
+    assert first_ids.isdisjoint(second_ids)
+
+
+async def test_search_messages_stop_words_only_returns_empty(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Searching for only stop words returns no results.
+
+    Postgres drops stop words ('the', 'is', 'a') during tsvector parsing,
+    so plainto_tsquery('english', 'the is a') produces an empty tsquery
+    that matches nothing. This is handled by Postgres, not our code.
+    """
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Stop Words Room")
+    room_id = room["id"]
+
+    # Create a message that contains these stop words
+    await create_message(token, room_id, "The cat is a good pet")
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/search?q=the is a",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["messages"]) == 0
+    assert data["next_cursor"] is None

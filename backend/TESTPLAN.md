@@ -522,6 +522,56 @@ When implementing these tests:
 
 ---
 
+### GET /api/rooms/:id/messages/search
+
+**Happy Path:**
+- `test_search_messages_returns_matching_results`
+  - Create messages with known content in a room
+  - Search for a word that appears in some messages
+  - Returns matching messages with correct fields (id, content, username, etc.)
+  - Results are ordered by recency (newest first)
+
+- `test_search_messages_stemming_matches_word_variants`
+  - Create messages with "running", "deployed", "tests"
+  - Search for "run" matches "running" (stemming)
+  - Search for "deploy" matches "deployed"
+  - Demonstrates FTS value over ILIKE
+
+**Error Cases:**
+- `test_search_messages_not_room_member_returns_403`
+  - User A creates room with messages
+  - User B (not member) searches the room
+  - Assert 403 Forbidden
+
+- `test_search_messages_nonexistent_room_returns_404`
+  - Search in room ID 99999
+  - Assert 404
+
+- `test_search_messages_empty_query_returns_422`
+  - Search with empty q parameter
+  - Assert 422 (Pydantic validation)
+
+**Edge Cases:**
+- `test_search_messages_no_results_returns_empty_list`
+  - Search for a word that doesn't exist in any messages
+  - Returns 200 with empty messages array and null next_cursor
+
+- `test_search_messages_respects_room_boundary`
+  - Create matching messages in Room A and Room B
+  - Search in Room A only returns Room A's messages
+
+- `test_search_messages_pagination_with_cursor`
+  - Create enough matching messages to exceed one page
+  - First request returns next_cursor
+  - Second request with cursor returns next page of results
+
+- `test_search_messages_stop_words_only_returns_empty`
+  - Search for only stop words ("the is a")
+  - Postgres drops stop words, producing empty tsquery
+  - Returns 200 with empty messages array
+
+---
+
 ### GET /api/health/db
 
 **Happy Path:**
