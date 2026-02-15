@@ -18,7 +18,7 @@ Real-time chat app built to learn WebSockets.
 
 **Backend:**
 - FastAPI (Python)
-- PostgreSQL (via Supabase)
+- PostgreSQL (Render) with schema isolation
 - Redis (Upstash) for caching unread counts
 - WebSockets for real-time communication
 - JWT authentication, rate-limited auth endpoints
@@ -31,8 +31,8 @@ Real-time chat app built to learn WebSockets.
 
 **Deployment:**
 - Frontend: Vercel
-- Database: Supabase (PostgreSQL)
 - Backend: Render
+- Database: Render PostgreSQL (shared across 3 portfolio projects via schema isolation)
 - Cache: Upstash Redis
 - All free tier
 
@@ -64,7 +64,8 @@ Real-time chat app built to learn WebSockets.
 - Props and state typing in React
 
 ### Deployment & Infrastructure
-- Free tier trade-offs (Render cold starts, Supabase connection limits)
+- Free tier trade-offs (Render cold starts, shared PostgreSQL connection limits)
+- Schema-based isolation: three apps sharing one database via separate schemas
 - Adding Redis (Upstash) as a caching layer on a shared instance with key prefixing
 - WebSocket deployment is trickier than REST APIs
 - Environment variables across four platforms
@@ -81,7 +82,7 @@ Real-time chat app built to learn WebSockets.
 ### Prerequisites
 - Python 3.12+
 - Node.js 18+
-- PostgreSQL (or use Supabase)
+- PostgreSQL
 
 ### Backend Setup
 
@@ -175,13 +176,13 @@ frontend/
 
 **Backend (Render):**
 - Free tier with cold starts (~30 second spin-up)
-- Connects to Supabase PostgreSQL and Upstash Redis
+- Connects to Render PostgreSQL and Upstash Redis
 - WebSocket support enabled
 
-**Database (Supabase):**
-- Free PostgreSQL instance
-- Connection pooling enabled
-- SSL required for connections
+**Database (Render PostgreSQL):**
+- Shared free-tier instance (`portfolio-db`)
+- Uses `rostra` schema for table isolation
+- Shared with 2 other portfolio projects (3 apps × pool_size=3 = 9 base connections)
 
 **Cache (Upstash Redis):**
 - Shared instance with `rostra:` key prefix
