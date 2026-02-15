@@ -61,9 +61,15 @@ function getDelay(attempt: number): number {
 }
 
 // Create request with timeout; supports optional external AbortSignal (e.g. for effect cleanup).
+// Timeout-caused aborts are converted to Error('Request timeout') so apiCall can retry them.
+// Caller-initiated aborts (via external signal) stay as AbortError and are NOT retried.
 function createRequestWithTimeout(url: string, options: RequestInit): Promise<Response> {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), RETRY_CONFIG.timeout);
+  let timedOut = false;
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, RETRY_CONFIG.timeout);
 
   const externalSignal = options.signal;
   const onAbort = () => controller.abort();
@@ -74,6 +80,12 @@ function createRequestWithTimeout(url: string, options: RequestInit): Promise<Re
   return fetch(url, {
     ...options,
     signal: controller.signal,
+  }).catch((error) => {
+    // Convert timeout aborts to a retryable error; let caller aborts propagate as AbortError
+    if (error.name === 'AbortError' && timedOut) {
+      throw new Error('Request timeout');
+    }
+    throw error;
   }).finally(() => {
     clearTimeout(timeoutId);
     if (externalSignal) {

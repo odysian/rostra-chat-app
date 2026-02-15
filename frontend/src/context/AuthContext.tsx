@@ -12,6 +12,8 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isAuthenticating: boolean;
   isColdStart: boolean;
+  authError: string | null;
+  retryAuth: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -23,65 +25,90 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthenticating, setIsAuthenticating] = useState<boolean>(false);
   const [isColdStart, setIsColdStart] = useState<boolean>(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  // Incremented to trigger a re-run of the verify effect
+  const [authAttempt, setAuthAttempt] = useState<number>(0);
 
-  // Declare logout BEFORE it's used in useEffect
+  const retryAuth = () => {
+    setAuthError(null);
+    setAuthAttempt((prev) => prev + 1);
+  };
+
   const logout = (redirect: boolean = false) => {
     localStorage.removeItem("token");
     setToken(null);
     setUser(null);
     setIsAuthenticating(false);
     setIsColdStart(false);
-    
+    setAuthError(null);
+
     if (redirect) {
-      // Use window.location for immediate redirect (more reliable than React Router)
       window.location.href = "/login";
     }
   };
 
+  // Returns true if the error is an auth rejection (invalid/expired token)
+  // vs a network/timeout issue where the server may just be starting up
+  function isAuthError(err: unknown): boolean {
+    if (!(err instanceof Error)) return false;
+    const msg = err.message.toLowerCase();
+    return msg.includes('401') || msg.includes('unauthorized');
+  }
+
   useEffect(() => {
-    if (token) {
-      // Defer state setting to avoid cascading renders
-      const authTimer = setTimeout(() => {
+    if (!token) return;
+
+    let cancelled = false;
+
+    // Defer state setting to avoid cascading renders (lint: react-hooks/set-state-in-effect)
+    const authTimer = setTimeout(() => {
+      if (!cancelled) {
         setIsAuthenticating(true);
-      }, 0);
-      
-      // 5-second cold start detection timer
-      const coldStartTimer = setTimeout(() => {
-        setIsColdStart(true);
-      }, 5000);
+        setAuthError(null);
+      }
+    }, 0);
 
-      // 10-second timeout for getCurrentUser call
-      const timeoutController = new AbortController();
-      const timeoutId = setTimeout(() => {
-        timeoutController.abort();
-      }, 10000);
+    // Show cold start notice after 5s of waiting
+    const coldStartTimer = setTimeout(() => {
+      if (!cancelled) setIsColdStart(true);
+    }, 5000);
 
-      getCurrentUser(token)
-        .then((userData) => {
-          clearTimeout(authTimer);
-          clearTimeout(coldStartTimer);
-          clearTimeout(timeoutId);
-          setUser(userData);
-          setIsAuthenticating(false);
-          setIsColdStart(false);
-        })
-        .catch(() => {
-          clearTimeout(authTimer);
-          clearTimeout(coldStartTimer);
-          clearTimeout(timeoutId);
+    // apiCall already retries 4 times with backoff (covers ~60s of cold start).
+    // We just need to handle the final outcome correctly.
+    getCurrentUser(token)
+      .then((userData) => {
+        if (cancelled) return;
+        clearTimeout(coldStartTimer);
+        setUser(userData);
+        setIsAuthenticating(false);
+        setIsColdStart(false);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        clearTimeout(coldStartTimer);
+
+        if (isAuthError(err)) {
+          // Token is invalid/expired — clear it and let ProtectedRoute redirect
           setToken(null);
           localStorage.removeItem("token");
           setIsAuthenticating(false);
           setIsColdStart(false);
-        });
+        } else {
+          // Network/timeout error — keep the token, show retry UI
+          setIsAuthenticating(false);
+          setIsColdStart(false);
+          setAuthError(
+            "Couldn't reach the server. It may still be starting up."
+          );
+        }
+      });
 
-      return () => {
-        clearTimeout(authTimer);
-        clearTimeout(coldStartTimer);
-        clearTimeout(timeoutId);
-      };
-    }
-  }, [token]);
+    return () => {
+      cancelled = true;
+      clearTimeout(authTimer);
+      clearTimeout(coldStartTimer);
+    };
+  }, [token, authAttempt]);
 
   useEffect(() => {
     setUnauthorizedHandler(() => {
@@ -113,6 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isAuthenticated: !!token && !isAuthenticating && !!user,
         isAuthenticating,
         isColdStart,
+        authError,
+        retryAuth,
       }}
     >
       {children}

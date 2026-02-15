@@ -13,9 +13,10 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
-  const { isAuthenticated, isAuthenticating } = useAuth();
+  const { isAuthenticated, isAuthenticating, authError } = useAuth();
 
-  if (isAuthenticating) {
+  // Show overlay while verifying token, or when server is unreachable (retry UI)
+  if (isAuthenticating || authError) {
     return <AuthLoadingOverlay />;
   }
 
