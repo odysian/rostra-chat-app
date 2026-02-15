@@ -1,30 +1,26 @@
+from app.core.config import settings
 from sqlalchemy import MetaData
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
-
-from app.core.config import settings
 
 # Build async URL safely (handles any existing driver suffix like +psycopg2)
 _parsed_url = make_url(settings.DATABASE_URL)
 _async_url = _parsed_url.set(drivername="postgresql+asyncpg")
 
 # Async engine for the application
-# Pool tuned for Supabase transaction pooler (PgBouncer in transaction mode):
+# Pool tuned for Render PostgreSQL (direct connection, shared across 3 apps):
+# - pool_size=3: conservative for shared free-tier Postgres (max 97 connections)
+# - max_overflow=5: allows bursts without exhausting connection limit
 # - pool_pre_ping: detects dead connections before handing them out
-# - statement_cache_size=0: PgBouncer reassigns backends between transactions,
-#   so prepared statements from one backend don't exist on the next
-# - pool_recycle=300: PgBouncer drops idle connections well before 1 hour
+# - pool_recycle=300: refresh connections periodically for connection hygiene
 async_engine = create_async_engine(
     _async_url,
     echo=False,
-    pool_size=5,
-    max_overflow=10,
+    pool_size=3,
+    max_overflow=5,
     pool_recycle=300,
     pool_pre_ping=True,
-    connect_args={
-        "statement_cache_size": 0,
-    },
 )
 
 AsyncSessionLocal = async_sessionmaker(
