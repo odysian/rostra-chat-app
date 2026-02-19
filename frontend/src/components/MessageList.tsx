@@ -539,7 +539,7 @@ export default function MessageList({
                     </div>
                   ) : (
                     <span
-                      className="hidden group-hover:block font-mono text-[10px] pt-1 text-center w-full"
+                      className="block font-mono text-[10px] pt-1 text-center w-full opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                       style={{ color: "var(--color-meta)" }}
                     >
                       {simpleTime}
