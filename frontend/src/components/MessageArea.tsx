@@ -5,6 +5,7 @@ import type { Message, Room } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { deleteRoom } from "../services/api";
+import { formatRoomNameForDisplay } from "../utils/roomNames";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
@@ -77,6 +78,7 @@ export default function MessageArea({
   }
 
   const isRoomOwner = user?.id === selectedRoom.created_by;
+  const displayRoomName = formatRoomNameForDisplay(selectedRoom.name);
 
   // Format typing indicator text based on number of users
   const formatTypingText = (usernames: string[]): string => {
@@ -152,25 +154,25 @@ export default function MessageArea({
             {theme === "neon" ? (
               <h2
                 className="font-bebas text-[22px] tracking-[0.12em] truncate gradient-text"
-                title={selectedRoom.name}
+                title={displayRoomName}
                 style={{
                   backgroundImage:
                     "linear-gradient(90deg, var(--color-accent), var(--color-accent2))",
                   filter: "drop-shadow(0 0 6px rgba(255, 204, 0, 0.27))",
                 }}
               >
-                {selectedRoom.name}
+                {displayRoomName}
               </h2>
             ) : (
               <h2
                 className="font-bebas text-[22px] tracking-[0.12em] truncate"
-                title={selectedRoom.name}
+                title={displayRoomName}
                 style={{
                   color: "var(--color-primary)",
                   textShadow: "var(--glow-primary)",
                 }}
               >
-                {selectedRoom.name}
+                {displayRoomName}
               </h2>
             )}
           </div>
@@ -298,7 +300,7 @@ export default function MessageArea({
             <p className="font-mono text-[14px] mb-6" style={{ color: "var(--color-meta)" }}>
               Are you sure you want to delete{" "}
               <span style={{ color: "var(--color-primary)" }}>
-                {selectedRoom.name}
+                {displayRoomName}
               </span>
               ? This will permanently delete all messages. This action cannot be undone.
             </p>
@@ -378,6 +380,7 @@ export default function MessageArea({
 
       <MessageInput
         roomId={selectedRoom.id}
+        roomName={displayRoomName}
         onMessageSent={() => setScrollToLatestSignal((prev) => prev + 1)}
       />
     </div>

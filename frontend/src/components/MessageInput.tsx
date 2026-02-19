@@ -1,18 +1,26 @@
 import { useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketContext } from "../context/useWebSocketContext";
+import { formatRoomNameForDisplay } from "../utils/roomNames";
 
 interface MessageInputProps {
   roomId: number;
+  roomName: string;
   onMessageSent?: () => void;
 }
 
-export default function MessageInput({ roomId, onMessageSent }: MessageInputProps) {
+export default function MessageInput({
+  roomId,
+  roomName,
+  onMessageSent,
+}: MessageInputProps) {
+  const displayRoomName = formatRoomNameForDisplay(roomName);
   const { token } = useAuth();
   const { sendMessage: wsSendMessage, sendTypingIndicator } = useWebSocketContext();
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
   const [isFocused, setIsFocused] = useState(false);
+  const [isHovered, setIsHovered] = useState(false);
   const typingCooldownRef = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -70,12 +78,16 @@ export default function MessageInput({ roomId, onMessageSent }: MessageInputProp
     >
       <div
         className="flex w-full min-w-0"
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
         style={{
           border: isFocused
             ? "1px solid var(--color-primary)"
-            : "1px solid var(--border-dim)",
+            : isHovered
+              ? "1px solid var(--border-primary)"
+              : "1px solid var(--border-dim)",
           borderRadius: "3px",
-          boxShadow: isFocused ? "var(--glow-primary)" : "none",
+          boxShadow: isFocused || isHovered ? "var(--glow-primary)" : "none",
         }}
       >
         <textarea
@@ -90,7 +102,7 @@ export default function MessageInput({ roomId, onMessageSent }: MessageInputProp
               e.currentTarget.form?.requestSubmit();
             }
           }}
-          placeholder="Type a message..."
+          placeholder={`Message #${displayRoomName}`}
           disabled={sending}
           rows={1}
           className="min-w-0 flex-1 px-3 py-2 bg-transparent focus:outline-none disabled:opacity-50 font-mono text-[14px] placeholder:text-[var(--color-meta)] resize-none max-h-[120px]"

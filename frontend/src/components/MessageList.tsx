@@ -335,26 +335,29 @@ export default function MessageList({
     };
   }, [nextCursor, isLoadingMore, loadOlderMessages, isInitialPositioned]);
 
-  // Date Formatting
-  const getSmartDate = (isoString: string) => {
+  // Message header timestamp: keep compact and time-only.
+  const getMessageTime = (isoString: string) => {
     const date = new Date(isoString);
-    const now = new Date();
-    const timeStr = date.toLocaleTimeString([], {
+    return date.toLocaleTimeString([], {
       hour: "numeric",
       minute: "2-digit",
     });
+  };
 
-    if (date.toDateString() === now.toDateString()) {
-      return `${timeStr}`;
-    }
-
-    const yesterday = new Date(now);
-    yesterday.setDate(yesterday.getDate() - 1);
-    if (date.toDateString() === yesterday.toDateString()) {
-      return `Yesterday at ${timeStr}`;
-    }
-
-    return `${date.toLocaleDateString()} ${timeStr}`;
+  // Full timestamp used for browser tooltips on hover.
+  const getFullDateTime = (isoString: string) => {
+    const date = new Date(isoString);
+    const longDate = date.toLocaleDateString([], {
+      weekday: "long",
+      month: "long",
+      day: "numeric",
+      year: "numeric",
+    });
+    const time = date.toLocaleTimeString([], {
+      hour: "numeric",
+      minute: "2-digit",
+    });
+    return `${longDate}\n${time}`;
   };
 
   // Get date string for date dividers
@@ -459,7 +462,7 @@ export default function MessageList({
             </span>
           </div>
         )}
-        {!isLoadingMore && nextCursor === null && messages.length > 0 && (
+        {!isLoadingMore && nextCursor == null && (
           <div className="flex justify-center py-4">
             <span
               className="font-pixel text-[7px] tracking-[0.20em] px-3 py-1"
@@ -500,11 +503,12 @@ export default function MessageList({
           const userColors =
             theme === "neon" ? getUserColorPalette(message.username) : null;
 
-          const headerDate = getSmartDate(isoDate);
-          const simpleTime = new Date(isoDate).toLocaleTimeString([], {
+          const headerTime = getMessageTime(isoDate);
+          const hoverTime = new Date(isoDate).toLocaleTimeString([], {
             hour: "numeric",
             minute: "2-digit",
           });
+          const fullDateTime = getFullDateTime(isoDate);
 
           return (
             <div key={message.id}>
@@ -546,10 +550,11 @@ export default function MessageList({
                     </div>
                   ) : (
                     <span
-                      className="block font-mono text-[10px] pt-1 text-center w-full opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                      className="block font-mono text-[12px] pt-1 text-center w-full whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                       style={{ color: "var(--color-meta)" }}
+                      title={fullDateTime}
                     >
-                      {simpleTime}
+                      {hoverTime}
                     </span>
                   )}
                 </div>
@@ -559,16 +564,17 @@ export default function MessageList({
                   {!isGrouped && (
                     <div className="flex items-baseline gap-2">
                       <span
-                        className="font-mono text-[12px] tracking-[0.06em]"
+                        className="font-mono font-semibold text-[14px] tracking-[0.06em]"
                         style={{ color: userColors?.textColor ?? "var(--color-primary)" }}
                       >
                         {message.username}
                       </span>
                       <span
-                        className="font-mono text-[10px] tracking-[0.08em]"
+                        className="font-mono text-[12px] tracking-[0.08em]"
                         style={{ color: "var(--color-meta)" }}
+                        title={fullDateTime}
                       >
-                        {headerDate}
+                        {headerTime}
                       </span>
                     </div>
                   )}

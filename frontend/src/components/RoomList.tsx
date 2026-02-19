@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { getRooms, createRoom } from "../services/api";
 import { RoomDiscoveryModal } from "./RoomDiscoveryModal";
+import { formatRoomNameForDisplay } from "../utils/roomNames";
 import { getUserColorPalette } from "../utils/userColors";
 import type { Room } from "../types";
 
@@ -203,7 +204,7 @@ export default function RoomList({
       )}
 
       {/* Room List Area */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {loading ? (
           <div className="flex items-center justify-center p-4">
             <p className="font-mono text-[12px]" style={{ color: "var(--color-meta)" }}>
@@ -244,6 +245,7 @@ export default function RoomList({
             const isSelected = selectedRoom?.id === room.id;
             const unreadCount = unreadCounts[room.id] ?? 0;
             const hasUnread = unreadCount > 0 && !isSelected;
+            const displayRoomName = formatRoomNameForDisplay(room.name);
             return (
               <button
                 key={room.id}
@@ -292,7 +294,7 @@ export default function RoomList({
                             : "var(--color-text)",
                         }}
                       >
-                        {room.name}
+                        {displayRoomName}
                       </div>
                     </div>
                     {hasUnread && (
@@ -319,7 +321,7 @@ export default function RoomList({
                           : "var(--color-text)",
                       }}
                     >
-                      {room.name.charAt(0).toUpperCase()}
+                      {displayRoomName.charAt(0).toUpperCase()}
                     </span>
                     {hasUnread && (
                       <span
@@ -388,9 +390,17 @@ export default function RoomList({
           <div className="px-3 py-2 space-y-1">
             <button
               onClick={() => setShowCreateModal(true)}
-              className="w-full flex justify-center py-2 transition-colors"
-              style={{ color: "var(--color-primary)" }}
+              className="w-full flex justify-center py-2 transition-all duration-150"
+              style={{ color: "var(--color-primary)", boxShadow: "none" }}
               title="Create new room"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = primaryButtonHoverBackground;
+                e.currentTarget.style.boxShadow = "var(--glow-primary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.boxShadow = "none";
+              }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -398,9 +408,17 @@ export default function RoomList({
             </button>
             <button
               onClick={() => setShowDiscovery(true)}
-              className="w-full flex justify-center py-2 transition-colors"
-              style={{ color: "var(--color-secondary)" }}
+              className="w-full flex justify-center py-2 transition-all duration-150"
+              style={{ color: "var(--color-secondary)", boxShadow: "none" }}
               title="Discover rooms"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = secondaryButtonHoverBackground;
+                e.currentTarget.style.boxShadow = "var(--glow-secondary)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.boxShadow = "none";
+              }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <circle cx="12" cy="12" r="10" strokeWidth={2} />

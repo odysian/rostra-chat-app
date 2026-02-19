@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { discoverRooms, joinRoom, leaveRoom } from '../services/api';
+import { formatRoomNameForDisplay } from '../utils/roomNames';
 import type { Room } from '../types';
 
 interface RoomDiscoveryModalProps {
@@ -177,7 +178,7 @@ export function RoomDiscoveryModal({
 
       const message = err instanceof Error ? err.message : '';
       if (message.includes('403') || message.includes('creator')) {
-        setError('Room creators cannot leave their own rooms. Delete the room instead.');
+        setError('Room owners cannot leave their own rooms. Delete the room instead.');
       } else if (message.includes('400') || message.includes('Not a member')) {
         setError('You are not a member of this room');
       } else {
@@ -298,6 +299,7 @@ export function RoomDiscoveryModal({
               {displayedRooms.map((room) => {
                 const isJoined = effectiveJoinedIds.has(room.id);
                 const isCreator = room.created_by === currentUserId;
+                const displayRoomName = formatRoomNameForDisplay(room.name);
 
                 return (
                   <li
@@ -312,16 +314,16 @@ export function RoomDiscoveryModal({
                       <span
                         className="font-bebas text-[17px] tracking-[0.08em] truncate"
                         style={{ color: "var(--color-text)" }}
-                        title={room.name}
+                        title={displayRoomName}
                       >
-                        {room.name}
+                        {displayRoomName}
                       </span>
                       {isCreator && (
                         <span
                           className="font-pixel text-[7px]"
                           style={{ color: "var(--color-primary)" }}
                         >
-                          YOURS
+                          OWNER
                         </span>
                       )}
                     </div>
@@ -354,9 +356,9 @@ export function RoomDiscoveryModal({
                           <span
                             className="font-mono text-[12px] whitespace-nowrap"
                             style={{ color: "var(--color-meta)" }}
-                            title="Room creators cannot leave their own rooms"
+                            title="Room owners cannot leave their own rooms"
                           >
-                            Creator
+                            OWNER
                           </span>
                         ) : (
                           <button

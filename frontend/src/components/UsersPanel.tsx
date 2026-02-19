@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Crown } from "lucide-react";
 import type { User } from "../types";
 import { useWebSocketContext } from "../context/useWebSocketContext";
+import { useTheme } from "../context/ThemeContext";
+import { getUserColorPalette } from "../utils/userColors";
 
 interface OnlineUser {
   id: number;
@@ -36,6 +38,7 @@ export default function UsersPanel({
 }: UsersPanelProps) {
   const [onlineUsersExpanded, setOnlineUsersExpanded] = useState(true);
   const { connectionStatus } = useWebSocketContext();
+  const { theme } = useTheme();
 
   const getConnectionStatusColor = () => {
     switch (connectionStatus) {
@@ -129,6 +132,9 @@ export default function UsersPanel({
               onlineUsers.map((user) => {
                 const isCurrentUser = currentUser?.id === user.id;
                 const isRoomOwner = roomOwnerId != null && user.id === roomOwnerId;
+                // Keep amber visuals cohesive by using per-user hues only in neon mode.
+                const userColors =
+                  theme === "neon" ? getUserColorPalette(user.username) : null;
                 return (
                   <div
                     key={user.id}
@@ -152,10 +158,10 @@ export default function UsersPanel({
                     />
 
                     <span
-                      className="font-mono text-[12px] tracking-[0.06em] truncate flex items-center gap-1.5 min-w-0 flex-1"
+                      className="font-mono font-semibold text-[14px] tracking-[0.06em] truncate flex items-center gap-1.5 min-w-0 flex-1"
                       style={{
-                        color: "var(--color-text)",
-                        opacity: 0.53,
+                        color: userColors?.textColor ?? "var(--color-text)",
+                        opacity: 0.92,
                       }}
                     >
                       {user.username}
