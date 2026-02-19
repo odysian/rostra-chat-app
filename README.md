@@ -12,7 +12,11 @@ Real-time chat app built to learn WebSockets.
 - Unread message counters (server-authoritative, cached in Redis)
 - User authentication with JWT
 - Online presence per room
+- Typing indicators per room
 - Room membership access control
+- Neon/Amber themes with optional CRT overlay (enabled by default for first-time visitors)
+- Grouped message display with date dividers and compact timestamps
+- Frontend room-name display normalization (`My Room` → `My-Room`)
 
 ## Tech Stack
 
@@ -28,6 +32,7 @@ Real-time chat app built to learn WebSockets.
 - React with TypeScript
 - Tailwind CSS
 - Centralized WebSocket context with multi-room subscriptions
+- Theme context (Neon/Amber), CRT preference persistence, and room-aware message input UX
 
 **Deployment:**
 - Frontend: Vercel
@@ -62,6 +67,7 @@ Real-time chat app built to learn WebSockets.
 - First project using TypeScript on frontend
 - Typed WebSocket message schemas for different actions
 - Props and state typing in React
+- Deterministic user-color utility (Neon mode) for consistent avatar/name accents
 
 ### Deployment & Infrastructure
 - Free tier trade-offs (Render cold starts, shared PostgreSQL connection limits)
