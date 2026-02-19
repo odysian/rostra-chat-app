@@ -449,7 +449,7 @@ export default function MessageList({
       <div
         ref={scrollContainerRef}
         className="h-full overflow-y-auto overflow-x-hidden flex flex-col"
-        style={{ padding: "20px 20px 12px" }}
+        style={{ padding: "20px 20px 12px 10px" }}
       >
         {/* Sentinel for IntersectionObserver */}
         <div ref={sentinelRef} className="h-px" />
@@ -529,8 +529,8 @@ export default function MessageList({
               {/* Flush-left message row (Discord-style) */}
               <div
                 data-chat-message="true"
-                className={`group flex items-start gap-3 px-4 hover:bg-white/[0.02] transition-colors ${
-                  isGrouped ? "mt-0.5 py-0.5" : "mt-4 py-0.5"
+                className={`group flex items-start gap-3 px-2 hover:bg-white/[0.02] transition-colors ${
+                  isGrouped ? "mt-0.5 py-0.5" : "mt-3.5 py-0.5"
                 }`}
                 style={{ animation: "slide-in 0.2s ease-out" }}
               >
