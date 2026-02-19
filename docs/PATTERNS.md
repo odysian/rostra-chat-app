@@ -110,6 +110,13 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Frontend debounce + abort:** SearchBar debounces input by 300ms (via `setTimeout` in a `useEffect`). Each new search aborts the previous in-flight request via `AbortController` to prevent stale results from overwriting newer ones. The `AbortController` ref is stored in `SearchPanel`, which owns all search state.
 - **UI toggle:** Search opens as a right sidebar (`SearchPanel`), competing with `UsersPanel` — only one can be open at a time. ChatLayout manages panel visibility via `rightPanel: "none" | "users" | "search"` state; MessageArea fires `onToggleSearch`/`onToggleUsers` callbacks. Messages remain visible while searching. SearchPanel follows the same layout pattern as UsersPanel (w-60, fixed overlay on mobile, static on desktop). ESC key or close button closes the panel. "Load more" button (not infinite scroll) for paginated results.
 
+## Frontend Testing Pattern
+
+- **Test runner:** Vitest with `jsdom` configured in `frontend/vite.config.ts` under `test`, and scripts `npm run test` / `npm run test:watch` in `frontend/package.json`.
+- **Global setup:** `frontend/src/test/setup.ts` registers `@testing-library/jest-dom`, starts/stops MSW server lifecycle hooks, clears localStorage/mocks after each test, and provides browser shims for `IntersectionObserver`, `matchMedia`, and scroll methods used by chat components.
+- **Network mocking:** MSW handlers live in `frontend/src/test/mocks/handlers.ts` and are mounted via `frontend/src/test/mocks/server.ts`. Tests override handlers per case using `server.use(...)` when needed.
+- **Render helper:** `frontend/src/test/render.tsx` provides `renderWithProviders` for Router + Theme + Auth context wrappers so component tests can focus on behavior instead of repetitive provider setup.
+
 ## Other Conventions
 
 - **Backend routers:** Thin; validation and auth via Depends; business logic in CRUD or websocket handlers. Services layer (`app/services/`) for cross-cutting concerns like caching. WebSocket subsystem has `handlers.py`, `connection_manager.py`, and `schemas.py`.

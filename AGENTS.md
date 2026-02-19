@@ -86,6 +86,7 @@ The files in `docs/` are auto-loaded into every conversation via CLAUDE.md. Keep
 - [ ] **PATTERNS.md** — Update if you introduced a new code pattern or changed an existing convention. If you followed an existing pattern unchanged, no update needed.
 - [ ] **REVIEW_CHECKLIST.md** — Update if the feature introduced a new category of checks or you discovered a missing check.
 - [ ] **TESTPLAN.md** — Update before writing any new tests.
+- [ ] **docs/adr/** — Create a new numbered ADR if you chose between competing approaches, resolved a non-obvious production issue, or made a decision with lasting security/performance consequences. See **ADR Format** below.
 
 **How to update:** Edit the specific section that changed — add new rows to tables, new items to lists, new sections where appropriate. Do not rewrite entire files.
 
@@ -161,6 +162,71 @@ _Project-specific lessons. Add to this section when the agent makes a mistake in
 - **Do not create `.env` files with real secrets.** Create `.env.example` with placeholder values.
 - **Do not add dependencies that duplicate existing functionality.** Check what's already installed before adding packages.
 - **Do not modify migration files after they've been applied.** Create a new migration instead.
+
+---
+
+## ADR Format
+
+Architecture Decision Records live in `docs/adr/` and capture decisions with lasting consequences. Use ADR-001 as the canonical example.
+
+**When to write one:**
+- You chose between two or more real alternatives (not just "one obvious way")
+- A production issue revealed a design flaw that required a deliberate fix
+- The decision has non-obvious security, performance, or correctness implications
+- Future agents or developers would reasonably question why something was done this way
+
+**When NOT to write one:**
+- Routine feature additions with no competing approaches
+- Bug fixes with a single obvious solution
+- Anything fully covered by PATTERNS.md
+
+**File naming:** `NNN-kebab-case-title.md` — three-digit sequence number, e.g. `004-my-decision.md`. Check the existing files in `docs/adr/` for the next available number.
+
+**Required sections:**
+
+```
+# ADR-NNN: Short Title
+
+**Date:** YYYY-MM-DD
+**Status:** Accepted | Applied | Superseded by ADR-XXX
+**Branch:** branch-name-or-pr
+
+---
+
+## Context
+
+### Background
+[What is the relevant architecture or system state?]
+
+### Problem
+[What specific issue or requirement triggered this decision?]
+
+### Root Cause (if a bug or production incident)
+[Why did the problem occur?]
+
+---
+
+## Options Considered
+
+### Option A: Name
+[Description. Accepted/Rejected, and why.]
+
+### Option B: Name
+[Description. Accepted/Rejected, and why.]
+
+---
+
+## Decision
+
+[Numbered list of what was implemented and how.]
+
+---
+
+## Consequences
+
+[Bullet list: what is now true as a result, including tradeoffs, edge cases,
+and any new risks introduced.]
+```
 
 ---
 

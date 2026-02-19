@@ -58,7 +58,7 @@ Use this after agent sessions or before committing. Not every item applies to ev
 
 - [ ] **Happy path:** New behavior works with valid input.
 - [ ] **Error path:** Invalid input, missing resource, auth failure return expected status and message.
-- [ ] **Edge cases:** Empty list, boundary lengths, etc. Backend uses pytest with real test DB (savepoint rollback). Frontend is manual testing for now.
+- [ ] **Edge cases:** Empty list, boundary lengths, etc. Backend uses pytest with real test DB (savepoint rollback). Frontend uses Vitest + React Testing Library test files under `frontend/src/**/__tests__/`.
 - [ ] **TESTPLAN.md:** New test cases added to `backend/TESTPLAN.md` before writing tests (per AGENTS.md rule).
 
 ## Verification Commands (this project)
