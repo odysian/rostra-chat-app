@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="src/assets/favicon1.svg" />
+    <link rel="icon" type="image/svg+xml" href="src/assets/favicon_no_bg.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -17,19 +17,17 @@
     <title>Rostra | Chat Application</title>
     <script>
       document.documentElement.setAttribute(
-        'data-theme',
-        localStorage.getItem('rostra-theme') || 'neon'
+        "data-theme",
+        localStorage.getItem("rostra-theme") || "neon",
       );
-      const storedCrt = localStorage.getItem('rostra-crt');
+      const storedCrt = localStorage.getItem("rostra-crt");
       // Default CRT to "on" for first-time visitors.
       // Backward compatible: old values (subtle/medium/strong/on) map to simple "on".
-      const crtState = storedCrt === null ? 'on' : (storedCrt === 'off' ? 'off' : 'on');
-      document.documentElement.setAttribute(
-        'data-crt',
-        crtState
-      );
+      const crtState =
+        storedCrt === null ? "on" : storedCrt === "off" ? "off" : "on";
+      document.documentElement.setAttribute("data-crt", crtState);
       if (storedCrt === null) {
-        localStorage.setItem('rostra-crt', 'on');
+        localStorage.setItem("rostra-crt", "on");
       }
     </script>
   </head>

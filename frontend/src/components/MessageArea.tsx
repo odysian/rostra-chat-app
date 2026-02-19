@@ -153,26 +153,26 @@ export default function MessageArea({
             {/* Room name — gradient for neon, solid glow for amber */}
             {theme === "neon" ? (
               <h2
-                className="font-bebas text-[22px] tracking-[0.12em] truncate gradient-text"
-                title={displayRoomName}
+                className="inline-block max-w-full font-bebas text-[22px] tracking-[0.12em] truncate gradient-text"
+                title={`#${displayRoomName}`}
                 style={{
                   backgroundImage:
-                    "linear-gradient(90deg, var(--color-accent), var(--color-accent2))",
-                  filter: "drop-shadow(0 0 6px rgba(255, 204, 0, 0.27))",
+                    "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                  filter: "drop-shadow(0 0 6px rgba(0, 240, 255, 0.27))",
                 }}
               >
-                {displayRoomName}
+                #{displayRoomName}
               </h2>
             ) : (
               <h2
-                className="font-bebas text-[22px] tracking-[0.12em] truncate"
-                title={displayRoomName}
+                className="inline-block max-w-full font-bebas text-[22px] tracking-[0.12em] truncate"
+                title={`#${displayRoomName}`}
                 style={{
                   color: "var(--color-primary)",
                   textShadow: "var(--glow-primary)",
                 }}
               >
-                {displayRoomName}
+                #{displayRoomName}
               </h2>
             )}
           </div>

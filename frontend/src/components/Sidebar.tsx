@@ -180,17 +180,22 @@ export default function Sidebar({
             >
               {theme === "neon" ? (
                 <span
-                  className="font-bebas text-[30px] leading-none gradient-text"
+                  className="font-bebas text-[40px] leading-none gradient-text"
                   style={{
                     backgroundImage:
                       "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                    // Show only the beginning of the logo gradient so collapsed "R"
+                    // visually matches the first letter of expanded "ROSTRA".
+                    backgroundSize: "600% 100%",
+                    backgroundPosition: "0% 0%",
+                    backgroundRepeat: "no-repeat",
                   }}
                 >
                   R
                 </span>
               ) : (
                 <span
-                  className="font-bebas text-[30px] leading-none"
+                  className="font-bebas text-[40px] leading-none"
                   style={{
                     color: "var(--color-primary)",
                     textShadow: "var(--glow-primary)",
