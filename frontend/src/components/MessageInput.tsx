@@ -1,5 +1,4 @@
 import { useState, useRef } from "react";
-import { Send } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketContext } from "../context/useWebSocketContext";
 
@@ -13,10 +12,18 @@ export default function MessageInput({ roomId, onMessageSent }: MessageInputProp
   const { sendMessage: wsSendMessage, sendTypingIndicator } = useWebSocketContext();
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const typingCooldownRef = useRef(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const syncTextareaHeight = (element: HTMLTextAreaElement) => {
+    element.style.height = "0px";
+    element.style.height = `${Math.min(element.scrollHeight, 120)}px`;
+  };
+
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
+    syncTextareaHeight(e.target);
 
     // Throttle: send at most one typing event per 2s
     if (e.target.value.length > 0 && !typingCooldownRef.current) {
@@ -40,6 +47,9 @@ export default function MessageInput({ roomId, onMessageSent }: MessageInputProp
     try {
       wsSendMessage(roomId, content);
       setContent("");
+      if (textareaRef.current) {
+        textareaRef.current.style.height = "auto";
+      }
       onMessageSent?.();
     } catch (err) {
       console.error("Failed to send message", err);
@@ -51,24 +61,63 @@ export default function MessageInput({ roomId, onMessageSent }: MessageInputProp
   return (
     <form
       onSubmit={handleSubmit}
-      className="shrink-0 h-14 sm:h-16 bg-zinc-900 border-t border-zinc-800 flex items-center px-2 sm:px-4 min-w-0"
+      className="shrink-0 flex items-center min-w-0"
+      style={{
+        borderTop: "1px solid var(--border-primary)",
+        background: "var(--bg-input)",
+        padding: "12px 16px",
+      }}
     >
-      <div className="flex gap-2 w-full min-w-0">
-        <input
-          type="text"
+      <div
+        className="flex w-full min-w-0"
+        style={{
+          border: isFocused
+            ? "1px solid var(--color-primary)"
+            : "1px solid var(--border-dim)",
+          borderRadius: "3px",
+          boxShadow: isFocused ? "var(--glow-primary)" : "none",
+        }}
+      >
+        <textarea
+          ref={textareaRef}
           value={content}
           onChange={handleChange}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              e.currentTarget.form?.requestSubmit();
+            }
+          }}
           placeholder="Type a message..."
           disabled={sending}
-          className="min-w-0 flex-1 px-3 sm:px-4 py-2 bg-zinc-800 text-zinc-100 rounded border border-zinc-700 focus:outline-none focus:border-amber-500 disabled:opacity-50 text-sm sm:text-base"
+          rows={1}
+          className="min-w-0 flex-1 px-3 py-2 bg-transparent focus:outline-none disabled:opacity-50 font-mono text-[14px] placeholder:text-[var(--color-meta)] resize-none max-h-[120px]"
+          style={{
+            color: "var(--color-primary)",
+            caretColor: "var(--color-primary)",
+          }}
         />
         <button
           type="submit"
           disabled={sending || !content.trim()}
-          className="shrink-0 min-w-10 min-h-10 p-2 flex items-center justify-center bg-amber-500 text-zinc-900 rounded hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="shrink-0 px-5 py-2 font-bebas text-[16px] tracking-[0.15em] border-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          style={{
+            background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%)",
+            color: "#000",
+          }}
           title={sending ? "Sending..." : "Send"}
+          onMouseEnter={(e) => {
+            if (!sending && content.trim()) {
+              e.currentTarget.style.filter = "brightness(1.15)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.filter = "brightness(1)";
+          }}
         >
-          <Send className="w-5 h-5" aria-hidden />
+          SEND ▶
         </button>
       </div>
     </form>

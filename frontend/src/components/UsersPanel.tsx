@@ -37,22 +37,17 @@ export default function UsersPanel({
   const [onlineUsersExpanded, setOnlineUsersExpanded] = useState(true);
   const { connectionStatus } = useWebSocketContext();
 
-  // Helper to get user initials for avatar (and to highlight current user in list)
-  const getUserInitials = (username: string) => {
-    return username.substring(0, 2).toUpperCase();
-  };
-
   const getConnectionStatusColor = () => {
     switch (connectionStatus) {
       case "connected":
-        return "bg-emerald-500";
+        return "var(--color-accent2)";
       case "connecting":
       case "reconnecting":
-        return "bg-amber-500";
+        return "var(--color-accent)";
       case "error":
-        return "bg-red-500";
+        return "#ff4444";
       default:
-        return "bg-zinc-600";
+        return "var(--color-meta)";
     }
   };
 
@@ -77,31 +72,35 @@ export default function UsersPanel({
     <>
       {/* Mobile backdrop - click to close */}
       <div
-        className="fixed inset-0 bg-black/50 z-40 md:hidden"
+        className="fixed inset-0 bg-black/50 z-40 md:hidden cursor-pointer"
         onClick={onClose}
       />
 
       {/* Panel */}
       <div
-        className={`
-          w-60 bg-zinc-900 border-l border-zinc-800 flex flex-col
-          md:relative md:border-l
-          fixed inset-y-0 right-0 z-50 md:z-auto
-        `}
+        className="w-[170px] flex flex-col md:relative fixed inset-y-0 right-0 z-50 md:z-auto overflow-y-auto"
+        style={{
+          background: "var(--bg-panel)",
+          borderLeft: "1px solid var(--border-secondary)",
+        }}
       >
         {/* Online Users Header */}
-        <div className="border-b border-zinc-800">
+        <div style={{ borderBottom: "1px solid var(--border-dim)" }}>
           <button
             onClick={() => setOnlineUsersExpanded(!onlineUsersExpanded)}
-            className="w-full h-14 px-4 flex items-center justify-between hover:bg-zinc-800/50 transition-colors"
+            className="w-full px-3.5 py-3 flex items-center justify-between transition-colors"
           >
-            <h3 className="text-zinc-400 text-sm font-semibold uppercase tracking-wide">
-              Online — {onlineUsers.length}
+            <h3
+              className="font-bebas text-[13px] tracking-[0.10em]"
+              style={{ color: "var(--color-secondary)" }}
+            >
+              ONLINE — {onlineUsers.length}
             </h3>
             <svg
-              className={`w-4 h-4 text-zinc-400 transition-transform ${
+              className={`w-4 h-4 transition-transform ${
                 onlineUsersExpanded ? "rotate-180" : ""
               }`}
+              style={{ color: "var(--color-meta)" }}
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -118,37 +117,58 @@ export default function UsersPanel({
 
         {/* Online Users List */}
         {onlineUsersExpanded && (
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          <div className="flex-1 overflow-y-auto">
             {onlineUsers.length === 0 ? (
-              <p className="text-zinc-600 text-sm italic">No one here yet...</p>
+              <p
+                className="font-mono text-[12px] italic p-3.5"
+                style={{ color: "var(--color-meta)" }}
+              >
+                No one here yet...
+              </p>
             ) : (
               onlineUsers.map((user) => {
                 const isCurrentUser = currentUser?.id === user.id;
                 const isRoomOwner = roomOwnerId != null && user.id === roomOwnerId;
                 return (
-                  <div key={user.id} className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-xs border border-zinc-700">
-                      {getUserInitials(user.username)}
-                    </div>
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-2"
+                    style={{
+                      padding: "9px 14px",
+                      borderBottom: "1px solid var(--border-dim)",
+                    }}
+                  >
+                    {/* Online dot */}
+                    <div
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{
+                        background: isCurrentUser
+                          ? getConnectionStatusColor()
+                          : "var(--color-accent2)",
+                        boxShadow: isCurrentUser ? undefined : "var(--glow-accent2)",
+                        animation: isCurrentUser ? undefined : "breathe 2.8s ease-in-out infinite",
+                      }}
+                      title={isCurrentUser ? getConnectionStatusText() : "Online"}
+                    />
+
                     <span
-                      className={`text-sm truncate flex items-center gap-1.5 min-w-0 flex-1 ${isCurrentUser ? "text-amber-500 font-semibold" : "text-zinc-300 font-medium"}`}
+                      className="font-mono text-[12px] tracking-[0.06em] truncate flex items-center gap-1.5 min-w-0 flex-1"
+                      style={{
+                        color: "var(--color-text)",
+                        opacity: 0.53,
+                      }}
                     >
                       {user.username}
                       {isRoomOwner && (
                         <span title="Room owner">
                           <Crown
-                            className="w-3.5 h-3.5 text-amber-500 shrink-0"
+                            className="w-3.5 h-3.5 shrink-0"
+                            style={{ color: "var(--color-primary)" }}
                             aria-hidden
                           />
                         </span>
                       )}
                     </span>
-                    <div
-                      className={`w-2 h-2 rounded-full shrink-0 ${
-                        isCurrentUser ? getConnectionStatusColor() : "bg-emerald-500"
-                      }`}
-                      title={isCurrentUser ? getConnectionStatusText() : "Online"}
-                    />
                   </div>
                 );
               })

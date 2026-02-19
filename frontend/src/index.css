@@ -1,27 +1,163 @@
 @import "tailwindcss";
 
-/* Tell the browser this is a dark-themed site (affects system UI on mobile) */
+/* ── Theme tokens ──────────────────────────────────────────── */
+
+html[data-theme="neon"] {
+  --color-primary:   #00f0ff;
+  --color-secondary: #ff00cc;
+  --color-accent:    #ffcc00;
+  --color-accent2:   #39ff14;
+  --color-text:      #e8e8e8;
+  --color-msg-text:  #eef2ff;
+  /* Raised contrast for secondary text/icons on dark backgrounds. */
+  --color-meta:      rgba(232, 232, 232, 0.62);
+
+  --bg-app:    #000000;
+  --bg-panel:  #050508;
+  --bg-bubble: #040406;
+  --bg-input:  #020204;
+
+  --border-primary:   rgba(0, 240, 255, 0.20);
+  --border-secondary: rgba(255, 0, 204, 0.20);
+  --border-dim:       rgba(255, 255, 255, 0.07);
+
+  --glow-primary:   0 0 8px rgba(0, 240, 255, 0.40);
+  --glow-secondary: 0 0 8px rgba(255, 0, 204, 0.40);
+  --glow-accent:    0 0 8px rgba(255, 204, 0, 0.40);
+  --glow-accent2:   0 0 6px rgba(57, 255, 20, 0.47);
+}
+
+html[data-theme="amber"] {
+  --color-primary:   #ffbf00;
+  --color-secondary: #ff8800;
+  --color-accent:    #ffbf00;
+  --color-accent2:   #ffbf00;
+  --color-text:      #ffbf00;
+  --color-msg-text:  #edc96a;
+  /* Keep terminal feel while improving readability for muted labels/icons. */
+  --color-meta:      rgba(255, 191, 0, 0.72);
+
+  --bg-app:    #0e0905;
+  --bg-panel:  #130e02;
+  --bg-bubble: #0d0a01;
+  --bg-input:  #0a0700;
+
+  --border-primary:   #2e1c04;
+  --border-secondary: #3a1e00;
+  --border-dim:       #2e1c04;
+
+  --glow-primary:   0 0 8px rgba(255, 191, 0, 0.40);
+  --glow-secondary: 0 0 8px rgba(255, 136, 0, 0.40);
+  --glow-accent:    0 0 8px rgba(255, 191, 0, 0.40);
+  --glow-accent2:   0 0 6px rgba(255, 191, 0, 0.47);
+}
+
+/* ── Tailwind v4 theme extensions ──────────────────────────── */
+
+@theme {
+  --font-bebas: 'Bebas Neue', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+  --font-pixel: 'Press Start 2P', monospace;
+}
+
+/* ── Reset & base ──────────────────────────────────────────── */
+
 :root {
   color-scheme: dark;
 }
 
-@theme {
-  --font-cinzel: 'Cinzel', serif;
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
 }
 
-::-webkit-scrollbar {
-  width: 8px;
+body {
+  background: var(--bg-app);
+  color: var(--color-text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
 }
 
-::-webkit-scrollbar-track {
-  background: #18181b; /* zinc-900 */
+/* Ensure interactive controls show the hand cursor consistently. */
+button:not(:disabled),
+a[href],
+input[type="button"]:not(:disabled),
+input[type="submit"]:not(:disabled),
+input[type="reset"]:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+label[for],
+summary {
+  cursor: pointer;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #3f3f46; /* zinc-700 */
-  border-radius: 4px;
+button:disabled,
+input:disabled,
+select:disabled,
+textarea:disabled {
+  cursor: not-allowed;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #52525b; /* zinc-600 */
+/* CRT overlay modeled after preview_v1: scanlines + vignette layer. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2147483646;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(255, 255, 255, var(--crt-line-alpha, 0.1)) 0 var(--crt-line-thickness, 1px),
+    rgba(0, 0, 0, var(--crt-line-shadow-alpha, 0.12)) var(--crt-line-thickness, 1px) calc(var(--crt-line-thickness, 1px) * 2),
+    transparent calc(var(--crt-line-thickness, 1px) * 2) var(--crt-band-size, 4px)
+  );
+  /* Keep only a light edge darkening so neon hues stay intact. */
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, var(--crt-vignette-alpha, 0.32));
+  opacity: 0;
+  transition: opacity 0.4s;
 }
+
+/* ── Scrollbar ─────────────────────────────────────────────── */
+
+::-webkit-scrollbar       { width: 3px; }
+::-webkit-scrollbar-track  { background: transparent; }
+::-webkit-scrollbar-thumb  { background: var(--border-dim); border-radius: 2px; }
+
+/* ── Gradient text utility ─────────────────────────────────── */
+
+.gradient-text {
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Animation keyframes ───────────────────────────────────── */
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.4; }
+}
+
+@keyframes slide-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes dot-blink {
+  0%, 80%, 100% { opacity: 0.15; }
+  40%            { opacity: 1; }
+}
+
+html[data-crt="on"] {
+  /* Single retained preset: former lowest-strength level. */
+  --crt-line-alpha: 0.1;
+  --crt-line-shadow-alpha: 0.12;
+  --crt-band-size: 4px;
+  --crt-vignette-alpha: 0.22;
+  --crt-line-thickness: 1px;
+}
+
+html[data-crt="off"] body::before { opacity: 0; }
+html[data-crt="on"] body::before { opacity: 0.42; }

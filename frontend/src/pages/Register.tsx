@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Info, Loader2 } from "lucide-react";
 import { register } from "../services/api";
+import { useTheme } from "../context/ThemeContext";
 
 export default function Register() {
   const [username, setUsername] = useState("");
@@ -11,6 +12,7 @@ export default function Register() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { theme } = useTheme();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -29,30 +31,67 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-zinc-950 p-4">
-      {/* Subtle background pattern */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,var(--tw-gradient-stops))] from-amber-900/10 via-zinc-950 to-zinc-950" />
-
-      <div className="relative w-full max-w-[30rem]">
+    <div
+      className="min-h-screen flex items-center justify-center p-4"
+      style={{ background: "var(--bg-app)" }}
+    >
+      <div className="relative w-full max-w-[400px]">
         {/* Logo/Header */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-cinzel font-bold text-amber-500 tracking-wide mb-2">
-            ROSTRA
-          </h1>
-          <p className="text-zinc-400 text-sm">Join the conversation</p>
+          {theme === "neon" ? (
+            <h1
+              className="font-bebas text-[42px] tracking-[0.06em] mb-2 gradient-text"
+              style={{
+                backgroundImage:
+                  "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+              }}
+            >
+              ROSTRA
+            </h1>
+          ) : (
+            <h1
+              className="font-bebas text-[42px] tracking-[0.06em] mb-2"
+              style={{
+                color: "var(--color-primary)",
+                textShadow: "var(--glow-primary)",
+              }}
+            >
+              ROSTRA
+            </h1>
+          )}
+          <p
+            className="font-pixel text-[7px] tracking-[0.25em]"
+            style={{ color: "var(--color-meta)" }}
+          >
+            JOIN·THE·CONVERSATION
+          </p>
         </div>
 
         {/* Form Card */}
-        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8">
-          <div>
-            <h2 className="text-2xl font-semibold text-zinc-100 mb-6">
-              Create an account
-            </h2>
-          </div>
+        <div
+          className="p-8"
+          style={{
+            background: "var(--bg-panel)",
+            border: "1px solid var(--border-primary)",
+          }}
+        >
+          <h2
+            className="font-bebas text-[24px] tracking-[0.08em] mb-6"
+            style={{ color: "var(--color-text)" }}
+          >
+            Create an account
+          </h2>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             {error && (
-              <div className="bg-red-900/20 border border-red-900/50 text-red-400 p-3 rounded">
+              <div
+                className="p-3 font-mono text-[12px]"
+                style={{
+                  background: "rgba(255, 0, 0, 0.05)",
+                  border: "1px solid rgba(255, 0, 0, 0.2)",
+                  color: "#ff4444",
+                }}
+              >
                 {error}
               </div>
             )}
@@ -61,9 +100,10 @@ export default function Register() {
               <div>
                 <label
                   htmlFor="username"
-                  className="block text-sm font-medium text-zinc-300 mb-2"
+                  className="block font-pixel text-[7px] tracking-[0.2em] mb-2"
+                  style={{ color: "var(--color-meta)" }}
                 >
-                  Username
+                  USERNAME
                 </label>
                 <input
                   id="username"
@@ -71,17 +111,30 @@ export default function Register() {
                   required
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  className="w-full px-4 py-3 bg-zinc-950 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all"
+                  className="w-full px-3 py-3 font-mono text-[14px] focus:outline-none transition-all"
+                  style={{
+                    background: "var(--bg-app)",
+                    border: "1px solid var(--border-primary)",
+                    color: "var(--color-primary)",
+                    borderRadius: "2px",
+                  }}
                   placeholder="Choose a username"
+                  onFocus={(e) => {
+                    e.currentTarget.style.boxShadow = "var(--glow-primary)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="email"
-                  className="block text-sm font-medium text-zinc-300 mb-2"
+                  className="block font-pixel text-[7px] tracking-[0.2em] mb-2"
+                  style={{ color: "var(--color-meta)" }}
                 >
-                  Email
+                  EMAIL
                 </label>
                 <input
                   id="email"
@@ -89,17 +142,30 @@ export default function Register() {
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full px-4 py-3 bg-zinc-950 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all"
+                  className="w-full px-3 py-3 font-mono text-[14px] focus:outline-none transition-all"
+                  style={{
+                    background: "var(--bg-app)",
+                    border: "1px solid var(--border-primary)",
+                    color: "var(--color-primary)",
+                    borderRadius: "2px",
+                  }}
                   placeholder="you@example.com"
+                  onFocus={(e) => {
+                    e.currentTarget.style.boxShadow = "var(--glow-primary)";
+                  }}
+                  onBlur={(e) => {
+                    e.currentTarget.style.boxShadow = "none";
+                  }}
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="password"
-                  className="block text-sm font-medium text-zinc-300 mb-2"
+                  className="block font-pixel text-[7px] tracking-[0.2em] mb-2"
+                  style={{ color: "var(--color-meta)" }}
                 >
-                  Password
+                  PASSWORD
                 </label>
                 <div className="relative">
                   <input
@@ -108,13 +174,26 @@ export default function Register() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="w-full px-4 py-3 pr-12 bg-zinc-950 border border-zinc-700 rounded-lg text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:border-amber-500 transition-all"
+                    className="w-full px-3 py-3 pr-12 font-mono text-[14px] focus:outline-none transition-all"
+                    style={{
+                      background: "var(--bg-app)",
+                      border: "1px solid var(--border-primary)",
+                      color: "var(--color-primary)",
+                      borderRadius: "2px",
+                    }}
                     placeholder="Choose a password"
+                    onFocus={(e) => {
+                      e.currentTarget.style.boxShadow = "var(--glow-primary)";
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.boxShadow = "none";
+                    }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300 transition-colors"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 transition-colors"
+                    style={{ color: "var(--color-meta)" }}
                   >
                     {showPassword ? (
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -132,9 +211,14 @@ export default function Register() {
             </div>
 
             {/* Cold start disclaimer */}
-            <div className="flex items-start gap-2 p-3 bg-zinc-900/50 border border-zinc-800 rounded-lg">
-              <Info size={16} className="text-amber-500 mt-0.5 shrink-0" />
-              <p className="text-zinc-400 text-xs leading-relaxed">
+            <div
+              className="flex items-start gap-2 p-3"
+              style={{
+                border: "1px solid var(--border-dim)",
+              }}
+            >
+              <Info size={16} style={{ color: "var(--color-primary)" }} className="mt-0.5 shrink-0" />
+              <p className="font-mono text-[11px] leading-relaxed" style={{ color: "var(--color-meta)" }}>
                 Initial requests may take up to a minute while servers start up.
               </p>
             </div>
@@ -142,22 +226,34 @@ export default function Register() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-amber-500 hover:bg-amber-600 text-zinc-900 font-semibold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-amber-500/50 focus:ring-offset-2 focus:ring-offset-zinc-900 flex items-center justify-center gap-2"
+              className="w-full h-11 font-bebas text-[16px] tracking-[0.15em] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              style={{
+                background: "linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%)",
+                color: "#000",
+                border: "none",
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) e.currentTarget.style.filter = "brightness(1.15)";
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.filter = "brightness(1)";
+              }}
             >
               {loading ? (
                 <>
                   <Loader2 size={18} className="animate-spin" />
-                  Registering...
+                  REGISTERING...
                 </>
               ) : (
-                "Create account"
+                "CREATE ACCOUNT"
               )}
             </button>
 
             <div className="text-center">
               <a
                 href="/login"
-                className="text-sm text-amber-500 hover:text-amber-400 font-medium transition-colors"
+                className="font-mono text-[12px] transition-colors hover:underline"
+                style={{ color: "var(--color-primary)" }}
               >
                 Already have an account? Sign in
               </a>
@@ -166,8 +262,11 @@ export default function Register() {
         </div>
 
         {/* Footer text */}
-        <p className="text-center text-zinc-600 text-xs mt-8">
-          Real-time chat application
+        <p
+          className="text-center font-pixel text-[7px] tracking-[0.15em] mt-8"
+          style={{ color: "var(--color-meta)" }}
+        >
+          REAL·TIME·CHAT·APPLICATION
         </p>
       </div>
     </div>

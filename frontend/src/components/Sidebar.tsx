@@ -1,4 +1,6 @@
+import { useEffect, useState } from "react";
 import RoomList from "./RoomList";
+import { useTheme } from "../context/ThemeContext";
 import type { Room } from "../types";
 
 interface SidebarProps {
@@ -12,6 +14,11 @@ interface SidebarProps {
   onInitialRoomsLoaded: (rooms: Room[]) => void;
   onLogout: () => void;
   visible: boolean;
+}
+
+function parseCrtEnabled(value: string | null): boolean {
+  if (!value || value === "off") return false;
+  return true;
 }
 
 /**
@@ -35,6 +42,20 @@ export default function Sidebar({
   onLogout,
   visible,
 }: SidebarProps) {
+  const { theme, toggleTheme } = useTheme();
+  const [crtEnabled, setCrtEnabled] = useState(() => {
+    const stored = localStorage.getItem("rostra-crt");
+    if (stored) return parseCrtEnabled(stored);
+    return parseCrtEnabled(document.documentElement.getAttribute("data-crt"));
+  });
+
+  useEffect(() => {
+    // Persist simple on/off mode while staying compatible with older stored levels.
+    const crtState = crtEnabled ? "on" : "off";
+    document.documentElement.setAttribute("data-crt", crtState);
+    localStorage.setItem("rostra-crt", crtState);
+  }, [crtEnabled]);
+
   if (!visible) return null;
 
   return (
@@ -42,46 +63,114 @@ export default function Sidebar({
       {/* Mobile backdrop - click to close (only show when sidebar is open) */}
       {isOpen && (
         <div
-          className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          className="fixed inset-0 bg-black/50 z-40 md:hidden cursor-pointer"
           onClick={onToggle}
         />
       )}
 
       <div
         className={`
-          ${isOpen ? "w-64" : "w-16"}
-          bg-zinc-900 border-r border-zinc-800 flex flex-col transition-all duration-300
+          ${isOpen ? "w-[220px]" : "w-16"}
+          flex flex-col transition-all duration-300
           md:relative
           fixed top-0 left-0 h-dvh z-50 md:z-auto
           ${isOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}
+        style={{
+          background: "var(--bg-panel)",
+          borderRight: "1px solid var(--border-primary)",
+        }}
       >
-        {/* Header with logo and collapse button */}
-        <div className="h-14 border-b border-zinc-800 flex items-center px-4">
+        {/* Header with logo, tagline, and theme toggle */}
+        <div
+          className="shrink-0 flex flex-col"
+          style={{
+            borderBottom: "1px solid var(--border-dim)",
+            padding: isOpen ? "16px 16px 12px" : "16px 0 12px",
+          }}
+        >
           {isOpen ? (
-            // Expanded: Show full logo + collapse button
-            <button
-              onClick={onToggle}
-              className="w-full flex items-center justify-between group"
-              title="Collapse sidebar"
-            >
-              <h1 className="text-3xl font-cinzel font-bold text-amber-500 tracking-wide">
-                ROSTRA
-              </h1>
-              <svg
-                className="w-5 h-5 text-zinc-400 group-hover:text-amber-500 transition-colors"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+            <>
+              {/* Top row: logo + control buttons */}
+              <div className="flex items-start justify-between">
+                <button
+                  onClick={onToggle}
+                  className="group"
+                  title="Collapse sidebar"
+                >
+                  {/* Logo — gradient for neon, solid glow for amber */}
+                  {theme === "neon" ? (
+                    <h1
+                      className="font-bebas text-[40px] leading-none tracking-[0.06em] gradient-text"
+                      style={{
+                        backgroundImage:
+                          "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                      }}
+                    >
+                      ROSTRA
+                    </h1>
+                  ) : (
+                    <h1
+                      className="font-bebas text-[40px] leading-none tracking-[0.06em]"
+                      style={{
+                        color: "var(--color-primary)",
+                        textShadow: "var(--glow-primary)",
+                      }}
+                    >
+                      ROSTRA
+                    </h1>
+                  )}
+                </button>
+
+                <div className="flex flex-col items-end gap-1 mt-1">
+                  <button
+                    onClick={toggleTheme}
+                    className="font-pixel text-[7px] tracking-[0.15em] px-2 py-1 transition-colors duration-150"
+                    style={{
+                      border: "1px solid var(--border-primary)",
+                      color: "var(--color-primary)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "var(--color-primary)";
+                      e.currentTarget.style.color = "#000";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = "var(--color-primary)";
+                    }}
+                  >
+                    {theme === "neon" ? "NEON" : "AMBER"}
+                  </button>
+                  <button
+                    onClick={() => setCrtEnabled((prev) => !prev)}
+                    className="font-pixel text-[7px] tracking-[0.15em] px-2 py-1 transition-colors duration-150"
+                    style={{
+                      border: "1px solid var(--border-secondary)",
+                      color: crtEnabled ? "#000" : "var(--color-secondary)",
+                      background: crtEnabled ? "var(--color-secondary)" : "transparent",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.filter = "brightness(1.1)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.filter = "brightness(1)";
+                    }}
+                    aria-pressed={crtEnabled}
+                    title={crtEnabled ? "CRT on" : "CRT off"}
+                  >
+                    CRT
+                  </button>
+                </div>
+              </div>
+
+              {/* Tagline */}
+              <span
+                className="font-pixel text-[7px] tracking-[0.25em] mt-1"
+                style={{ color: "var(--color-meta)" }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M11 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
+                REAL·TIME·CHAT
+              </span>
+            </>
           ) : (
             // Collapsed: Show just "R" as expand button
             <button
@@ -89,9 +178,27 @@ export default function Sidebar({
               className="w-full flex justify-center hover:scale-110 transition-transform"
               title="Expand sidebar"
             >
-              <span className="text-3xl font-cinzel font-bold text-amber-500">
-                R
-              </span>
+              {theme === "neon" ? (
+                <span
+                  className="font-bebas text-[30px] leading-none gradient-text"
+                  style={{
+                    backgroundImage:
+                      "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                  }}
+                >
+                  R
+                </span>
+              ) : (
+                <span
+                  className="font-bebas text-[30px] leading-none"
+                  style={{
+                    color: "var(--color-primary)",
+                    textShadow: "var(--glow-primary)",
+                  }}
+                >
+                  R
+                </span>
+              )}
             </button>
           )}
         </div>

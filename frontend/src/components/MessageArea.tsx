@@ -3,6 +3,7 @@ import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import type { Message, Room } from "../types";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { deleteRoom } from "../services/api";
 
 interface MessageAreaProps {
@@ -30,6 +31,7 @@ export default function MessageArea({
   typingUsernames,
 }: MessageAreaProps) {
   const { user, token } = useAuth();
+  const { theme } = useTheme();
   const [showRoomMenu, setShowRoomMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -40,12 +42,33 @@ export default function MessageArea({
 
   if (!selectedRoom) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-zinc-950">
+      <div
+        className="flex-1 flex items-center justify-center"
+        style={{ background: "var(--bg-app)" }}
+      >
         <div className="text-center">
-          <h2 className="text-2xl font-semibold text-zinc-400 mb-2">
-            Welcome to Rostra
-          </h2>
-          <p className="text-zinc-500">
+          {theme === "neon" ? (
+            <h2
+              className="font-bebas text-[36px] tracking-[0.06em] mb-2 gradient-text"
+              style={{
+                backgroundImage:
+                  "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+              }}
+            >
+              Welcome to Rostra
+            </h2>
+          ) : (
+            <h2
+              className="font-bebas text-[36px] tracking-[0.06em] mb-2"
+              style={{
+                color: "var(--color-primary)",
+                textShadow: "var(--glow-primary)",
+              }}
+            >
+              Welcome to Rostra
+            </h2>
+          )}
+          <p className="font-mono text-[14px]" style={{ color: "var(--color-meta)" }}>
             Select a room from the sidebar to start chatting
           </p>
         </div>
@@ -58,12 +81,12 @@ export default function MessageArea({
   // Format typing indicator text based on number of users
   const formatTypingText = (usernames: string[]): string => {
     if (usernames.length === 0) return "";
-    if (usernames.length === 1) return `${usernames[0]} is typing...`;
+    if (usernames.length === 1) return `${usernames[0]} is typing`;
     if (usernames.length === 2)
-      return `${usernames[0]} and ${usernames[1]} are typing...`;
+      return `${usernames[0]} and ${usernames[1]} are typing`;
     if (usernames.length === 3)
-      return `${usernames[0]}, ${usernames[1]}, and ${usernames[2]} are typing...`;
-    return `${usernames[0]}, ${usernames[1]}, and ${usernames.length - 2} others are typing...`;
+      return `${usernames[0]}, ${usernames[1]}, and ${usernames[2]} are typing`;
+    return `${usernames[0]}, ${usernames[1]}, and ${usernames.length - 2} others are typing`;
   };
 
   const handleDeleteRoom = async () => {
@@ -89,14 +112,24 @@ export default function MessageArea({
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-zinc-950 min-h-0 min-w-0 overflow-hidden">
-      {/* Room Header - room name truncates so long names don't break layout */}
-      <div className="h-14 shrink-0 bg-zinc-900 border-b border-zinc-800 flex items-center justify-between gap-2 px-3 sm:px-4 min-w-0">
-        <div className="flex items-center gap-2 min-w-0 flex-1">
+    <div
+      className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden"
+      style={{ background: "var(--bg-app)" }}
+    >
+      {/* Room Header */}
+      <div
+        className="shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 min-w-0"
+        style={{
+          borderBottom: "1px solid var(--border-dim)",
+          padding: "12px 20px",
+        }}
+      >
+        <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {/* Back button - mobile only */}
           <button
             onClick={onBackToRooms}
-            className="shrink-0 text-zinc-400 hover:text-amber-500 transition-colors md:hidden"
+            className="shrink-0 transition-colors md:hidden"
+            style={{ color: "var(--color-meta)" }}
             title="Back to rooms"
           >
             <svg
@@ -115,19 +148,39 @@ export default function MessageArea({
           </button>
 
           <div className="min-w-0 flex-1 overflow-hidden">
-            <h2
-              className="text-lg font-semibold text-zinc-100 truncate"
-              title={selectedRoom.name}
-            >
-              # {selectedRoom.name}
-            </h2>
+            {/* Room name — gradient for neon, solid glow for amber */}
+            {theme === "neon" ? (
+              <h2
+                className="font-bebas text-[22px] tracking-[0.12em] truncate gradient-text"
+                title={selectedRoom.name}
+                style={{
+                  backgroundImage:
+                    "linear-gradient(90deg, var(--color-accent), var(--color-accent2))",
+                  filter: "drop-shadow(0 0 6px rgba(255, 204, 0, 0.27))",
+                }}
+              >
+                {selectedRoom.name}
+              </h2>
+            ) : (
+              <h2
+                className="font-bebas text-[22px] tracking-[0.12em] truncate"
+                title={selectedRoom.name}
+                style={{
+                  color: "var(--color-primary)",
+                  textShadow: "var(--glow-primary)",
+                }}
+              >
+                {selectedRoom.name}
+              </h2>
+            )}
           </div>
 
-          {/* Room Options Menu - Always show the button */}
+          {/* Room Options Menu */}
           <div className="relative shrink-0">
             <button
               onClick={() => setShowRoomMenu(!showRoomMenu)}
-              className="text-zinc-400 hover:text-amber-500 transition-colors p-1"
+              className="transition-colors p-1"
+              style={{ color: "var(--color-meta)" }}
               title="Room options"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
@@ -138,35 +191,39 @@ export default function MessageArea({
             {/* Dropdown Menu */}
             {showRoomMenu && (
               <>
-                {/* Backdrop to close menu */}
                 <div
-                  className="fixed inset-0 z-10"
+                  className="fixed inset-0 z-10 cursor-pointer"
                   onClick={() => setShowRoomMenu(false)}
                 />
-                {/* Menu */}
-                <div className="absolute right-0 mt-2 w-48 bg-zinc-800 rounded-lg shadow-lg border border-zinc-700 py-1 z-20">
-                  {/* Leave Room - always visible */}
+                <div
+                  className="absolute right-0 mt-2 w-48 shadow-lg py-1 z-20"
+                  style={{
+                    background: "var(--bg-panel)",
+                    border: "1px solid var(--border-primary)",
+                  }}
+                >
                   <button
                     onClick={() => {
                       setShowRoomMenu(false);
                       onLeaveRoom();
                     }}
-                    className="w-full px-4 py-2 text-left text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
+                    className="w-full px-4 py-2 text-left font-mono text-[12px] transition-colors"
+                    style={{ color: "var(--color-text)" }}
                   >
                     Leave Room
                   </button>
 
-                  {/* Delete Room - only for owner */}
                   {isRoomOwner && (
                     <>
-                      <div className="border-t border-zinc-700 my-1" />
+                      <div style={{ borderTop: "1px solid var(--border-dim)", margin: "4px 0" }} />
                       <button
                         onClick={() => {
                           setShowRoomMenu(false);
                           setDeleteError("");
                           setShowDeleteModal(true);
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-zinc-700 transition-colors"
+                        className="w-full px-4 py-2 text-left font-mono text-[12px] transition-colors"
+                        style={{ color: "#ff4444" }}
                       >
                         Delete Room
                       </button>
@@ -181,7 +238,8 @@ export default function MessageArea({
         {/* Search toggle */}
         <button
           onClick={onToggleSearch}
-          className="shrink-0 text-zinc-400 hover:text-amber-500 transition-colors"
+          className="shrink-0 transition-colors"
+          style={{ color: "var(--color-meta)" }}
           title="Search messages"
         >
           <svg
@@ -201,7 +259,8 @@ export default function MessageArea({
 
         <button
           onClick={onToggleUsers}
-          className="shrink-0 text-zinc-400 hover:text-amber-500 transition-colors"
+          className="shrink-0 transition-colors"
+          style={{ color: "var(--color-meta)" }}
           title="Toggle users panel"
         >
           <svg
@@ -223,20 +282,28 @@ export default function MessageArea({
       {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-zinc-800 rounded-lg p-6 max-w-md w-full mx-4 border border-zinc-700">
-            <h3 className="text-xl font-semibold text-zinc-100 mb-2">
+          <div
+            className="p-6 max-w-md w-full mx-4"
+            style={{
+              background: "var(--bg-panel)",
+              border: "1px solid var(--border-primary)",
+            }}
+          >
+            <h3
+              className="font-bebas text-[22px] tracking-[0.08em] mb-2"
+              style={{ color: "var(--color-primary)" }}
+            >
               Delete Room?
             </h3>
-            <p className="text-zinc-400 mb-6">
+            <p className="font-mono text-[14px] mb-6" style={{ color: "var(--color-meta)" }}>
               Are you sure you want to delete{" "}
-              <span className="text-amber-500 font-medium">
-                #{selectedRoom.name}
+              <span style={{ color: "var(--color-primary)" }}>
+                {selectedRoom.name}
               </span>
-              ? This will permanently delete all messages in this room. This
-              action cannot be undone.
+              ? This will permanently delete all messages. This action cannot be undone.
             </p>
             {deleteError && (
-              <p className="text-sm text-red-400 mb-4">{deleteError}</p>
+              <p className="text-sm mb-4" style={{ color: "#ff4444" }}>{deleteError}</p>
             )}
             <div className="flex gap-3 justify-end">
               <button
@@ -245,16 +312,26 @@ export default function MessageArea({
                   setShowDeleteModal(false);
                 }}
                 disabled={deleting}
-                className="px-4 py-2 bg-zinc-700 text-zinc-200 rounded hover:bg-zinc-600 transition-colors disabled:opacity-50"
+                className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"
+                style={{
+                  border: "1px solid var(--border-dim)",
+                  color: "var(--color-text)",
+                  background: "transparent",
+                }}
               >
-                Cancel
+                CANCEL
               </button>
               <button
                 onClick={handleDeleteRoom}
                 disabled={deleting}
-                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 transition-colors disabled:opacity-50"
+                className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"
+                style={{
+                  background: "#ff4444",
+                  color: "#000",
+                  border: "1px solid #ff4444",
+                }}
               >
-                {deleting ? "Deleting..." : "Delete Room"}
+                {deleting ? "DELETING..." : "DELETE ROOM"}
               </button>
             </div>
           </div>
@@ -270,8 +347,33 @@ export default function MessageArea({
       />
 
       {/* Typing indicator — always rendered to reserve space and avoid layout shift */}
-      <div className="px-4 text-sm text-zinc-400 italic h-7 shrink-0">
-        {typingUsernames.length > 0 && formatTypingText(typingUsernames)}
+      <div
+        className="h-7 shrink-0 flex items-center gap-1"
+        style={{ padding: "0 20px" }}
+      >
+        {typingUsernames.length > 0 && (
+          <>
+            <span
+              className="font-mono text-[11px] tracking-[0.10em]"
+              style={{ color: "var(--color-meta)" }}
+            >
+              {formatTypingText(typingUsernames)}
+            </span>
+            {/* Animated dots */}
+            <span className="flex gap-0.5">
+              {[0, 1, 2].map((i) => (
+                <span
+                  key={i}
+                  className="inline-block w-1 h-1 rounded-full"
+                  style={{
+                    background: "var(--color-accent2)",
+                    animation: `dot-blink 1.4s infinite ${i * 0.4}s`,
+                  }}
+                />
+              ))}
+            </span>
+          </>
+        )}
       </div>
 
       <MessageInput

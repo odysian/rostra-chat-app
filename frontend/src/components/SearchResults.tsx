@@ -46,7 +46,9 @@ export default function SearchResults({
   if (loading && messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-zinc-500 text-sm">Searching...</p>
+        <p className="font-mono text-[12px]" style={{ color: "var(--color-meta)" }}>
+          Searching...
+        </p>
       </div>
     );
   }
@@ -54,7 +56,14 @@ export default function SearchResults({
   if (error) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-red-900/20 text-red-400 p-3 rounded border border-red-900 text-sm">
+        <div
+          className="p-3 font-mono text-[12px]"
+          style={{
+            background: "rgba(255, 0, 0, 0.05)",
+            color: "#ff4444",
+            border: "1px solid rgba(255, 0, 0, 0.2)",
+          }}
+        >
           {error}
         </div>
       </div>
@@ -65,7 +74,9 @@ export default function SearchResults({
   if (!query) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-zinc-500 text-sm">Type to search messages</p>
+        <p className="font-mono text-[12px]" style={{ color: "var(--color-meta)" }}>
+          Type to search messages
+        </p>
       </div>
     );
   }
@@ -74,7 +85,9 @@ export default function SearchResults({
   if (messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-zinc-500 text-sm">No messages found</p>
+        <p className="font-mono text-[12px]" style={{ color: "var(--color-meta)" }}>
+          No messages found
+        </p>
       </div>
     );
   }
@@ -82,7 +95,10 @@ export default function SearchResults({
   return (
     <div className="flex-1 overflow-y-auto min-h-0">
       {/* Result count */}
-      <div className="px-4 py-2 text-xs text-zinc-500">
+      <div
+        className="px-3.5 py-2 font-mono text-[10px] tracking-[0.08em]"
+        style={{ color: "var(--color-meta)" }}
+      >
         {messages.length}{hasMore ? "+" : ""} result{messages.length !== 1 ? "s" : ""}
       </div>
 
@@ -90,19 +106,50 @@ export default function SearchResults({
       {messages.map((msg) => (
         <div
           key={msg.id}
-          className="px-4 py-3 hover:bg-white/5 transition-colors border-b border-zinc-800/50"
+          className="px-3.5 py-3 transition-colors"
+          style={{ borderBottom: "1px solid var(--border-dim)" }}
         >
-          <div className="flex items-baseline gap-2 mb-1">
-            <span className="text-sm font-semibold text-amber-500">
-              {msg.username}
-            </span>
-            <span className="text-xs text-zinc-500">
-              {formatDate(msg.created_at)}
-            </span>
+          <div className="flex items-start gap-2">
+            <div
+              className="w-7 h-7 rounded-full shrink-0 flex items-center justify-center font-bebas text-[12px]"
+              style={{
+                background: "var(--bg-app)",
+                border: "1px solid var(--border-primary)",
+                color: "var(--color-primary)",
+              }}
+            >
+              {msg.username.substring(0, 2).toUpperCase()}
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2 mb-1">
+                <span
+                  className="font-mono text-[10px] tracking-[0.08em]"
+                  style={{ color: "var(--color-primary)" }}
+                >
+                  {msg.username}
+                </span>
+                <span
+                  className="font-mono text-[10px] tracking-[0.08em]"
+                  style={{ color: "var(--color-meta)" }}
+                >
+                  {formatDate(msg.created_at)}
+                </span>
+              </div>
+
+              <p
+                className="font-mono text-[14px] break-words leading-snug px-2.5 py-1.5"
+                style={{
+                  color: "var(--color-msg-text)",
+                  background: "var(--bg-bubble)",
+                  border: "1px solid var(--border-dim)",
+                  borderRadius: "2px",
+                }}
+              >
+                {msg.content}
+              </p>
+            </div>
           </div>
-          <p className="text-sm text-zinc-200 break-all leading-snug">
-            {msg.content}
-          </p>
         </div>
       ))}
 
@@ -112,9 +159,10 @@ export default function SearchResults({
           <button
             onClick={onLoadMore}
             disabled={loadingMore}
-            className="px-4 py-2 text-sm text-amber-500 hover:text-amber-400 disabled:text-zinc-500 transition-colors"
+            className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"
+            style={{ color: "var(--color-primary)" }}
           >
-            {loadingMore ? "Loading..." : "Load more results"}
+            {loadingMore ? "LOADING..." : "LOAD MORE"}
           </button>
         </div>
       )}

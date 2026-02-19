@@ -305,8 +305,6 @@ export default function MessageList({
     setShowJumpToLatest(false);
   };
 
-  // user_joined / user_left are not shown as chat messages; ChatLayout uses them only for the online users sidebar
-
   // IntersectionObserver to detect scroll-to-top
   useEffect(() => {
     if (!isInitialPositioned) return;
@@ -316,14 +314,13 @@ export default function MessageList({
 
     const observer = new IntersectionObserver(
       (entries) => {
-        // When sentinel becomes visible, load older messages
         if (entries[0].isIntersecting && nextCursor && !isLoadingMore) {
           loadOlderMessages();
         }
       },
       {
         root: scrollContainerRef.current,
-        rootMargin: "100px", // Start loading before sentinel is fully visible
+        rootMargin: "100px",
         threshold: 0,
       }
     );
@@ -344,20 +341,48 @@ export default function MessageList({
       minute: "2-digit",
     });
 
-    // Today
     if (date.toDateString() === now.toDateString()) {
       return `${timeStr}`;
     }
 
-    // Yesterday
     const yesterday = new Date(now);
     yesterday.setDate(yesterday.getDate() - 1);
     if (date.toDateString() === yesterday.toDateString()) {
       return `Yesterday at ${timeStr}`;
     }
 
-    // Older
     return `${date.toLocaleDateString()} ${timeStr}`;
+  };
+
+  // Get date string for date dividers
+  const getDateLabel = (isoString: string) => {
+    const dateStr = isoString.endsWith("Z") ? isoString : isoString + "Z";
+    const date = new Date(dateStr);
+    const now = new Date();
+
+    if (date.toDateString() === now.toDateString()) return "TODAY";
+
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) return "YESTERDAY";
+
+    return date
+      .toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })
+      .toUpperCase();
+  };
+
+  // Check if a date divider should be shown before this message
+  const shouldShowDateDivider = (current: ChatItem, prev: ChatItem | undefined): boolean => {
+    if (!prev) return true; // Always show for first message
+    if ("type" in current && current.type === "system") return false;
+    if ("type" in prev && prev.type === "system") return false;
+
+    const currMsg = current as Message;
+    const prevMsg = prev as Message;
+    const currDate = new Date(currMsg.created_at.endsWith("Z") ? currMsg.created_at : currMsg.created_at + "Z");
+    const prevDate = new Date(prevMsg.created_at.endsWith("Z") ? prevMsg.created_at : prevMsg.created_at + "Z");
+
+    return currDate.toDateString() !== prevDate.toDateString();
   };
 
   const shouldGroupMessage = (
@@ -382,7 +407,9 @@ export default function MessageList({
   if (loading && messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center">
-        <p className="text-zinc-400">Loading messages...</p>
+        <p className="font-mono text-[12px]" style={{ color: "var(--color-meta)" }}>
+          Loading messages...
+        </p>
       </div>
     );
   }
@@ -390,11 +417,19 @@ export default function MessageList({
   if (error) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
-        <div className="bg-red-900/20 text-red-400 p-3 rounded border border-red-900 max-w-md">
+        <div
+          className="p-3 text-sm max-w-md"
+          style={{
+            background: "rgba(255, 0, 0, 0.05)",
+            color: "#ff4444",
+            border: "1px solid rgba(255, 0, 0, 0.2)",
+          }}
+        >
           {error}
           <button
             onClick={handleRetry}
-            className="mt-2 block w-full py-1 px-2 bg-red-600/20 hover:bg-red-600/30 rounded text-xs transition-colors"
+            className="mt-2 block w-full py-1 px-2 text-xs transition-colors"
+            style={{ background: "rgba(255, 0, 0, 0.1)" }}
           >
             Retry
           </button>
@@ -407,27 +442,34 @@ export default function MessageList({
     <div className="relative flex-1 min-h-0">
       <div
         ref={scrollContainerRef}
-        className="h-full overflow-y-auto overflow-x-hidden py-4 flex flex-col"
+        className="h-full overflow-y-auto overflow-x-hidden flex flex-col"
+        style={{ padding: "20px 20px 12px" }}
       >
-        {/* Sentinel for IntersectionObserver - triggers load when scrolled to top */}
+        {/* Sentinel for IntersectionObserver */}
         <div ref={sentinelRef} className="h-px" />
 
         {/* Loading indicator or "beginning of conversation" message */}
         {isLoadingMore && (
           <div className="flex justify-center py-4">
-            <span className="text-xs text-zinc-500">Loading older messages...</span>
+            <span className="font-mono text-[11px]" style={{ color: "var(--color-meta)" }}>
+              Loading older messages...
+            </span>
           </div>
         )}
         {!isLoadingMore && nextCursor === null && messages.length > 0 && (
           <div className="flex justify-center py-4">
-            <span className="text-xs text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">
-              This is the beginning of the conversation
+            <span
+              className="font-pixel text-[7px] tracking-[0.20em] px-3 py-1"
+              style={{ color: "var(--color-meta)", border: "1px solid var(--border-dim)" }}
+            >
+              BEGINNING OF CONVERSATION
             </span>
           </div>
         )}
 
         {/* Spacer to push messages to bottom when container isn't full */}
         <div className="grow" />
+
         {messages.map((item, index) => {
           if ("type" in item && item.type === "system") {
             return (
@@ -435,7 +477,10 @@ export default function MessageList({
                 key={item.id}
                 className="flex justify-center my-4 opacity-75 px-4"
               >
-                <span className="text-xs text-zinc-500 bg-zinc-900/50 px-3 py-1 rounded-full border border-zinc-800/50">
+                <span
+                  className="font-pixel text-[7px] tracking-[0.15em] px-3 py-1"
+                  style={{ color: "var(--color-meta)", border: "1px solid var(--border-dim)" }}
+                >
                   {item.content}
                 </span>
               </div>
@@ -447,53 +492,88 @@ export default function MessageList({
             ? message.created_at
             : message.created_at + "Z";
           const isGrouped = shouldGroupMessage(item, messages[index - 1]);
+          const showDateDivider = shouldShowDateDivider(item, messages[index - 1]);
 
           const headerDate = getSmartDate(isoDate);
-
           const simpleTime = new Date(isoDate).toLocaleTimeString([], {
             hour: "numeric",
             minute: "2-digit",
           });
 
           return (
-            <div
-              key={message.id}
-              data-chat-message="true"
-              className={`group flex items-start gap-3 px-4 hover:bg-white/5 transition-colors ${
-                isGrouped ? "mt-0.5 py-0.5" : "mt-4 py-0.5"
-              }`}
-            >
-              {/* Left Sidebar */}
-              <div className="w-10 shrink-0 select-none flex justify-center">
-                {!isGrouped ? (
-                  <div className="w-10 h-10 rounded-full bg-zinc-800 flex items-center justify-center text-amber-500 font-cinzel text-sm border border-zinc-700">
-                    {message.username.substring(0, 2).toUpperCase()}
-                  </div>
-                ) : (
-                  // Hover Timestamp
-                  <span className="hidden group-hover:block text-[10px] text-zinc-500 pt-1 text-center w-full">
-                    {simpleTime}
+            <div key={message.id}>
+              {/* Date divider */}
+              {showDateDivider && (
+                <div className="flex items-center gap-3 my-6">
+                  <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, var(--border-dim))" }} />
+                  <span
+                    className="font-pixel text-[7px] tracking-[0.20em]"
+                    style={{ color: "var(--color-meta)" }}
+                  >
+                    {getDateLabel(isoDate)}
                   </span>
-                )}
-              </div>
+                  <div className="flex-1 h-px" style={{ background: "linear-gradient(270deg, transparent, var(--border-dim))" }} />
+                </div>
+              )}
 
-              {/* Right Side */}
-              <div className="flex flex-col min-w-0 flex-1">
-                {!isGrouped && (
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-semibold text-amber-500 text-sm hover:underline cursor-pointer">
-                      {message.username}
+              {/* Flush-left message row (Discord-style) */}
+              <div
+                data-chat-message="true"
+                className={`group flex items-start gap-3 px-4 hover:bg-white/[0.02] transition-colors ${
+                  isGrouped ? "mt-0.5 py-0.5" : "mt-4 py-0.5"
+                }`}
+                style={{ animation: "slide-in 0.2s ease-out" }}
+              >
+                {/* Left: avatar or hover timestamp */}
+                <div className="w-10 shrink-0 select-none flex justify-center">
+                  {!isGrouped ? (
+                    <div
+                      className="w-10 h-10 rounded-full flex items-center justify-center font-bebas text-[14px]"
+                      style={{
+                        background: "var(--bg-app)",
+                        border: "1px solid var(--border-primary)",
+                        color: "var(--color-primary)",
+                      }}
+                    >
+                      {message.username.substring(0, 2).toUpperCase()}
+                    </div>
+                  ) : (
+                    <span
+                      className="hidden group-hover:block font-mono text-[10px] pt-1 text-center w-full"
+                      style={{ color: "var(--color-meta)" }}
+                    >
+                      {simpleTime}
                     </span>
-                    <span className="text-xs text-zinc-500">{headerDate}</span>
-                  </div>
-                )}
+                  )}
+                </div>
 
-                <div
-                  className={`text-zinc-200 break-all leading-snug ${
-                    isGrouped ? "" : "mt-1"
-                  }`}
-                >
-                  {message.content}
+                {/* Right: meta + content */}
+                <div className="flex flex-col min-w-0 flex-1">
+                  {!isGrouped && (
+                    <div className="flex items-baseline gap-2">
+                      <span
+                        className="font-mono text-[10px] tracking-[0.08em]"
+                        style={{ color: "var(--color-primary)" }}
+                      >
+                        {message.username}
+                      </span>
+                      <span
+                        className="font-mono text-[10px] tracking-[0.08em]"
+                        style={{ color: "var(--color-meta)" }}
+                      >
+                        {headerDate}
+                      </span>
+                    </div>
+                  )}
+
+                  <div
+                    className={`font-mono text-[18px] leading-relaxed break-all ${
+                      isGrouped ? "" : "mt-1"
+                    }`}
+                    style={{ color: "var(--color-msg-text)" }}
+                  >
+                    {message.content}
+                  </div>
                 </div>
               </div>
             </div>
@@ -506,9 +586,14 @@ export default function MessageList({
         <button
           type="button"
           onClick={handleJumpToLatest}
-          className="absolute bottom-4 right-4 z-10 rounded-full bg-amber-500 px-3 py-2 text-xs font-semibold text-zinc-900 shadow-lg shadow-black/40 transition-colors hover:bg-amber-400"
+          className="absolute bottom-4 right-4 z-10 px-3 py-2 font-bebas text-[14px] tracking-[0.10em] shadow-lg transition-colors"
+          style={{
+            background: "var(--color-primary)",
+            color: "#000",
+            boxShadow: "var(--glow-primary)",
+          }}
         >
-          Jump to latest
+          JUMP TO LATEST
         </button>
       )}
     </div>

@@ -6,7 +6,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Press+Start+2P&family=Share+Tech+Mono&display=swap"
       rel="stylesheet"
     />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -15,6 +15,19 @@
     <!-- Indicate this is a dark-themed site -->
     <meta name="color-scheme" content="dark" />
     <title>Rostra | Chat Application</title>
+    <script>
+      document.documentElement.setAttribute(
+        'data-theme',
+        localStorage.getItem('rostra-theme') || 'neon'
+      );
+      const storedCrt = localStorage.getItem('rostra-crt');
+      // Backward compatible: old values (subtle/medium/strong/on) map to simple "on".
+      const crtState = !storedCrt || storedCrt === 'off' ? 'off' : 'on';
+      document.documentElement.setAttribute(
+        'data-crt',
+        crtState
+      );
+    </script>
   </head>
   <body>
     <div id="root"></div>

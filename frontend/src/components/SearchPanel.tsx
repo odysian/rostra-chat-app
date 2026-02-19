@@ -120,17 +120,17 @@ export default function SearchPanel({
     <>
       {/* Mobile backdrop - click to close */}
       <div
-        className="fixed inset-0 bg-black/50 z-40 md:hidden"
+        className="fixed inset-0 bg-black/50 z-40 md:hidden cursor-pointer"
         onClick={handleClose}
       />
 
       {/* Panel */}
       <div
-        className={`
-          w-72 bg-zinc-900 border-l border-zinc-800 flex flex-col
-          md:relative md:border-l
-          fixed inset-y-0 right-0 z-50 md:z-auto
-        `}
+        className="w-60 flex flex-col md:relative fixed inset-y-0 right-0 z-50 md:z-auto"
+        style={{
+          background: "var(--bg-panel)",
+          borderLeft: "1px solid var(--border-primary)",
+        }}
       >
         <SearchBar onSearch={handleSearch} onClose={handleClose} />
         <SearchResults

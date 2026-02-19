@@ -345,7 +345,7 @@ export default function ChatLayout() {
     : [];
 
   return (
-    <div className="flex h-dvh bg-zinc-950">
+    <div className="flex h-dvh" style={{ background: "var(--bg-app)" }}>
       {/* Left panel - Room list */}
       <Sidebar
         isOpen={sidebarOpen || !selectedRoom}
@@ -363,12 +363,19 @@ export default function ChatLayout() {
       {/* Center panel - Messages (always visible, sidebar overlays on mobile). min-w-0 + overflow-hidden prevent layout break on narrow screens. */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {leaveError && (
-          <div className="shrink-0 px-4 py-2 bg-amber-950/80 border-b border-amber-800 text-amber-200 text-sm flex items-center justify-between gap-2">
+          <div
+            className="shrink-0 px-4 py-2 font-mono text-[12px] flex items-center justify-between gap-2"
+            style={{
+              background: "rgba(255, 68, 68, 0.08)",
+              borderBottom: "1px solid rgba(255, 68, 68, 0.2)",
+              color: "#ff4444",
+            }}
+          >
             <span>{leaveError}</span>
             <button
               type="button"
               onClick={() => setLeaveError(null)}
-              className="text-amber-400 hover:text-amber-300"
+              style={{ color: "#ff4444" }}
               aria-label="Dismiss"
             >
               ×
