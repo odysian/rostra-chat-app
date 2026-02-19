@@ -78,6 +78,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     getCurrentUser(token)
       .then((userData) => {
         if (cancelled) return;
+        // Prevent deferred "start authenticating" state from overriding settled result.
+        clearTimeout(authTimer);
         clearTimeout(coldStartTimer);
         setUser(userData);
         setIsAuthenticating(false);
@@ -85,6 +87,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       })
       .catch((err) => {
         if (cancelled) return;
+        // Prevent deferred "start authenticating" state from overriding settled result.
+        clearTimeout(authTimer);
         clearTimeout(coldStartTimer);
 
         if (isAuthError(err)) {
