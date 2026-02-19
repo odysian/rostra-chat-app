@@ -21,12 +21,16 @@
         localStorage.getItem('rostra-theme') || 'neon'
       );
       const storedCrt = localStorage.getItem('rostra-crt');
+      // Default CRT to "on" for first-time visitors.
       // Backward compatible: old values (subtle/medium/strong/on) map to simple "on".
-      const crtState = !storedCrt || storedCrt === 'off' ? 'off' : 'on';
+      const crtState = storedCrt === null ? 'on' : (storedCrt === 'off' ? 'off' : 'on');
       document.documentElement.setAttribute(
         'data-crt',
         crtState
       );
+      if (storedCrt === null) {
+        localStorage.setItem('rostra-crt', 'on');
+      }
     </script>
   </head>
   <body>

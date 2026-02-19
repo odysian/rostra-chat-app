@@ -20,8 +20,13 @@ export default function LandingPage() {
 
   const atmosphere =
     theme === "neon"
-      ? "radial-gradient(circle at 15% 20%, rgba(0, 240, 255, 0.12), transparent 45%), radial-gradient(circle at 85% 10%, rgba(255, 0, 204, 0.1), transparent 45%), radial-gradient(circle at 50% 85%, rgba(57, 255, 20, 0.08), transparent 40%)"
-      : "radial-gradient(circle at 20% 15%, rgba(255, 191, 0, 0.13), transparent 48%), radial-gradient(circle at 80% 20%, rgba(255, 136, 0, 0.12), transparent 45%), radial-gradient(circle at 50% 88%, rgba(255, 191, 0, 0.06), transparent 42%)";
+      ? "radial-gradient(circle at 16% 18%, rgba(0, 240, 255, 0.14), transparent 46%), radial-gradient(circle at 82% 14%, rgba(255, 0, 204, 0.12), transparent 48%), radial-gradient(circle at 52% 90%, rgba(0, 240, 255, 0.06), transparent 42%)"
+      : "radial-gradient(circle at 20% 16%, rgba(255, 191, 0, 0.14), transparent 48%), radial-gradient(circle at 82% 18%, rgba(255, 136, 0, 0.12), transparent 47%), radial-gradient(circle at 52% 90%, rgba(255, 191, 0, 0.08), transparent 44%)";
+
+  const heroPanelShadow =
+    theme === "neon"
+      ? "0 0 0 1px var(--border-secondary), 0 0 28px rgba(0, 240, 255, 0.08)"
+      : "0 0 0 1px var(--border-dim), 0 0 24px rgba(255, 191, 0, 0.1)";
 
   return (
     <div
@@ -34,7 +39,14 @@ export default function LandingPage() {
       />
 
       <div className="relative flex-1 flex items-center px-6 py-16 md:px-12 lg:px-20">
-        <div className="max-w-3xl">
+        <div
+          className="max-w-3xl px-7 py-8 md:px-10 md:py-10"
+          style={{
+            background: "var(--bg-panel)",
+            border: "1px solid var(--border-primary)",
+            boxShadow: heroPanelShadow,
+          }}
+        >
           <p
             className="font-pixel text-[7px] tracking-[0.25em] mb-4"
             style={{ color: "var(--color-meta)" }}
@@ -44,7 +56,7 @@ export default function LandingPage() {
 
           {theme === "neon" ? (
             <h1
-              className="font-bebas text-[clamp(48px,14vw,80px)] leading-none tracking-[0.08em] gradient-text"
+              className="inline-block font-bebas text-[clamp(48px,14vw,80px)] leading-none tracking-[0.06em] gradient-text"
               style={{
                 backgroundImage:
                   "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
@@ -54,7 +66,7 @@ export default function LandingPage() {
             </h1>
           ) : (
             <h1
-              className="font-bebas text-[clamp(48px,14vw,80px)] leading-none tracking-[0.08em]"
+              className="inline-block font-bebas text-[clamp(48px,14vw,80px)] leading-none tracking-[0.06em]"
               style={{
                 color: "var(--color-primary)",
                 textShadow: "var(--glow-primary)",
@@ -68,8 +80,8 @@ export default function LandingPage() {
             className="font-mono text-[16px] leading-relaxed mt-4 max-w-2xl"
             style={{ color: "var(--color-text)" }}
           >
-            Lead the discussion in real time. Join rooms instantly, track unread
-            messages, and chat live with everyone online.
+            Lead the discussion. Join multiple rooms and chat live with everyone
+            online.
           </p>
 
           <div className="flex flex-wrap gap-3 mt-8">
@@ -77,18 +89,16 @@ export default function LandingPage() {
               onClick={() => navigate("/login")}
               className="px-6 py-3 font-bebas text-[16px] tracking-[0.12em] transition-all"
               style={{
-                background: "transparent",
-                border: "1px solid var(--color-primary)",
-                color: "var(--color-primary)",
+                background:
+                  "linear-gradient(135deg, var(--color-accent) 0%, var(--color-secondary) 100%)",
+                color: "#000",
+                border: "none",
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background =
-                  theme === "neon" ? "rgba(0, 240, 255, 0.07)" : "rgba(255, 191, 0, 0.07)";
-                e.currentTarget.style.boxShadow = "var(--glow-primary)";
+                e.currentTarget.style.filter = "brightness(1.12)";
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
-                e.currentTarget.style.boxShadow = "none";
+                e.currentTarget.style.filter = "brightness(1)";
               }}
             >
               ENTER CHAT
@@ -103,7 +113,9 @@ export default function LandingPage() {
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.background =
-                  theme === "neon" ? "rgba(255, 0, 204, 0.07)" : "rgba(255, 136, 0, 0.07)";
+                  theme === "neon"
+                    ? "rgba(255, 0, 204, 0.07)"
+                    : "rgba(255, 136, 0, 0.07)";
                 e.currentTarget.style.boxShadow = "var(--glow-secondary)";
               }}
               onMouseLeave={(e) => {

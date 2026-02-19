@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { getRooms, createRoom } from "../services/api";
 import { RoomDiscoveryModal } from "./RoomDiscoveryModal";
+import { getUserColorPalette } from "../utils/userColors";
 import type { Room } from "../types";
 
 interface RoomListProps {
@@ -185,6 +186,9 @@ export default function RoomList({
     theme === "neon" ? "rgba(0, 240, 255, 0.07)" : "rgba(255, 191, 0, 0.07)";
   const secondaryButtonHoverBackground =
     theme === "neon" ? "rgba(255, 0, 204, 0.07)" : "rgba(255, 136, 0, 0.07)";
+  // Keep amber visuals cohesive by using per-user hues only in neon mode.
+  const sidebarUserColors =
+    theme === "neon" && user ? getUserColorPalette(user.username) : null;
 
   return (
     <>
@@ -414,19 +418,20 @@ export default function RoomList({
           {sidebarOpen ? (
             <div className="flex items-center gap-3 w-full">
               <div
-                className="w-8 h-8 shrink-0 rounded-full flex items-center justify-center font-bebas text-[14px]"
+                className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bebas text-[16px]"
                 style={{
-                  background: "var(--bg-app)",
-                  border: "1px solid var(--border-primary)",
-                  color: "var(--color-primary)",
+                  background: sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
+                  border: `1px solid ${sidebarUserColors?.borderColor ?? "var(--border-primary)"}`,
+                  color: sidebarUserColors?.textColor ?? "var(--color-primary)",
+                  boxShadow: sidebarUserColors?.glowColor ?? "none",
                 }}
                 title={user?.username ?? "User"}
               >
                 {user ? getUserInitials(user.username) : "US"}
               </div>
               <span
-                className="font-mono text-[12px] tracking-[0.06em] truncate min-w-0 flex-1"
-                style={{ color: "var(--color-text)", opacity: 0.53 }}
+                className="font-mono text-[13px] tracking-[0.06em] truncate min-w-0 flex-1"
+                style={{ color: sidebarUserColors?.textColor ?? "var(--color-text)", opacity: 0.92 }}
                 title={user?.username ?? "User"}
               >
                 {user?.username ?? "Username"}
@@ -453,11 +458,12 @@ export default function RoomList({
                 aria-label="Expand sidebar"
               >
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center font-bebas text-[14px]"
+                  className="w-9 h-9 rounded-full flex items-center justify-center font-bebas text-[16px]"
                   style={{
-                    background: "var(--bg-app)",
-                    border: "1px solid var(--border-primary)",
-                    color: "var(--color-primary)",
+                    background: sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
+                    border: `1px solid ${sidebarUserColors?.borderColor ?? "var(--border-primary)"}`,
+                    color: sidebarUserColors?.textColor ?? "var(--color-primary)",
+                    boxShadow: sidebarUserColors?.glowColor ?? "none",
                   }}
                   title={user?.username ?? "User"}
                 >

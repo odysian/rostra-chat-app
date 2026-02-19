@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
 import { getRoomMessages } from "../services/api";
+import { getUserColorPalette } from "../utils/userColors";
 import type { Message } from "../types";
 
 // Local types
@@ -34,6 +36,7 @@ export default function MessageList({
   scrollToLatestSignal = 0,
 }: MessageListProps) {
   const { token } = useAuth();
+  const { theme } = useTheme();
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -493,6 +496,9 @@ export default function MessageList({
             : message.created_at + "Z";
           const isGrouped = shouldGroupMessage(item, messages[index - 1]);
           const showDateDivider = shouldShowDateDivider(item, messages[index - 1]);
+          // Keep amber visuals cohesive by using per-user hues only in neon mode.
+          const userColors =
+            theme === "neon" ? getUserColorPalette(message.username) : null;
 
           const headerDate = getSmartDate(isoDate);
           const simpleTime = new Date(isoDate).toLocaleTimeString([], {
@@ -525,14 +531,15 @@ export default function MessageList({
                 style={{ animation: "slide-in 0.2s ease-out" }}
               >
                 {/* Left: avatar or hover timestamp */}
-                <div className="w-10 shrink-0 select-none flex justify-center">
+                <div className="w-11 shrink-0 select-none flex justify-center">
                   {!isGrouped ? (
                     <div
-                      className="w-10 h-10 rounded-full flex items-center justify-center font-bebas text-[14px]"
+                      className="w-11 h-11 rounded-full flex items-center justify-center font-bebas text-[16px]"
                       style={{
-                        background: "var(--bg-app)",
-                        border: "1px solid var(--border-primary)",
-                        color: "var(--color-primary)",
+                        background: userColors?.backgroundColor ?? "var(--bg-app)",
+                        border: `1px solid ${userColors?.borderColor ?? "var(--border-primary)"}`,
+                        color: userColors?.textColor ?? "var(--color-primary)",
+                        boxShadow: userColors?.glowColor ?? "none",
                       }}
                     >
                       {message.username.substring(0, 2).toUpperCase()}
@@ -552,8 +559,8 @@ export default function MessageList({
                   {!isGrouped && (
                     <div className="flex items-baseline gap-2">
                       <span
-                        className="font-mono text-[10px] tracking-[0.08em]"
-                        style={{ color: "var(--color-primary)" }}
+                        className="font-mono text-[12px] tracking-[0.06em]"
+                        style={{ color: userColors?.textColor ?? "var(--color-primary)" }}
                       >
                         {message.username}
                       </span>
