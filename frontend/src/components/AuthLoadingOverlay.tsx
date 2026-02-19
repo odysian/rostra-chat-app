@@ -99,7 +99,7 @@ export default function AuthLoadingOverlay() {
         {/* Cold start notice while still loading */}
         {!authError && isColdStart && (
           <div
-            className="mt-6 p-4 max-w-md mx-auto"
+            className="mt-6 p-4 max-w-lg mx-auto"
             style={{
               background: noticeBackground,
               border: "1px solid var(--border-primary)",
@@ -107,7 +107,7 @@ export default function AuthLoadingOverlay() {
           >
             <div className="flex items-start gap-2 md:items-center">
               <Info size={16} style={{ color: "var(--color-primary)" }} className="mt-0.5 shrink-0" />
-              <p className="font-mono text-[12px]" style={{ color: "var(--color-meta)" }}>
+              <p className="font-mono text-[12px] whitespace-nowrap" style={{ color: "var(--color-meta)" }}>
                 Initial requests may take up to a minute while servers start up.
               </p>
             </div>
