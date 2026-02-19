@@ -33,14 +33,12 @@ def _register_and_login(client: TestClient, username: str, email: str) -> dict[s
         },
     )
     assert register_response.status_code == 201, register_response.text
-    user_data = register_response.json()
+    token = register_response.json()["access_token"]
 
-    login_response = client.post(
-        "/api/auth/login",
-        json={"username": username, "password": "password123"},
-    )
-    assert login_response.status_code == 200, login_response.text
-    token = login_response.json()["access_token"]
+    # Fetch user data via /me since register now returns a token, not user info
+    me_response = client.get("/api/auth/me", headers=_auth_headers(token))
+    assert me_response.status_code == 200, me_response.text
+    user_data = me_response.json()
 
     return {"user": user_data, "access_token": token}
 

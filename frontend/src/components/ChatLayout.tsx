@@ -47,6 +47,8 @@ export default function ChatLayout() {
   const [incomingMessagesForRoom, setIncomingMessagesForRoom] = useState<Message[]>([]);
   /** Error message when leave room fails (e.g. creator cannot leave) */
   const [leaveError, setLeaveError] = useState<string | null>(null);
+  /** Ephemeral WS error message (e.g. rate limit), auto-clears after a few seconds */
+  const [wsError, setWsError] = useState<string | null>(null);
   /** Typing users per room: roomId → userId → {username, timeout} */
   const [typingUsersByRoom, setTypingUsersByRoom] = useState<
     Record<number, Record<number, { username: string; timeout: ReturnType<typeof setTimeout> }>>
@@ -82,6 +84,13 @@ export default function ChatLayout() {
 
   useEffect(() => {
     const handleMessage = (msg: WebSocketMessage) => {
+      // Show WS errors (e.g. rate limit) as an ephemeral banner that auto-clears
+      if (msg.type === "error") {
+        setWsError(msg.message);
+        setTimeout(() => setWsError(null), 4000);
+        return;
+      }
+
       const msgRoomId =
         msg.type === "new_message"
           ? msg.message.room_id
@@ -393,6 +402,8 @@ export default function ChatLayout() {
           onBackToRooms={handleBackToRooms}
           isMobile={true}
           typingUsernames={typingUsernames}
+          wsError={wsError}
+          onDismissWsError={() => setWsError(null)}
         />
       </div>
 

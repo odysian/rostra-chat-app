@@ -89,7 +89,7 @@ Reusable code patterns and conventions in this project. All of the following are
 | TypeScript/React files | PascalCase for components | `ChatLayout.tsx`, `MessageArea.tsx` |
 | React components | PascalCase | `ChatLayout`, `RoomList`, `AuthLoadingOverlay` |
 | Props interfaces | Component name + Props | `SidebarProps`, `MessageListProps` |
-| Hooks | use + PascalCase | `useAuth`, `useWebSocketContext`, `useWebSocket` |
+| Hooks | use + PascalCase | `useAuth`, `useWebSocketContext` |
 | API route files | Plural resource | `rooms.py`, `messages.py`, `auth.py` |
 | Database tables | snake_case | `users`, `rooms`, `messages`, `user_room` |
 | API paths | Plural, snake_case in body | `/rooms`, `/rooms/{id}/read`, body `room_id` |

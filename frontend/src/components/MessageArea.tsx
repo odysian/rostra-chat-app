@@ -18,6 +18,8 @@ interface MessageAreaProps {
   onBackToRooms: () => void;
   isMobile: boolean;
   typingUsernames: string[];
+  wsError?: string | null;
+  onDismissWsError?: () => void;
 }
 
 export default function MessageArea({
@@ -30,6 +32,8 @@ export default function MessageArea({
   onLeaveRoom,
   onBackToRooms,
   typingUsernames,
+  wsError,
+  onDismissWsError,
 }: MessageAreaProps) {
   const { user, token } = useAuth();
   const { theme } = useTheme();
@@ -377,6 +381,28 @@ export default function MessageArea({
           </>
         )}
       </div>
+
+      {/* Ephemeral WS error (e.g. rate limit) — auto-clears after 4s */}
+      {wsError && (
+        <div
+          className="shrink-0 px-4 py-2 font-mono text-[12px] flex items-center justify-between gap-2"
+          style={{
+            background: "rgba(255, 68, 68, 0.08)",
+            borderTop: "1px solid rgba(255, 68, 68, 0.2)",
+            color: "#ff4444",
+          }}
+        >
+          <span>{wsError}</span>
+          <button
+            type="button"
+            onClick={onDismissWsError}
+            style={{ color: "#ff4444" }}
+            aria-label="Dismiss"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
       <MessageInput
         roomId={selectedRoom.id}

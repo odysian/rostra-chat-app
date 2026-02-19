@@ -13,10 +13,10 @@ from httpx import AsyncClient
 # ============================================================================
 
 
-async def test_register_with_valid_data_returns_201_and_tokens(
+async def test_register_with_valid_data_returns_201_and_token(
     client: AsyncClient, db_session
 ):
-    """Valid registration returns 201 with user object and tokens."""
+    """Valid registration returns 201 with access token for immediate login."""
     response = await client.post(
         "/api/auth/register",
         json={
@@ -29,14 +29,11 @@ async def test_register_with_valid_data_returns_201_and_tokens(
     assert response.status_code == 201
     data = response.json()
 
-    # Response includes user object
-    assert "id" in data
-    assert data["email"] == "newuser@example.com"
-    assert data["username"] == "newuser"
-    assert "created_at" in data
-
-    # Note: Current API doesn't return tokens in register response
-    # This test verifies what the API actually returns
+    # Response includes access token (same shape as /login)
+    assert "access_token" in data
+    assert "token_type" in data
+    assert data["token_type"] == "bearer"
+    assert len(data["access_token"]) > 0
 
     # Verify password is hashed in database (not plaintext)
     db_user = await user_crud.get_user_by_email(db_session, "newuser@example.com")
@@ -232,11 +229,10 @@ async def test_register_trims_username_whitespace(client: AsyncClient, db_sessio
     )
 
     assert response.status_code == 201
-    data = response.json()
 
-    # Verify stored username is trimmed
-    # Note: Current API may or may not trim - this test verifies behavior
-    db_user = await user_crud.get_user_by_username(db_session, data["username"])
+    # Verify stored username is trimmed by checking DB directly
+    # (register now returns a token, not user data)
+    db_user = await user_crud.get_user_by_email(db_session, "trimuser@example.com")
     assert db_user is not None
     # If trimming is implemented, username should be "username"
     # If not, it will be "  username  "
@@ -255,7 +251,7 @@ async def test_register_with_username_at_min_length(client: AsyncClient):
 
     assert response.status_code == 201
     data = response.json()
-    assert data["username"] == "abc"
+    assert "access_token" in data
 
 
 async def test_register_with_username_at_max_length(client: AsyncClient):
@@ -272,7 +268,7 @@ async def test_register_with_username_at_max_length(client: AsyncClient):
 
     assert response.status_code == 201
     data = response.json()
-    assert len(data["username"]) == 50
+    assert "access_token" in data
 
 
 async def test_register_with_special_characters_in_username(client: AsyncClient):

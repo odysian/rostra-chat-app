@@ -1,3 +1,5 @@
+import time
+
 from fastapi import WebSocket
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,6 +26,8 @@ class ConnectionManager:
         self.active_connections: dict[WebSocket, int] = {}
         # Room ID -> Set of WebSockets mapping
         self.room_subscriptions: dict[int, set[WebSocket]] = {}
+        # Per-user message rate tracking: user_id -> (window_start, count)
+        self._message_counts: dict[int, tuple[float, int]] = {}
 
     async def connect(self, websocket: WebSocket, user_id: int):
         """
@@ -47,9 +51,9 @@ class ConnectionManager:
 
         rooms_user_was_in = []
 
-        # Remove active connections
-        if websocket in self.active_connections:
-            del self.active_connections[websocket]
+        # Remove active connection; rate limit state is intentionally kept —
+        # it expires naturally after 60s, preventing bypass via reconnect.
+        self.active_connections.pop(websocket, None)
 
         # Remove from all room subscriptions
         rooms_to_cleanup = []
@@ -66,6 +70,27 @@ class ConnectionManager:
             del self.room_subscriptions[room_id]
 
         return rooms_user_was_in
+
+    def check_message_rate(self, user_id: int, max_per_minute: int = 30) -> bool:
+        """
+        Fixed-window rate limit for WebSocket message sends.
+
+        Returns True if the message is allowed, False if rate limit exceeded.
+        Tracks per-user message count within a 60-second window.
+        """
+        now = time.monotonic()
+        window_start, count = self._message_counts.get(user_id, (now, 0))
+
+        # Reset window if 60s have passed
+        if now - window_start >= 60.0:
+            self._message_counts[user_id] = (now, 1)
+            return True
+
+        if count >= max_per_minute:
+            return False
+
+        self._message_counts[user_id] = (window_start, count + 1)
+        return True
 
     def subscribe_to_room(self, websocket: WebSocket, room_id: int):
         """

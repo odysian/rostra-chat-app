@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Info, Loader2 } from "lucide-react";
 import { register } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 
 export default function Register() {
@@ -12,6 +13,7 @@ export default function Register() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { login: authLogin } = useAuth();
   const { theme } = useTheme();
   const atmosphere =
     theme === "neon"
@@ -28,9 +30,10 @@ export default function Register() {
     setLoading(true);
 
     try {
-      await register({ username, email, password });
-      // Redirect to login with success flag so login page can show confirmation (no token from register)
-      navigate("/login?registered=1");
+      const response = await register({ username, email, password });
+      // Register now returns a token — log in immediately and go to chat
+      await authLogin(response.access_token);
+      navigate("/chat");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Registration failed");
     } finally {

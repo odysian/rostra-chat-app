@@ -103,7 +103,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 
 | Method | Path           | Auth | Description |
 |--------|----------------|------|-------------|
-| POST   | /auth/register | No   | Body: `UserCreate` (username, email, password). Returns `UserResponse`. 400 if username or email taken. **Rate limited: 5/min.** |
+| POST   | /auth/register | No   | Body: `UserCreate` (username, email, password). Returns `{ access_token, token_type: "bearer" }` (same shape as login — enables auto-login). 400 if username or email taken. **Rate limited: 5/min.** |
 | POST   | /auth/login    | No   | Body: `UserLogin` (username, password). Returns `{ access_token, token_type: "bearer" }`. 401 if invalid. **Rate limited: 10/min.** |
 | GET    | /auth/me       | Yes  | Returns current user `UserResponse`. 401 if invalid/missing token. |
 
@@ -164,6 +164,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Message history | REST for history, WS for live | Messages loaded via paginated GET endpoint; new messages pushed via WebSocket; no WS history replay. |
 | Async everywhere | AsyncSession, async CRUD, asyncpg | All endpoints use `async def`, all DB operations use `await`. WebSocket handlers create short-lived `AsyncSessionLocal()` sessions per message (like mini HTTP requests). |
 | Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
+| WS rate limiting | In-memory fixed-window in ConnectionManager | `check_message_rate(user_id, max_per_minute=30)` — per-user 60s window tracked in `_message_counts` dict. Checked before DB session is opened for `send_message`. Cleaned up on disconnect. |
 | Frontend auth persistence | Token in localStorage | AuthContext stores token in localStorage; 401 from API triggers redirect to /login via `setUnauthorizedHandler`. |
 | DB schema | All tables in `rostra` | `MetaData(schema="rostra")` in database.py; migrations create tables in that schema. |
 | Message search | Postgres FTS with GIN-indexed tsvector | Stored generated column `to_tsvector('english', content)` on messages. `plainto_tsquery` for safe user input parsing. GIN index for fast lookups. Results ordered by recency (not relevance) — matches chat UX where users want recent matches. Scales to millions of rows; would graduate to Elasticsearch only for fuzzy/typo tolerance. |
@@ -233,7 +234,6 @@ src/
 │   ├── WebSocketContext.tsx  # WS lifecycle, subscribe/unsubscribe/send
 │   ├── webSocketContextState.ts  # Context type definitions
 │   └── useWebSocketContext.ts    # Typed hook for consuming WS context
-├── hooks/                   # Custom React hooks
 ├── pages/                   # Route-level page components
 │   ├── LandingPage.tsx
 │   ├── Login.tsx

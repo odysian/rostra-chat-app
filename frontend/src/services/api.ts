@@ -190,8 +190,8 @@ export async function login(credentials: LoginRequest): Promise<AuthResponse> {
   });
 }
 
-export async function register(userData: RegisterRequest): Promise<User> {
-  return apiCall<User>("/auth/register", {
+export async function register(userData: RegisterRequest): Promise<AuthResponse> {
+  return apiCall<AuthResponse>("/auth/register", {
     method: "POST",
     body: JSON.stringify(userData),
   });

@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Info, Loader2 } from "lucide-react";
 import { login } from "../services/api";
 import { useAuth } from "../context/AuthContext";
@@ -11,9 +11,7 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showRegisteredMessage, setShowRegisteredMessage] = useState(false);
   const navigate = useNavigate();
-  const [searchParams, setSearchParams] = useSearchParams();
   const { login: authLogin } = useAuth();
   const { theme } = useTheme();
   const atmosphere =
@@ -24,14 +22,6 @@ export default function Login() {
     theme === "neon"
       ? "0 0 0 1px var(--border-secondary), 0 0 24px rgba(0, 240, 255, 0.08)"
       : "0 0 0 1px var(--border-dim), 0 0 20px rgba(255, 191, 0, 0.1)";
-
-  // Show success message when redirected here after registration; then clear URL param
-  useEffect(() => {
-    if (searchParams.get("registered") === "1") {
-      setShowRegisteredMessage(true);
-      setSearchParams({}, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -108,18 +98,6 @@ export default function Login() {
           </h2>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
-            {showRegisteredMessage && (
-              <div
-                className="p-3 font-mono text-[12px]"
-                style={{
-                  background: "rgba(57, 255, 20, 0.05)",
-                  border: "1px solid rgba(57, 255, 20, 0.2)",
-                  color: "var(--color-accent2)",
-                }}
-              >
-                Account created successfully. Please sign in.
-              </div>
-            )}
             {error && (
               <div
                 className="p-3 font-mono text-[12px]"

@@ -81,6 +81,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
                 await handle_user_typing(websocket, data, user_id_int, username)
 
             elif action in ("subscribe", "send_message"):
+                # Check rate limit before opening a DB session for send_message
+                if action == "send_message":
+                    if not manager.check_message_rate(user_id_int):
+                        await send_error(
+                            websocket, "Rate limit exceeded. Please slow down."
+                        )
+                        continue
+
                 # New session per message — like a mini HTTP request.
                 # Session opens, handler does its work, session closes.
                 # Connection returned to pool immediately.
