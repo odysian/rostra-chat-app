@@ -58,6 +58,8 @@ export default function ChatLayout() {
   const subscribedRoomIdsRef = useRef<number[]>([]);
   /** Room IDs we've already sent subscribe for (avoids re-subscribing when effect re-runs or list grows) */
   const subscribedSentRef = useRef<Set<number>>(new Set());
+  /** Tracks prior WS connection state so we can detect reconnect transitions. */
+  const prevConnectedRef = useRef(false);
   const hasInitialSubscriptionsDoneRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
   /** Track all active typing timeouts for cleanup on unmount */
@@ -317,6 +319,14 @@ export default function ChatLayout() {
   // ============================================================================
 
   // Subscribe only to rooms we haven't sent subscribe for yet (avoids duplicate subscribe on re-run or when list grows)
+  useEffect(() => {
+    // Server subscription state is reset on reconnect; clear local sent-cache so rooms are re-subscribed.
+    if (!prevConnectedRef.current && connected) {
+      subscribedSentRef.current.clear();
+    }
+    prevConnectedRef.current = connected;
+  }, [connected]);
+
   useEffect(() => {
     if (!connected || subscribedRoomIds.length === 0) return;
 
