@@ -4,6 +4,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { getRooms, createRoom } from "../services/api";
 import { RoomDiscoveryModal } from "./RoomDiscoveryModal";
+import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
 import { getUserColorPalette } from "../utils/userColors";
 import type { Room } from "../types";
@@ -136,7 +137,7 @@ export default function RoomList({
       });
       onUnreadCountsLoaded(counts);
     } catch (err) {
-      console.error('Error loading rooms:', err);
+      logError("Error loading rooms:", err);
     }
   };
 

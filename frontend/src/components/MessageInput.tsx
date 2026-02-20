@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketContext } from "../context/useWebSocketContext";
+import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
 
 interface MessageInputProps {
@@ -69,7 +70,7 @@ export default function MessageInput({
       }
       onMessageSent?.();
     } catch (err) {
-      console.error("Failed to send message", err);
+      logError("Failed to send message", err);
       setSendError("Failed to send message. Please try again.");
     } finally {
       setSending(false);

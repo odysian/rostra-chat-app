@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { getRoomMessages } from "../services/api";
+import { logError } from "../utils/logger";
 import { getUserColorPalette } from "../utils/userColors";
 import type { Message } from "../types";
 
@@ -238,7 +239,7 @@ export default function MessageList({
       // Update cursor
       setNextCursor(next_cursor);
     } catch (err) {
-      console.error("Failed to load older messages:", err);
+      logError("Failed to load older messages:", err);
       // Don't show error UI for pagination failures - user can just retry by scrolling
     } finally {
       setIsLoadingMore(false);

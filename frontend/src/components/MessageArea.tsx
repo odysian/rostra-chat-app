@@ -5,6 +5,7 @@ import type { Message, Room } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { deleteRoom } from "../services/api";
+import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
 
 interface MessageAreaProps {
@@ -106,7 +107,7 @@ export default function MessageArea({
       setShowRoomMenu(false);
       onRoomDeleted();
     } catch (err) {
-      console.error("Failed to delete room:", err);
+      logError("Failed to delete room:", err);
       setDeleteError(
         err instanceof Error
           ? err.message
