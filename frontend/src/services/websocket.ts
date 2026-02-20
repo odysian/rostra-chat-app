@@ -108,9 +108,14 @@ export class WebSocketService {
       };
 
       this.ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log("WebSocket received:", data);
-        this.onMessageCallback?.(data);
+        try {
+          const data = JSON.parse(event.data);
+          console.log("WebSocket received:", data);
+          this.onMessageCallback?.(data);
+        } catch (error) {
+          // Keep the socket alive even if one payload is malformed.
+          console.error("Failed to parse WebSocket message:", error);
+        }
       };
 
       this.ws.onerror = (error) => {
