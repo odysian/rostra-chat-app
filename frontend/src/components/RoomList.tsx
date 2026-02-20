@@ -41,9 +41,10 @@ export default function RoomList({
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [timeoutError, setTimeoutError] = useState(false);
   // Local retry counter so the effect can refetch when user clicks "Retry"
   const [retryCount, setRetryCount] = useState(0);
+  /** Ref avoids stale state reads in async finally blocks. */
+  const timeoutFiredRef = useRef(false);
   const hasReportedInitialRoomsRef = useRef(false);
 
   // Room modal state
@@ -71,14 +72,14 @@ export default function RoomList({
     async function fetchRooms() {
       if (!token) return;
 
-      // Reset timeout error state
-      setTimeoutError(false);
+      // Reset timeout state
+      timeoutFiredRef.current = false;
       setLoading(true);
       setError("");
 
       // 5-second timeout for local testing
       timeoutId = window.setTimeout(() => {
-        setTimeoutError(true);
+        timeoutFiredRef.current = true;
         setError("Loading is taking longer than expected. The server may be waking up.");
         setLoading(false);
       }, 5000);
@@ -96,13 +97,11 @@ export default function RoomList({
           hasReportedInitialRoomsRef.current = true;
           onInitialRoomsLoaded(fetchedRooms);
         }
-        setTimeoutError(false);
       } catch (err) {
         clearTimeout(timeoutId);
         setError(err instanceof Error ? err.message : "Failed to load rooms");
-        setTimeoutError(false);
       } finally {
-        if (!timeoutError) {
+        if (!timeoutFiredRef.current) {
           setLoading(false);
         }
       }
@@ -121,7 +120,6 @@ export default function RoomList({
   const handleRetry = () => {
     setLoading(true);
     setError("");
-    setTimeoutError(false);
     // Bump local retry counter so the effect above refetches rooms
     setRetryCount((prev) => prev + 1);
   };

@@ -40,7 +40,6 @@ export default function MessageList({
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [timeoutError, setTimeoutError] = useState(false);
   // Local retry counter so the effect can refetch when user clicks "Retry"
   const [retryCount, setRetryCount] = useState(0);
 
@@ -55,6 +54,8 @@ export default function MessageList({
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
   const pendingScrollAdjustmentRef = useRef<PendingScrollAdjustment | null>(null);
+  /** Ref avoids stale state reads in async finally blocks. */
+  const timeoutFiredRef = useRef(false);
 
   const isNearBottom = useCallback((container: HTMLDivElement): boolean => {
     const distanceFromBottom =
@@ -128,10 +129,10 @@ export default function MessageList({
     async function fetchMessages() {
       if (!token) return;
 
-      setTimeoutError(false);
+      timeoutFiredRef.current = false;
 
       timeoutId = window.setTimeout(() => {
-        setTimeoutError(true);
+        timeoutFiredRef.current = true;
         setError("Loading messages is taking longer than expected. The server may be waking up.");
         setLoading(false);
       }, 5000);
@@ -155,7 +156,6 @@ export default function MessageList({
 
         // Store cursor for pagination
         setNextCursor(next_cursor);
-        setTimeoutError(false);
       } catch (err) {
         clearTimeout(timeoutId);
         if (err instanceof Error && err.name === "AbortError") {
@@ -164,9 +164,8 @@ export default function MessageList({
         setError(
           err instanceof Error ? err.message : "Failed to load messages",
         );
-        setTimeoutError(false);
       } finally {
-        if (!timeoutError) {
+        if (!timeoutFiredRef.current) {
           setLoading(false);
         }
       }
@@ -181,13 +180,11 @@ export default function MessageList({
         clearTimeout(timeoutId);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [roomId, token, retryCount]);
+  }, [roomId, token, retryCount]);
 
   const handleRetry = () => {
     setLoading(true);
     setError("");
-    setTimeoutError(false);
     setIsInitialPositioned(false);
     setShowJumpToLatest(false);
     pendingScrollAdjustmentRef.current = null;
