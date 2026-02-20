@@ -177,7 +177,15 @@ async def handle_subscribe(
     response = WSSubscribed(
         type="subscribed", room_id=msg.room_id, online_users=online_users_data
     )
-    await websocket.send_json(response.model_dump(mode="json"))
+    sent = await safe_send(
+        websocket,
+        response.model_dump(mode="json"),
+        context="subscribe_ack",
+    )
+    if not sent:
+        # Client dropped before receiving subscribe ack; clean up connection state.
+        manager.disconnect(websocket)
+        return
 
     # Notify others in room
     notification = WSUserJoined(
@@ -213,7 +221,14 @@ async def handle_unsubscribe(
 
     # Send confirmation
     response = WSUnsubscribed(type="unsubscribed", room_id=msg.room_id)
-    await websocket.send_json(response.model_dump(mode="json"))
+    sent = await safe_send(
+        websocket,
+        response.model_dump(mode="json"),
+        context="unsubscribe_ack",
+    )
+    if not sent:
+        manager.disconnect(websocket)
+        return
 
     # Notify others
     notification = WSUserLeft(
@@ -377,4 +392,17 @@ async def send_error(websocket: WebSocket, message: str, details: Any = None) ->
     if details:
         error_dict["details"] = details
 
-    await websocket.send_json(error_dict)
+    sent = await safe_send(websocket, error_dict, context="error_response")
+    if not sent:
+        # Failed sends usually mean the socket dropped between receive and response.
+        manager.disconnect(websocket)
+
+
+async def safe_send(websocket: WebSocket, payload: dict[str, Any], context: str) -> bool:
+    """Send JSON safely; return False if socket write fails."""
+    try:
+        await websocket.send_json(payload)
+        return True
+    except Exception as err:
+        logger.warning("WebSocket send failed during %s: %s", context, err)
+        return False
