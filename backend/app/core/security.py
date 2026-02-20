@@ -2,7 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError
+from argon2.exceptions import InvalidHashError, VerificationError
 from jwt.exceptions import PyJWTError
 
 from app.core.config import settings
@@ -16,7 +16,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:
         _ph.verify(hashed_password, plain_password)
         return True
-    except (VerifyMismatchError, Exception):
+    except (VerificationError, InvalidHashError):
+        # Invalid/mismatched Argon2 hashes should fail closed, but unexpected
+        # runtime errors must surface instead of being silently swallowed.
         return False
 
 
