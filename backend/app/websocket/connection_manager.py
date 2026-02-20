@@ -135,10 +135,28 @@ class ConnectionManager:
         if room_id not in self.room_subscriptions:
             return  # Nobody subscribed, do nothing
 
-        # Send to all subscribers
+        # Send to all subscribers. A single stale socket must not block delivery
+        # to the rest of the room.
+        dead_connections: list[WebSocket] = []
         for connection in self.room_subscriptions[room_id]:
             if connection != exclude:
-                await connection.send_json(message)
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    dead_connections.append(connection)
+
+        if not dead_connections:
+            return
+
+        subscribers = self.room_subscriptions.get(room_id)
+        if subscribers is None:
+            return
+
+        for connection in dead_connections:
+            subscribers.discard(connection)
+
+        if len(subscribers) == 0:
+            del self.room_subscriptions[room_id]
 
     async def get_room_users(self, room_id: int, db: AsyncSession) -> list[User]:
         """
