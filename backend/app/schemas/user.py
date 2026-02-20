@@ -14,8 +14,8 @@ class UserCreate(BaseModel):
 class UserLogin(BaseModel):
     """Schema for user login"""
 
-    username: str
-    password: str
+    username: str = Field(max_length=50)
+    password: str = Field(max_length=50)
 
 
 class UserResponse(BaseModel):

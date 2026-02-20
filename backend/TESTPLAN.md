@@ -57,6 +57,7 @@ When implementing these tests:
 
 - **Room name:** min 3 chars, max 50 chars
 - **Message content:** min 1 char (after trim), max 1000 chars
+- **Login credentials:** username and password max 50 chars
 - **Rate limiting:** Register and login only (disabled in tests except specific tests)
 
 ---
@@ -164,6 +165,12 @@ When implementing these tests:
 
 - `test_login_with_empty_password_returns_401`
   - Email exists but password is empty string
+
+- `test_user_login_rejects_username_longer_than_50_chars`
+  - Schema-level validation rejects username length > 50
+
+- `test_user_login_rejects_password_longer_than_50_chars`
+  - Schema-level validation rejects password length > 50
 
 **Rate Limiting:**
 - `test_login_rate_limit_returns_429`
