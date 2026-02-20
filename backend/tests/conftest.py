@@ -149,6 +149,11 @@ default_test_app = create_test_app(include_rate_limiting=False)
 
 # Use TEST_DATABASE_URL from env if provided, otherwise use main DATABASE_URL
 TEST_DATABASE_URL = TEST_DATABASE_URL_ENV or settings.DATABASE_URL
+SKIP_DB_BOOTSTRAP = os.getenv("SKIP_DB_BOOTSTRAP", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 
 def _ensure_test_database_exists() -> None:
@@ -158,6 +163,8 @@ def _ensure_test_database_exists() -> None:
     CREATE DATABASE. This allows pytest to work after a fresh docker-compose up
     without manually creating chatdb_test.
     """
+    if SKIP_DB_BOOTSTRAP:
+        return
     url_lower = TEST_DATABASE_URL.lower()
     if "postgresql" not in url_lower:
         return
@@ -219,6 +226,10 @@ def setup_test_database():
     session-scoped async fixtures. Table creation is a one-off operation
     that doesn't need to be async.
     """
+    if SKIP_DB_BOOTSTRAP:
+        yield
+        return
+
     with sync_test_engine.connect() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS rostra"))
         conn.commit()
@@ -248,6 +259,9 @@ async def db_session():
 
     This gives us test isolation without actually persisting anything.
     """
+    if SKIP_DB_BOOTSTRAP:
+        pytest.skip("SKIP_DB_BOOTSTRAP=1: skipping database-backed test fixtures")
+
     async with async_test_engine.connect() as connection:
         # Start the outer transaction (this is what we'll rollback)
         transaction = await connection.begin()
@@ -338,6 +352,9 @@ def app(monkeypatch):
     (via monkeypatch of its AsyncSessionLocal reference) use this engine
     so all code sees the same test database.
     """
+    if SKIP_DB_BOOTSTRAP:
+        pytest.skip("SKIP_DB_BOOTSTRAP=1: skipping database-backed websocket fixture")
+
     ws_engine = create_async_engine(
         _async_test_url, echo=False, pool_size=5, max_overflow=0
     )

@@ -41,6 +41,12 @@ Preferred: run from repo root:
 make backend-verify
 ```
 
+If the environment cannot reach PostgreSQL (e.g., restricted sandbox), run:
+```bash
+make backend-verify SKIP_DB_BOOTSTRAP=1
+```
+This skips DB-backed test fixtures; DB-dependent tests will be skipped.
+
 Use individual commands from `backend/` only when isolating a specific failure:
 ```bash
 cd backend

@@ -1,5 +1,6 @@
 BACKEND_DIR := backend
 BACKEND_VENV_BIN := $(BACKEND_DIR)/venv/bin
+SKIP_DB_BOOTSTRAP ?= 0
 
 .PHONY: backend-verify
 backend-verify:
@@ -8,5 +9,5 @@ backend-verify:
 	@cd $(BACKEND_DIR) && \
 		venv/bin/ruff check . && \
 		venv/bin/mypy . --ignore-missing-imports && \
-		venv/bin/pytest -v && \
+		SKIP_DB_BOOTSTRAP=$(SKIP_DB_BOOTSTRAP) venv/bin/pytest -v && \
 		venv/bin/bandit -r app/ -ll
