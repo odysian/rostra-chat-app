@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     # API
     API_V1_STR: str = "/api"
     PROJECT_NAME: str = "ChatApp"
+    DEBUG: bool = True
 
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = []
