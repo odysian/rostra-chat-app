@@ -85,7 +85,9 @@ async def get_rooms(
 
 
 @router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def create_room(
+    request: Request,
     room: RoomCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -131,7 +133,9 @@ async def get_room(
 
 
 @router.patch("/{room_id}/read", status_code=status.HTTP_200_OK)
+@limiter.limit("30/minute")
 async def mark_room_read(
+    request: Request,
     room_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

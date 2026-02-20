@@ -1,10 +1,11 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.crud import message as message_crud
 from app.crud import room as room_crud
 from app.crud import user_room as user_room_crud
@@ -16,7 +17,9 @@ router = APIRouter()
 
 
 @router.get("/rooms/{room_id}/messages/search", response_model=PaginatedMessages)
+@limiter.limit("10/minute")
 async def search_room_messages(
+    request: Request,
     room_id: int,
     q: str = Query(min_length=1, max_length=200),
     limit: int = Query(default=20, ge=1, le=50),
@@ -220,7 +223,9 @@ async def get_room_messages(
 @router.post(
     "/messages", response_model=MessageResponse, status_code=status.HTTP_201_CREATED
 )
+@limiter.limit("30/minute")
 async def create_message(
+    request: Request,
     message: MessageCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
