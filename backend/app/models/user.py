@@ -1,8 +1,9 @@
 from datetime import UTC, datetime
 
-from app.core.database import Base
-from sqlalchemy import Column, DateTime, Integer, String
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.database import Base
 
 
 class User(Base):

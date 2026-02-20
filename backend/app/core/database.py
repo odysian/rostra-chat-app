@@ -1,8 +1,9 @@
-from app.core.config import settings
 from sqlalchemy import MetaData
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
+
+from app.core.config import settings
 
 # Build async URL safely (handles any existing driver suffix like +psycopg2)
 _parsed_url = make_url(settings.DATABASE_URL)

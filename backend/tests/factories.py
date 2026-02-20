@@ -10,6 +10,8 @@ We still test the HTTP endpoints directly in the dedicated tests.
 """
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.core.security import create_access_token
 from app.crud import message as message_crud
 from app.crud import room as room_crud
@@ -17,7 +19,6 @@ from app.crud import user as user_crud
 from app.schemas.message import MessageCreate
 from app.schemas.room import RoomCreate
 from app.schemas.user import UserCreate
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 @pytest.fixture

@@ -161,11 +161,11 @@ async def mark_room_read(
             current_user.id,
             room_id,  # type: ignore[arg-type]
         )
-    except ValueError:
+    except ValueError as err:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not a member of this room. Join the room first.",
-        )
+        ) from err
 
     await UnreadCountCache.reset_unread(current_user.id, room_id)  # type: ignore[arg-type]
 

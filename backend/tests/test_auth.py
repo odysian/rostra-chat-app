@@ -5,8 +5,9 @@ All tests follow the TESTPLAN.md specification exactly.
 """
 
 import pytest
-from app.crud import user as user_crud
 from httpx import AsyncClient
+
+from app.crud import user as user_crud
 
 # ============================================================================
 # POST /api/auth/register
@@ -321,9 +322,7 @@ async def test_login_with_valid_credentials_returns_200_and_tokens(
 ):
     """Login with valid credentials returns 200 with tokens."""
     # Create user first
-    user_data = await create_user(
-        email="login@example.com", username="loginuser", password="password123"
-    )
+    await create_user(email="login@example.com", username="loginuser", password="password123")
 
     # Login
     response = await client.post(
@@ -446,7 +445,7 @@ async def test_login_rate_limit_returns_429(
     # Rate limiting is enabled via enable_rate_limiting fixture
     # Make multiple failed login attempts (limit is 10/minute)
     responses = []
-    for i in range(11):  # Make 11 requests to exceed limit of 10
+    for _ in range(11):  # Make 11 requests to exceed limit of 10
         response = await client.post(
             "/api/auth/login",
             json={"username": "nonexistent", "password": "wrong"},
@@ -473,7 +472,7 @@ async def test_refresh_with_valid_token_returns_new_access_token(
     # Note: Refresh endpoint doesn't exist yet
     # This test documents expected behavior
 
-    user_data = await create_user()
+    await create_user()
     # Would need refresh_token from login response
     # refresh_response = await client.post(
     #     "/api/auth/refresh",
