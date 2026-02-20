@@ -7,6 +7,7 @@ All tests follow the TESTPLAN.md specification exactly.
 import pytest
 from httpx import AsyncClient
 
+from app.api import auth as auth_api
 from app.crud import user as user_crud
 
 # ============================================================================
@@ -405,6 +406,29 @@ async def test_login_with_nonexistent_email_returns_401(client: AsyncClient):
     error_detail = response.json()["detail"].lower()
     # Error should be generic (same as wrong password)
     assert "incorrect" in error_detail or "invalid" in error_detail
+
+
+async def test_login_with_nonexistent_user_executes_dummy_password_verify(
+    client: AsyncClient, monkeypatch: pytest.MonkeyPatch
+):
+    """Missing user path still runs Argon2 verify to reduce timing side-channel."""
+    captured: dict[str, str] = {}
+
+    def fake_verify(password: str, hashed_password: str) -> bool:
+        captured["password"] = password
+        captured["hashed_password"] = hashed_password
+        return False
+
+    monkeypatch.setattr(auth_api, "verify_password", fake_verify)
+
+    response = await client.post(
+        "/api/auth/login",
+        json={"username": "definitely-missing", "password": "guess123"},
+    )
+
+    assert response.status_code == 401
+    assert captured["password"] == "guess123"
+    assert captured["hashed_password"] == auth_api._DUMMY_PASSWORD_HASH
 
 
 async def test_login_with_missing_credentials_returns_422(client: AsyncClient):

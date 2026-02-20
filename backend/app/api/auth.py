@@ -4,12 +4,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.dependencies import get_current_user
 from app.core.database import get_db
 from app.core.rate_limit import limiter
-from app.core.security import create_access_token, verify_password
+from app.core.security import create_access_token, get_password_hash, verify_password
 from app.crud import user as user_crud
 from app.models.user import User
 from app.schemas.user import Token, UserCreate, UserLogin, UserResponse
 
 router = APIRouter()
+_DUMMY_PASSWORD_HASH = get_password_hash("rostra-login-dummy-password")
 
 
 @router.post(
@@ -55,6 +56,9 @@ async def login(request: Request, user: UserLogin, db: AsyncSession = Depends(ge
     """
     db_user = await user_crud.get_user_by_username(db, user.username)
     if not db_user:
+        # Run one Argon2 verify even when user is missing so "unknown username"
+        # and "wrong password" take a similar amount of time.
+        verify_password(user.password, _DUMMY_PASSWORD_HASH)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
