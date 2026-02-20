@@ -8,6 +8,8 @@ from app.models.user import User
 
 
 class ConnectionManager:
+    MAX_SUBSCRIPTIONS_PER_CONNECTION = 50
+
     """
     Manages WebSocket connections and room subscriptions.
 
@@ -92,18 +94,31 @@ class ConnectionManager:
         self._message_counts[user_id] = (window_start, count + 1)
         return True
 
-    def subscribe_to_room(self, websocket: WebSocket, room_id: int):
+    def subscribe_to_room(self, websocket: WebSocket, room_id: int) -> bool:
         """
         Subscribe a WebSocket connection to a room.
 
         Args:
             websocket: The WebSocket connection
             room_id: ID of the room to subscribe to
+
+        Returns:
+            True if subscription is active, False if per-connection limit would be exceeded.
         """
+        if room_id in self.room_subscriptions and websocket in self.room_subscriptions[room_id]:
+            return True
+
+        subscription_count = sum(
+            1 for subscribers in self.room_subscriptions.values() if websocket in subscribers
+        )
+        if subscription_count >= self.MAX_SUBSCRIPTIONS_PER_CONNECTION:
+            return False
+
         if room_id not in self.room_subscriptions:
             self.room_subscriptions[room_id] = set()
 
         self.room_subscriptions[room_id].add(websocket)
+        return True
 
     def unsubscribe_from_room(self, websocket: WebSocket, room_id: int):
         """

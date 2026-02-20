@@ -48,3 +48,25 @@ async def test_broadcast_to_room_removes_room_when_all_sends_fail():
     await manager.broadcast_to_room(room_id, payload)
 
     assert room_id not in manager.room_subscriptions
+
+
+async def test_subscribe_to_room_enforces_max_subscriptions_per_connection():
+    manager = ConnectionManager()
+    ws = cast(WebSocket, DummyWebSocket())
+
+    for room_id in range(1, manager.MAX_SUBSCRIPTIONS_PER_CONNECTION + 1):
+        assert manager.subscribe_to_room(ws, room_id) is True
+
+    assert manager.subscribe_to_room(ws, 999) is False
+    assert 999 not in manager.room_subscriptions
+
+
+async def test_subscribe_to_room_is_idempotent_at_limit():
+    manager = ConnectionManager()
+    ws = cast(WebSocket, DummyWebSocket())
+
+    for room_id in range(1, manager.MAX_SUBSCRIPTIONS_PER_CONNECTION + 1):
+        assert manager.subscribe_to_room(ws, room_id) is True
+
+    existing_room_id = manager.MAX_SUBSCRIPTIONS_PER_CONNECTION
+    assert manager.subscribe_to_room(ws, existing_room_id) is True

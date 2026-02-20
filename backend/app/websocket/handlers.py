@@ -166,7 +166,19 @@ async def handle_subscribe(
         return
 
     # Subscribe to room
-    manager.subscribe_to_room(websocket, msg.room_id)
+    subscribed = manager.subscribe_to_room(websocket, msg.room_id)
+    if not subscribed:
+        logger.warning(
+            "User %s subscription rejected: room limit exceeded (limit=%s)",
+            username,
+            manager.MAX_SUBSCRIPTIONS_PER_CONNECTION,
+        )
+        await send_error(
+            websocket,
+            f"Subscription limit reached ({manager.MAX_SUBSCRIPTIONS_PER_CONNECTION} rooms).",
+        )
+        return
+
     logger.info(f"User {username} subscribed to room '{room.name}' (ID: {room.id})")
 
     # Get online users (uses the same short-lived session)
