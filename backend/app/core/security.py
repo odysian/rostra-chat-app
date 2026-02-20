@@ -1,8 +1,9 @@
 from datetime import UTC, datetime, timedelta
 
+import jwt
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError
 
 from app.core.config import settings
 
@@ -66,7 +67,9 @@ def decode_access_token(token: str) -> str | None:
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
-        user_id: str = payload.get("sub")  # type: ignore
-        return user_id
-    except JWTError:
+        user_id = payload.get("sub")
+        if user_id is None:
+            return None
+        return str(user_id)
+    except PyJWTError:
         return None
