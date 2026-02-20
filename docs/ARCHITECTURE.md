@@ -97,7 +97,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Method | Path   | Auth | Description |
 |--------|--------|------|-------------|
 | GET    | /      | No   | Health check; returns `{"message": "Chat API is running"}`. |
-| GET    | /api/health/db | No | DB pool metrics; returns `{ pool_size, checked_out, overflow, status }`. |
+| GET    | /api/health/db | Yes  | DB pool metrics for authenticated operational checks; returns `{ pool_size, checked_out, overflow, status }`. |
 
 ### Auth (`/api/auth`)
 

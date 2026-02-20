@@ -46,14 +46,16 @@ TEST_DATABASE_URL_ENV = os.environ.pop("TEST_DATABASE_URL", None)
 
 # Import app creation components
 from app.api import auth, messages, rooms
+from app.api.dependencies import get_current_user
 from app.core.config import settings
 from app.core.database import Base, async_engine, get_db
+from app.models.user import User
 from app.core.rate_limit import limiter
 
 # Import all models so SQLAlchemy can discover them for table creation
 from app.models import message, room, user, user_room  # noqa: F401
 from app.websocket.handlers import websocket_endpoint
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from slowapi import _rate_limit_exceeded_handler
@@ -121,12 +123,12 @@ def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
         return {"message": "Chat API is running"}
 
     @test_app.get(f"{settings.API_V1_STR}/health/db")
-    async def db_health():
-        """Return database connection pool health metrics for operational monitoring."""
+    async def db_health(_current_user: User = Depends(get_current_user)):
+        """Return database pool metrics for authenticated operational monitoring."""
         pool = async_engine.pool
-        pool_size = pool.size()
-        checked_out = pool.checkedout()
-        overflow = pool.overflow()
+        pool_size = pool.size()  # type: ignore[attr-defined]
+        checked_out = pool.checkedout()  # type: ignore[attr-defined]
+        overflow = pool.overflow()  # type: ignore[attr-defined]
 
         return {
             "pool_size": pool_size,

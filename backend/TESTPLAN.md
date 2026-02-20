@@ -587,11 +587,15 @@ When implementing these tests:
 ### GET /api/health/db
 
 **Happy Path:**
-- `test_db_health_returns_pool_metrics_and_status`
+- `test_db_health_returns_pool_metrics_and_status_for_authenticated_user`
   - Returns 200
   - Response includes `pool_size`, `checked_out`, `overflow`, and `status`
   - Metric fields are integers
   - `status` is either `healthy` or `degraded`
+
+**Auth Cases:**
+- `test_db_health_requires_authentication`
+  - Missing bearer token returns unauthorized response
 
 ---
 
