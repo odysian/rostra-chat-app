@@ -75,6 +75,7 @@ export default function UsersPanel({
     <>
       {/* Mobile backdrop - click to close */}
       <div
+        data-testid="users-panel-backdrop"
         className="fixed inset-0 bg-black/50 z-40 md:hidden cursor-pointer"
         onClick={onClose}
       />
