@@ -14,6 +14,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function AppRoutes() {
   const { isAuthenticated, isAuthenticating, authError } = useAuth();
+  const debugOverlayMode =
+    import.meta.env.DEV
+      ? new URLSearchParams(window.location.search).get("debugAuthOverlay")
+      : null;
+  const forceColdStartOverlay = debugOverlayMode === "coldstart";
+
+  if (forceColdStartOverlay) {
+    return <AuthLoadingOverlay forceColdStart />;
+  }
 
   // Show overlay while verifying token, or when server is unreachable (retry UI)
   if (isAuthenticating || authError) {
