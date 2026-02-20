@@ -26,5 +26,8 @@ class Settings(BaseSettings):
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = []
 
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
+
 
 settings = Settings()  # type: ignore

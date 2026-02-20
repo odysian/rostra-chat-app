@@ -58,6 +58,7 @@ When implementing these tests:
 - **Room name:** min 3 chars, max 50 chars
 - **Message content:** min 1 char (after trim), max 1000 chars
 - **Login credentials:** username and password max 50 chars
+- **Redis URL logging:** any password in Redis connection URLs must be redacted in logs
 - **Rate limiting:** Register and login only (disabled in tests except specific tests)
 
 ---
@@ -587,6 +588,23 @@ When implementing these tests:
   - Response includes `pool_size`, `checked_out`, `overflow`, and `status`
   - Metric fields are integers
   - `status` is either `healthy` or `degraded`
+
+---
+
+### Core: Redis URL Logging
+
+**Security Cases:**
+- `test_redact_redis_url_hides_password_only_credentials`
+  - Input URL with password-only auth (e.g. `redis://:secret@host:6379/0`)
+  - Redacted output must not contain plaintext password
+
+- `test_redact_redis_url_hides_username_password_credentials`
+  - Input URL with username + password auth
+  - Output keeps username/host while redacting password
+
+- `test_redact_redis_url_leaves_non_auth_url_unchanged`
+  - Input URL without credentials
+  - Output remains unchanged
 
 ---
 
