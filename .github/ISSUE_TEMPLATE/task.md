@@ -19,6 +19,10 @@ Default: this Task should represent the entire feature end-to-end unless split c
 ## Implementation notes
 -
 
+## Decision locks (backend-coupled only)
+- [ ] Locked: <decision 1>
+- [ ] Locked: <decision 2>
+
 ## Acceptance criteria
 - [ ] ...
 

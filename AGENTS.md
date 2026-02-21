@@ -19,30 +19,31 @@ Read in this order:
 ## Unit of Work Rule
 
 - **Unit of work is a GitHub Issue.**
-- Convert freeform requests into (default path):
-  - PRD issue (new features or multi-step work)
-  - Task issue (PR-sized implementation work)
+- Choose an execution mode from `docs/ISSUES_WORKFLOW.md` before coding:
+  - `single` (default): one feature -> one Task issue -> one PR
+  - `gated`: PRD issue + child Task issue(s) for feature sets or higher-risk work
+  - `fast`: quick-fix path for tiny low-risk changes
+- Convert freeform requests into the selected issue mode before implementation.
 - Work one Task issue at a time.
 - PRs close Task issues (`Closes #123`), not PRDs.
-- PRDs close only when all child Tasks are done.
-- Quick-fix fast lane is allowed for tiny low-risk changes; use the criteria in `docs/ISSUES_WORKFLOW.md`.
+- PRDs close only when all child Tasks are done or explicitly deferred.
 - Detailed control-plane rules are canonical in `docs/ISSUES_WORKFLOW.md`.
-- For one-shot PRD + Task + `gh` issue command generation, use `skills/prd-workflow-gh.md`.
+- For one-shot issue body + `gh` command generation, use `skills/prd-workflow-gh.md`.
 
 ## Agent Operating Loop
 
-1. Choose execution path: default issue flow or quick-fix fast lane.
-2. Restate goal and acceptance criteria.
-3. Plan minimal files and scope.
-4. Implement with tight, surgical changes.
-5. Run verification commands.
-6. Update tests/docs if required.
-7. If using issue flow, open PR that closes the Task issue.
-8. Move status forward (Ready -> In Progress -> Review -> Done) when using issue flow.
+1. Whiteboard scope in `plans/*.md` or a spec doc section (scratch only).
+2. Choose execution mode (`single` default, `gated`, or `fast`) and create required issue(s).
+3. Restate goal and acceptance criteria.
+4. Plan minimal files and scope.
+5. Implement with tight, surgical changes.
+6. Run verification commands.
+7. Update tests/docs if required.
+8. Open PR that closes the Task issue; close PRD after child Tasks are done/deferred.
 
 ## Process
 
-Read and follow `WORKFLOW.md` for the full development process and `docs/ISSUES_WORKFLOW.md` for the PRD -> Task -> PR control plane. Together they define the Design → Test → Implement → Review → Document loop, TDD workflow, technical constraints (SQLAlchemy 2.0, Pydantic v2, async patterns), security requirements, and documentation maintenance rules.
+Read and follow `WORKFLOW.md` for the full development process and `docs/ISSUES_WORKFLOW.md` for the issue-control execution modes. Together they define the Design → Test → Implement → Review → Document loop, TDD workflow, technical constraints (SQLAlchemy 2.0, Pydantic v2, async patterns), security requirements, and documentation maintenance rules.
 
 This file contains **project-specific rules** that supplement WORKFLOW.md. If they conflict, this file wins.
 
@@ -191,10 +192,11 @@ Just do it. No plan needed. Execute, verify, done.
 
 ### Issues Workflow (Control Plane)
 
-- Default sizing: 1 PRD -> 1 Task -> 1 PR unless split criteria apply.
+- Choose mode first: `single` (default), `gated` (PRD + Tasks), or `fast` (tiny low-risk fixes).
+- Default sizing in issue modes: 1 feature -> 1 Task -> 1 PR unless split criteria apply.
 - GitHub issues are the execution source of truth. `TASKS.md` is scratchpad-only.
 - Follow canonical rules in `docs/ISSUES_WORKFLOW.md` for DoR/DoD and Phase 3 gates.
-- Decision Locks default to PRD checkboxes; use Decision issues only for non-trivial/reused discussion.
+- Decision Locks live in the controlling issue (Task in `single` mode, PRD in `gated` mode); use Decision issues only for non-trivial/reused discussion.
 - If a decision has lasting architecture/security/performance impact, create and link an ADR (`docs/adr/NNN-kebab-case-title.md`).
 
 ### Goal-driven execution

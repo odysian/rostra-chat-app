@@ -1,22 +1,30 @@
-# Playbook: PRD -> Task Issues
+# Playbook: Plan/PRD -> Issues
 
 This is a portable procedural playbook. It is not runtime-loaded unless your tooling explicitly loads it.
 
-Given a PRD:
+Given a feature plan (from `plans/*.md`, specs, or a PRD):
 
-1. Default plan: generate **one primary Task** for end-to-end delivery (backend + frontend + tests + docs).
-2. Optional split plan: generate 0-2 extra Tasks only when split criteria apply (size/risk/dependency/parallelization), and explain why.
-3. Task acceptance criteria should include checkboxes for:
+1. Choose execution mode first:
+- `single` (default): one end-to-end Task issue, one PR closes it.
+- `gated`: one PRD issue + child Task issue(s).
+- `fast`: quick-fix checklist only (no issue creation by default).
+2. In `single` mode, the Task should include mini-PRD sections:
+- summary/goal
+- scope in/out
+- acceptance criteria
+- verification commands
+- decision locks when backend-coupled
+3. In `gated` mode:
+- PRD holds decision locks and feature-set context
+- child Tasks stay PR-sized (default one Task per feature)
+- each Task includes `Parent PRD: (placeholder)` until real PRD issue ID exists
+4. Split into additional Tasks only when split criteria apply (size/risk/dependency/parallelization), and explain why.
+5. Task acceptance criteria should include checkboxes for:
 - backend work (if applicable)
 - frontend work (if applicable)
 - tests
 - docs
-4. Each Task must include:
-- goal
-- scope (in/out)
-- acceptance criteria
-- verification commands
-- `Parent PRD: (placeholder)` until real PRD issue ID exists
-5. Output format must clearly show:
-- `Default plan: single Task`
+6. Output format must clearly show:
+- `Mode selected: single|gated|fast`
+- `Default plan: single Task` (or gated structure)
 - `Optional split plan (only if needed): ...`

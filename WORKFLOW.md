@@ -34,7 +34,7 @@ project-root/
 │   └── TESTPLAN.md            # Test case definitions (committed in this repo)
 ├── docs/
 │   ├── ARCHITECTURE.md        # System design, schemas, API contracts
-│   ├── ISSUES_WORKFLOW.md     # PRD -> Task -> PR control plane + DoR/DoD
+│   ├── ISSUES_WORKFLOW.md     # Issue control plane (single/gated/fast) + DoR/DoD
 │   ├── PATTERNS.md            # Code conventions and reusable patterns
 │   └── REVIEW_CHECKLIST.md    # Post-implementation verification checklist
 ├── .github/
@@ -820,12 +820,11 @@ These rules govern agent behavior across all tasks. They supplement project-spec
 
 Canonical execution rules live in `docs/ISSUES_WORKFLOW.md`.
 
-- PRD -> Task -> PR is the model.
-- Default sizing is 1 PRD -> 1 Task -> 1 PR unless split criteria apply.
+- Choose execution mode first: `single` (default), `gated` (PRD + Task issues), or `fast` (quick fix).
+- Default sizing is 1 feature -> 1 Task -> 1 PR unless split criteria apply.
 - GitHub issues are source of truth for execution (`TASKS.md` is scratchpad only).
 - PRs close Task issues, and PRDs close after all child Tasks are done.
 - Backend-coupled work requires Decision Locks before implementation.
-- Tiny low-risk fixes may use the fast lane defined in `docs/ISSUES_WORKFLOW.md`.
 
 ### During Implementation
 - **One task at a time.** Never implement multiple features or fix multiple unrelated issues in one session.
