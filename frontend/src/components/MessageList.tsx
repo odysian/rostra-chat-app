@@ -25,6 +25,7 @@ const JUMP_TO_LATEST_MIN_HIDDEN_MESSAGES = 250;
 
 interface MessageListProps {
   roomId: number;
+  density: "compact" | "comfortable";
   incomingMessages?: Message[];
   onIncomingMessagesProcessed?: () => void;
   scrollToLatestSignal?: number;
@@ -32,6 +33,7 @@ interface MessageListProps {
 
 export default function MessageList({
   roomId,
+  density,
   incomingMessages = [],
   onIncomingMessagesProcessed,
   scrollToLatestSignal = 0,
@@ -442,12 +444,16 @@ export default function MessageList({
     );
   }
 
+  const isComfortableDensity = density === "comfortable";
+
   return (
     <div className="relative flex-1 min-h-0">
       <div
         ref={scrollContainerRef}
         className="h-full overflow-y-auto overflow-x-hidden flex flex-col"
-        style={{ padding: "16px 16px 10px 8px" }}
+        style={{
+          padding: isComfortableDensity ? "20px 20px 12px 10px" : "16px 16px 10px 8px",
+        }}
       >
         {/* Sentinel for IntersectionObserver */}
         <div ref={sentinelRef} className="h-px" />
@@ -519,7 +525,9 @@ export default function MessageList({
             <div key={message.id}>
               {/* Date divider */}
               {showDateDivider && (
-                <div className="flex items-center gap-2.5 my-5">
+                <div
+                  className={`flex items-center ${isComfortableDensity ? "gap-3 my-6" : "gap-2.5 my-5"}`}
+                >
                   <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, var(--border-dim))" }} />
                   <span
                     className="font-pixel text-[8px] tracking-[0.16em]"
@@ -534,16 +542,30 @@ export default function MessageList({
               {/* Flush-left message row (Discord-style) */}
               <div
                 data-chat-message="true"
-                className={`group flex items-start gap-2.5 px-1.5 hover:bg-white/[0.02] transition-colors ${
-                  isGrouped ? "mt-0 py-0.5" : "mt-2.5 py-0.5"
+                className={`group flex items-start hover:bg-white/[0.02] transition-colors ${
+                  isComfortableDensity ? "gap-3 px-2" : "gap-2.5 px-1.5"
+                } ${
+                  isGrouped
+                    ? isComfortableDensity
+                      ? "mt-0.5 py-0.5"
+                      : "mt-0 py-0.5"
+                    : isComfortableDensity
+                      ? "mt-3.5 py-0.5"
+                      : "mt-2.5 py-0.5"
                 }`}
                 style={{ animation: "slide-in 0.2s ease-out" }}
               >
                 {/* Left: avatar or hover timestamp */}
-                <div className="w-9 shrink-0 select-none flex justify-center">
+                <div
+                  className={`shrink-0 select-none flex justify-center ${
+                    isComfortableDensity ? "w-11" : "w-9"
+                  }`}
+                >
                   {!isGrouped ? (
                     <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center font-bebas text-[14px]"
+                      className={`rounded-full flex items-center justify-center font-bebas ${
+                        isComfortableDensity ? "w-11 h-11 text-[16px]" : "w-9 h-9 text-[14px]"
+                      }`}
                       style={{
                         background: userColors?.backgroundColor ?? "var(--bg-app)",
                         border: `1px solid ${userColors?.borderColor ?? "var(--border-primary)"}`,
@@ -555,7 +577,9 @@ export default function MessageList({
                     </div>
                   ) : (
                     <span
-                      className="block font-mono text-[11px] pt-1 text-center w-full whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                      className={`block font-mono pt-1 text-center w-full whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150 ${
+                        isComfortableDensity ? "text-[12px]" : "text-[11px]"
+                      }`}
                       style={{ color: "var(--color-meta)" }}
                       title={fullDateTime}
                     >
@@ -575,7 +599,9 @@ export default function MessageList({
                         {message.username}
                       </span>
                       <span
-                        className="font-mono text-[11px] tracking-[0.08em]"
+                        className={`font-mono tracking-[0.08em] ${
+                          isComfortableDensity ? "text-[12px]" : "text-[11px]"
+                        }`}
                         style={{ color: "var(--color-meta)" }}
                         title={fullDateTime}
                       >
@@ -585,9 +611,11 @@ export default function MessageList({
                   )}
 
                   <div
-                    className={`font-mono text-[15px] leading-normal break-words ${
-                      isGrouped ? "" : "mt-0.5"
-                    }`}
+                    className={`font-mono break-words ${
+                      isComfortableDensity
+                        ? "text-[18px] leading-relaxed"
+                        : "text-[15px] leading-normal"
+                    } ${isGrouped ? "" : isComfortableDensity ? "mt-1" : "mt-0.5"}`}
                     style={{ color: "var(--color-msg-text)" }}
                   >
                     {message.content}

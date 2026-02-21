@@ -1,7 +1,7 @@
 # Frontend Design Audit and Phased Roadmap — Rostra
 
 **Date:** 2026-02-21
-**Status:** Phase 1 completed on 2026-02-21. Phase 2 and Phase 3 pending.
+**Status:** Phase 2 in progress on 2026-02-21 (2.1-2.2 complete, 2.8 deferred). Phase 3 pending.
 **Canonical file:** `docs/frontend-design-audit.md`
 
 ---
@@ -153,13 +153,13 @@ Manual QA: NEON/AMBER parity, CRT on/off, desktop + 375px mobile, scroll/paginat
 ### Goal
 Ship high-value micro-features with no backend changes.
 
-### 2.1 Density Setting (Compact / Comfortable)
+### 2.1 Density Setting (Compact / Comfortable) ✅ Completed 2026-02-21
 - Add persisted client setting `rostra-density`.
 - Compact uses Phase 1 density defaults.
 - Comfortable restores larger spacing/typography values.
 - Apply via deterministic class/token branches (no new dependency).
 
-### 2.2 Dynamic Browser Title
+### 2.2 Dynamic Browser Title ✅ Completed 2026-02-21
 - Selected room: `#room-name - Rostra`.
 - No selected room: `Rostra`.
 
@@ -187,7 +187,7 @@ Ship high-value micro-features with no backend changes.
 - Replace triangle glyph with text-only SEND or icon+text (using existing `lucide-react`).
 - Keep button labeling and semantics unchanged.
 
-### 2.8 Optional: Notification Sound (Feature Flagged)
+### 2.8 Optional: Notification Sound (Feature Flagged) ⏸ Deferred
 - Only for background tab new messages (`document.hidden === true`).
 - User-controlled persisted toggle `rostra-sound`.
 - Defer if autoplay/browser policy friction creates unstable behavior.

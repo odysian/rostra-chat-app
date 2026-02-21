@@ -11,6 +11,7 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
+  density: "compact" | "comfortable";
   incomingMessages: Message[];
   onIncomingMessagesProcessed: () => void;
   onToggleUsers: () => void;
@@ -25,6 +26,7 @@ interface MessageAreaProps {
 
 export default function MessageArea({
   selectedRoom,
+  density,
   incomingMessages,
   onIncomingMessagesProcessed,
   onToggleUsers,
@@ -387,6 +389,7 @@ export default function MessageArea({
       <MessageList
         key={selectedRoom.id}
         roomId={selectedRoom.id}
+        density={density}
         incomingMessages={incomingMessages}
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
         scrollToLatestSignal={scrollToLatestSignal}

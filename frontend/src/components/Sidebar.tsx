@@ -6,6 +6,8 @@ import type { Room } from "../types";
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  density: "compact" | "comfortable";
+  onToggleDensity: () => void;
   selectedRoom: Room | null;
   onSelectRoom: (room: Room) => void;
   refreshTrigger: number;
@@ -33,6 +35,8 @@ function parseCrtEnabled(value: string | null): boolean {
 export default function Sidebar({
   isOpen,
   onToggle,
+  density,
+  onToggleDensity,
   selectedRoom,
   onSelectRoom,
   refreshTrigger,
@@ -159,6 +163,29 @@ export default function Sidebar({
                     title={crtEnabled ? "CRT on" : "CRT off"}
                   >
                     CRT
+                  </button>
+                  <button
+                    onClick={onToggleDensity}
+                    className="font-pixel text-[8px] tracking-[0.15em] px-2.5 py-1.5 transition-colors duration-150"
+                    style={{
+                      border: "1px solid var(--border-dim)",
+                      color: "var(--color-meta)",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = "var(--bg-bubble)";
+                      e.currentTarget.style.color = "var(--color-text)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = "transparent";
+                      e.currentTarget.style.color = "var(--color-meta)";
+                    }}
+                    title={
+                      density === "compact"
+                        ? "Switch to comfortable density"
+                        : "Switch to compact density"
+                    }
+                  >
+                    {density === "compact" ? "COMPACT" : "COMFY"}
                   </button>
                 </div>
               </div>
