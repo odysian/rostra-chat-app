@@ -85,7 +85,9 @@ async def get_rooms(
 
 
 @router.post("", response_model=RoomResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("10/minute")
 async def create_room(
+    request: Request,
     room: RoomCreate,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -131,7 +133,9 @@ async def get_room(
 
 
 @router.patch("/{room_id}/read", status_code=status.HTTP_200_OK)
+@limiter.limit("300/minute")
 async def mark_room_read(
+    request: Request,
     room_id: int,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
@@ -161,11 +165,11 @@ async def mark_room_read(
             current_user.id,
             room_id,  # type: ignore[arg-type]
         )
-    except ValueError:
+    except ValueError as err:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not a member of this room. Join the room first.",
-        )
+        ) from err
 
     await UnreadCountCache.reset_unread(current_user.id, room_id)  # type: ignore[arg-type]
 
@@ -251,7 +255,11 @@ async def join_room(
     await db.commit()
 
     logger.info(
-        f"User {current_user.username} (ID: {current_user.id}) joined room {room_id} '{room.name}'",
+        "User %s (ID: %s) joined room %s '%s'",
+        current_user.username,
+        current_user.id,
+        room_id,
+        room.name,
         extra={
             "user_id": current_user.id,
             "room_id": room_id,
@@ -301,7 +309,11 @@ async def leave_room(
     await db.commit()
 
     logger.info(
-        f"User {current_user.username} (ID: {current_user.id}) left room {room_id} '{room.name}'",
+        "User %s (ID: %s) left room %s '%s'",
+        current_user.username,
+        current_user.id,
+        room_id,
+        room.name,
         extra={
             "user_id": current_user.id,
             "room_id": room_id,

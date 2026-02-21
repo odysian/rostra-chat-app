@@ -46,14 +46,16 @@ TEST_DATABASE_URL_ENV = os.environ.pop("TEST_DATABASE_URL", None)
 
 # Import app creation components
 from app.api import auth, messages, rooms
+from app.api.dependencies import get_current_user
 from app.core.config import settings
 from app.core.database import Base, async_engine, get_db
+from app.models.user import User
 from app.core.rate_limit import limiter
 
 # Import all models so SQLAlchemy can discover them for table creation
 from app.models import message, room, user, user_room  # noqa: F401
 from app.websocket.handlers import websocket_endpoint
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from slowapi import _rate_limit_exceeded_handler
@@ -121,12 +123,12 @@ def create_test_app(include_rate_limiting: bool = False) -> FastAPI:
         return {"message": "Chat API is running"}
 
     @test_app.get(f"{settings.API_V1_STR}/health/db")
-    async def db_health():
-        """Return database connection pool health metrics for operational monitoring."""
+    async def db_health(_current_user: User = Depends(get_current_user)):
+        """Return database pool metrics for authenticated operational monitoring."""
         pool = async_engine.pool
-        pool_size = pool.size()
-        checked_out = pool.checkedout()
-        overflow = pool.overflow()
+        pool_size = pool.size()  # type: ignore[attr-defined]
+        checked_out = pool.checkedout()  # type: ignore[attr-defined]
+        overflow = pool.overflow()  # type: ignore[attr-defined]
 
         return {
             "pool_size": pool_size,
@@ -149,6 +151,11 @@ default_test_app = create_test_app(include_rate_limiting=False)
 
 # Use TEST_DATABASE_URL from env if provided, otherwise use main DATABASE_URL
 TEST_DATABASE_URL = TEST_DATABASE_URL_ENV or settings.DATABASE_URL
+SKIP_DB_BOOTSTRAP = os.getenv("SKIP_DB_BOOTSTRAP", "").lower() in {
+    "1",
+    "true",
+    "yes",
+}
 
 
 def _ensure_test_database_exists() -> None:
@@ -158,6 +165,8 @@ def _ensure_test_database_exists() -> None:
     CREATE DATABASE. This allows pytest to work after a fresh docker-compose up
     without manually creating chatdb_test.
     """
+    if SKIP_DB_BOOTSTRAP:
+        return
     url_lower = TEST_DATABASE_URL.lower()
     if "postgresql" not in url_lower:
         return
@@ -219,6 +228,10 @@ def setup_test_database():
     session-scoped async fixtures. Table creation is a one-off operation
     that doesn't need to be async.
     """
+    if SKIP_DB_BOOTSTRAP:
+        yield
+        return
+
     with sync_test_engine.connect() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS rostra"))
         conn.commit()
@@ -248,6 +261,9 @@ async def db_session():
 
     This gives us test isolation without actually persisting anything.
     """
+    if SKIP_DB_BOOTSTRAP:
+        pytest.skip("SKIP_DB_BOOTSTRAP=1: skipping database-backed test fixtures")
+
     async with async_test_engine.connect() as connection:
         # Start the outer transaction (this is what we'll rollback)
         transaction = await connection.begin()
@@ -338,6 +354,9 @@ def app(monkeypatch):
     (via monkeypatch of its AsyncSessionLocal reference) use this engine
     so all code sees the same test database.
     """
+    if SKIP_DB_BOOTSTRAP:
+        pytest.skip("SKIP_DB_BOOTSTRAP=1: skipping database-backed websocket fixture")
+
     ws_engine = create_async_engine(
         _async_test_url, echo=False, pool_size=5, max_overflow=0
     )

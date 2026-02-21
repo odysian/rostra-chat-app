@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import MessageArea from "../MessageArea";
 import type { Message, Room } from "../../types";
@@ -63,7 +63,6 @@ function renderMessageArea(overrides?: Partial<ComponentProps<typeof MessageArea
       onRoomDeleted={mockOnRoomDeleted}
       onLeaveRoom={mockOnLeaveRoom}
       onBackToRooms={mockOnBackToRooms}
-      isMobile={true}
       typingUsernames={[]}
       wsError={null}
       onDismissWsError={mockOnDismissWsError}
@@ -126,10 +125,25 @@ describe("MessageArea", () => {
     const user = userEvent.setup();
     renderMessageArea();
 
-    await user.click(screen.getByTitle("Room options"));
+    await user.click(screen.getByRole("button", { name: "Room options" }));
     await user.click(screen.getByRole("button", { name: "Leave Room" }));
 
     expect(mockOnLeaveRoom).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes room options menu on Escape", async () => {
+    const user = userEvent.setup();
+    renderMessageArea();
+
+    await user.click(screen.getByRole("button", { name: "Room options" }));
+    expect(screen.getByRole("button", { name: "Leave Room" })).toBeInTheDocument();
+
+    fireEvent.keyDown(window, { key: "Escape" });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "Leave Room" }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("deletes room and calls onRoomDeleted on success", async () => {
@@ -185,7 +199,6 @@ describe("MessageArea", () => {
         onRoomDeleted={mockOnRoomDeleted}
         onLeaveRoom={mockOnLeaveRoom}
         onBackToRooms={mockOnBackToRooms}
-        isMobile={true}
         typingUsernames={["alice", "bob"]}
         wsError={null}
         onDismissWsError={mockOnDismissWsError}
@@ -203,7 +216,6 @@ describe("MessageArea", () => {
         onRoomDeleted={mockOnRoomDeleted}
         onLeaveRoom={mockOnLeaveRoom}
         onBackToRooms={mockOnBackToRooms}
-        isMobile={true}
         typingUsernames={["alice", "bob", "carol"]}
         wsError={null}
         onDismissWsError={mockOnDismissWsError}
@@ -223,7 +235,6 @@ describe("MessageArea", () => {
         onRoomDeleted={mockOnRoomDeleted}
         onLeaveRoom={mockOnLeaveRoom}
         onBackToRooms={mockOnBackToRooms}
-        isMobile={true}
         typingUsernames={["alice", "bob", "carol", "dave"]}
         wsError={null}
         onDismissWsError={mockOnDismissWsError}

@@ -1,12 +1,14 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { getRooms, createRoom } from "../services/api";
 import { RoomDiscoveryModal } from "./RoomDiscoveryModal";
+import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
 import { getUserColorPalette } from "../utils/userColors";
 import type { Room } from "../types";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface RoomListProps {
   selectedRoom: Room | null;
@@ -41,9 +43,10 @@ export default function RoomList({
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [timeoutError, setTimeoutError] = useState(false);
   // Local retry counter so the effect can refetch when user clicks "Retry"
   const [retryCount, setRetryCount] = useState(0);
+  /** Ref avoids stale state reads in async finally blocks. */
+  const timeoutFiredRef = useRef(false);
   const hasReportedInitialRoomsRef = useRef(false);
 
   // Room modal state
@@ -56,6 +59,16 @@ export default function RoomList({
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const prevSidebarOpenRef = useRef(sidebarOpen);
+  const createModalRef = useRef<HTMLDivElement>(null);
+  const logoutModalRef = useRef<HTMLDivElement>(null);
+  const closeCreateModal = useCallback(() => {
+    setShowCreateModal(false);
+    setNewRoomName("");
+    setCreateError("");
+  }, []);
+  const closeLogoutModal = useCallback(() => {
+    setShowLogoutModal(false);
+  }, []);
 
   // When sidebar transitions from open to closed (e.g. user taps message area on mobile), close discovery modal to avoid stray content. Do not close when sidebar is already collapsed and user opens discovery from the compass.
   useEffect(() => {
@@ -65,20 +78,23 @@ export default function RoomList({
     prevSidebarOpenRef.current = sidebarOpen;
   }, [sidebarOpen, showDiscovery]);
 
+  useFocusTrap(createModalRef, showCreateModal, closeCreateModal);
+  useFocusTrap(logoutModalRef, showLogoutModal, closeLogoutModal);
+
   useEffect(() => {
     let timeoutId: number;
 
     async function fetchRooms() {
       if (!token) return;
 
-      // Reset timeout error state
-      setTimeoutError(false);
+      // Reset timeout state
+      timeoutFiredRef.current = false;
       setLoading(true);
       setError("");
 
       // 5-second timeout for local testing
       timeoutId = window.setTimeout(() => {
-        setTimeoutError(true);
+        timeoutFiredRef.current = true;
         setError("Loading is taking longer than expected. The server may be waking up.");
         setLoading(false);
       }, 5000);
@@ -96,13 +112,11 @@ export default function RoomList({
           hasReportedInitialRoomsRef.current = true;
           onInitialRoomsLoaded(fetchedRooms);
         }
-        setTimeoutError(false);
       } catch (err) {
         clearTimeout(timeoutId);
         setError(err instanceof Error ? err.message : "Failed to load rooms");
-        setTimeoutError(false);
       } finally {
-        if (!timeoutError) {
+        if (!timeoutFiredRef.current) {
           setLoading(false);
         }
       }
@@ -121,7 +135,6 @@ export default function RoomList({
   const handleRetry = () => {
     setLoading(true);
     setError("");
-    setTimeoutError(false);
     // Bump local retry counter so the effect above refetches rooms
     setRetryCount((prev) => prev + 1);
   };
@@ -138,7 +151,7 @@ export default function RoomList({
       });
       onUnreadCountsLoaded(counts);
     } catch (err) {
-      console.error('Error loading rooms:', err);
+      logError("Error loading rooms:", err);
     }
   };
 
@@ -389,10 +402,12 @@ export default function RoomList({
         ) : (
           <div className="px-3 py-2 space-y-1">
             <button
+              type="button"
               onClick={() => setShowCreateModal(true)}
               className="w-full flex justify-center py-2 transition-all duration-150"
               style={{ color: "var(--color-primary)", boxShadow: "none" }}
               title="Create new room"
+              aria-label="Create new room"
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = primaryButtonHoverBackground;
                 e.currentTarget.style.boxShadow = "var(--glow-primary)";
@@ -407,10 +422,12 @@ export default function RoomList({
               </svg>
             </button>
             <button
+              type="button"
               onClick={() => setShowDiscovery(true)}
               className="w-full flex justify-center py-2 transition-all duration-150"
               style={{ color: "var(--color-secondary)", boxShadow: "none" }}
               title="Discover rooms"
+              aria-label="Discover rooms"
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = secondaryButtonHoverBackground;
                 e.currentTarget.style.boxShadow = "var(--glow-secondary)";
@@ -460,6 +477,7 @@ export default function RoomList({
                 className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 text-sm transition-colors"
                 style={{ color: "#ff4444" }}
                 title="Logout"
+                aria-label="Logout"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -498,6 +516,10 @@ export default function RoomList({
         createPortal(
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div
+              ref={createModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-room-title"
               className="p-6 max-w-md w-full mx-4"
               style={{
                 background: "var(--bg-panel)",
@@ -505,6 +527,7 @@ export default function RoomList({
               }}
             >
               <h3
+                id="create-room-title"
                 className="font-bebas text-[22px] tracking-[0.08em] mb-4"
                 style={{ color: "var(--color-primary)" }}
               >
@@ -560,9 +583,7 @@ export default function RoomList({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowCreateModal(false);
-                      setNewRoomName("");
-                      setCreateError("");
+                      closeCreateModal();
                     }}
                     disabled={creating}
                     className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"
@@ -598,6 +619,10 @@ export default function RoomList({
         createPortal(
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div
+              ref={logoutModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="logout-title"
               className="p-6 max-w-md w-full mx-4"
               style={{
                 background: "var(--bg-panel)",
@@ -605,6 +630,7 @@ export default function RoomList({
               }}
             >
               <h3
+                id="logout-title"
                 className="font-bebas text-[22px] tracking-[0.08em] mb-2"
                 style={{ color: "var(--color-primary)" }}
               >
@@ -619,7 +645,7 @@ export default function RoomList({
               <div className="flex gap-3 justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowLogoutModal(false)}
+                  onClick={closeLogoutModal}
                   className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors"
                   style={{
                     border: "1px solid var(--border-dim)",
@@ -632,7 +658,7 @@ export default function RoomList({
                 <button
                   type="button"
                   onClick={() => {
-                    setShowLogoutModal(false);
+                    closeLogoutModal();
                     onLogout();
                   }}
                   className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors"

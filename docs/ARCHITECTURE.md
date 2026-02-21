@@ -97,7 +97,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Method | Path   | Auth | Description |
 |--------|--------|------|-------------|
 | GET    | /      | No   | Health check; returns `{"message": "Chat API is running"}`. |
-| GET    | /api/health/db | No | DB pool metrics; returns `{ pool_size, checked_out, overflow, status }`. |
+| GET    | /api/health/db | Yes  | DB pool metrics for authenticated operational checks; returns `{ pool_size, checked_out, overflow, status }`. |
 
 ### Auth (`/api/auth`)
 
@@ -160,11 +160,13 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Auth for REST | JWT in `Authorization: Bearer` | `get_current_user` dependency uses `HTTPBearer()`; all room and message endpoints require auth. |
 | Room access | Explicit membership via `user_room` table | Users must join a room before they can view, send, or subscribe. Membership checked on subscribe, send_message, GET messages, mark read. Room creators cannot leave (must delete). |
 | Unread counts | Redis cache with PG fallback | `UnreadCountCache` uses Redis hash `rostra:unread:user_{id}` with 24h TTL. Atomic `HINCRBY` on new messages, `HDEL` on mark-read. Falls back to `get_all_rooms_with_unread` SQL query if Redis is unavailable. |
+| Redis configuration/logging | Redis URL is centralized in settings and credential-safe in logs | `REDIS_URL` is read from `Settings`; startup logs redact URL passwords while preserving host/port/db context for debugging. |
 | Message pagination | Cursor-based (keyset pagination) | `(created_at, id)` cursor encoded as base64 JSON. Composite index `(room_id, created_at DESC, id DESC)` for efficient seeks. `limit + 1` pattern detects `has_more` without a separate COUNT query. |
 | Message history | REST for history, WS for live | Messages loaded via paginated GET endpoint; new messages pushed via WebSocket; no WS history replay. |
 | Async everywhere | AsyncSession, async CRUD, asyncpg | All endpoints use `async def`, all DB operations use `await`. WebSocket handlers create short-lived `AsyncSessionLocal()` sessions per message (like mini HTTP requests). |
 | Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
 | WS rate limiting | In-memory fixed-window in ConnectionManager | `check_message_rate(user_id, max_per_minute=30)` — per-user 60s window tracked in `_message_counts` dict. Checked before DB session is opened for `send_message`. Cleaned up on disconnect. |
+| API docs exposure | OpenAPI/Swagger/ReDoc enabled only in debug mode | `main.py` gates `openapi_url`, `docs_url`, and `redoc_url` behind `settings.DEBUG`; production defaults to disabled to reduce endpoint discovery exposure. |
 | Frontend auth persistence | Token in localStorage | AuthContext stores token in localStorage; 401 from API triggers redirect to /login via `setUnauthorizedHandler`. |
 | DB schema | All tables in `rostra` | `MetaData(schema="rostra")` in database.py; migrations create tables in that schema. |
 | Message search | Postgres FTS with GIN-indexed tsvector | Stored generated column `to_tsvector('english', content)` on messages. `plainto_tsquery` for safe user input parsing. GIN index for fast lookups. Results ordered by recency (not relevance) — matches chat UX where users want recent matches. Scales to millions of rows; would graduate to Elasticsearch only for fuzzy/typo tolerance. |

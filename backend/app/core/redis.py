@@ -6,17 +6,44 @@ Falls back gracefully if Redis is unavailable.
 """
 
 import logging
-import os
+from urllib.parse import urlsplit, urlunsplit
 
 from redis.asyncio import Redis
 
-logger = logging.getLogger(__name__)
+from app.core.config import settings
 
-# Redis configuration from environment
-REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+logger = logging.getLogger(__name__)
 
 # Global async Redis client (singleton)
 redis_client: Redis | None = None
+
+
+def _redact_redis_url_for_logs(url: str) -> str:
+    """
+    Redact Redis credentials before logging the connection URL.
+
+    Keeps host/port/db for operational debugging but replaces any password.
+    """
+    parsed = urlsplit(url)
+    if parsed.password is None or "@" not in parsed.netloc:
+        return url
+
+    userinfo, hostinfo = parsed.netloc.rsplit("@", 1)
+    if ":" in userinfo:
+        username, _password = userinfo.split(":", 1)
+        redacted_userinfo = f"{username}:***"
+    else:
+        redacted_userinfo = ":***"
+
+    return urlunsplit(
+        (
+            parsed.scheme,
+            f"{redacted_userinfo}@{hostinfo}",
+            parsed.path,
+            parsed.query,
+            parsed.fragment,
+        )
+    )
 
 
 async def init_redis() -> Redis | None:
@@ -29,15 +56,16 @@ async def init_redis() -> Redis | None:
     global redis_client
 
     try:
+        redis_url = settings.REDIS_URL
         client = Redis.from_url(
-            REDIS_URL,
+            redis_url,
             decode_responses=True,
             socket_connect_timeout=5,
             socket_timeout=5,  # Read timeout — prevents hanging on slow responses
         )
         await client.ping()
         redis_client = client
-        logger.info("Redis connected: %s", REDIS_URL)
+        logger.info("Redis connected: %s", _redact_redis_url_for_logs(redis_url))
         return redis_client
     except Exception as e:
         logger.warning("Redis unavailable: %s. App will fall back to PostgreSQL.", e)

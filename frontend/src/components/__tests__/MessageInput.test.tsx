@@ -6,6 +6,7 @@ import MessageInput from "../MessageInput";
 const mockSendMessage = vi.fn();
 const mockSendTypingIndicator = vi.fn();
 const mockOnMessageSent = vi.fn();
+let mockConnected = true;
 
 vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({
@@ -15,6 +16,7 @@ vi.mock("../../context/AuthContext", () => ({
 
 vi.mock("../../context/useWebSocketContext", () => ({
   useWebSocketContext: () => ({
+    connected: mockConnected,
     sendMessage: mockSendMessage,
     sendTypingIndicator: mockSendTypingIndicator,
   }),
@@ -25,6 +27,7 @@ describe("MessageInput", () => {
     mockSendMessage.mockReset();
     mockSendTypingIndicator.mockReset();
     mockOnMessageSent.mockReset();
+    mockConnected = true;
   });
 
   afterEach(() => {
@@ -101,5 +104,21 @@ describe("MessageInput", () => {
     });
     fireEvent.change(textarea, { target: { value: "abc" } });
     expect(mockSendTypingIndicator).toHaveBeenCalledTimes(2);
+  });
+
+  it("preserves input and shows error when websocket is disconnected", async () => {
+    const user = userEvent.setup();
+    mockConnected = false;
+    render(<MessageInput roomId={8} roomName="General Discussion" />);
+
+    const textarea = screen.getByPlaceholderText("Message #General-Discussion");
+    await user.type(textarea, "Will retry");
+    await user.click(screen.getByRole("button", { name: /SEND/i }));
+
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(textarea).toHaveValue("Will retry");
+    expect(
+      screen.getByText("Not connected. Wait for reconnection and try again."),
+    ).toBeInTheDocument();
   });
 });

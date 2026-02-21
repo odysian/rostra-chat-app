@@ -1,18 +1,21 @@
 from contextlib import asynccontextmanager
 
-from app.api import auth, messages, rooms
-from app.core.config import settings
-from app.core.database import async_engine
-from app.core.logging import logger
-from app.core.rate_limit import limiter
-from app.core.redis import close_redis, init_redis
-from app.websocket.handlers import websocket_endpoint
-from fastapi import FastAPI, Request, WebSocket
+from fastapi import Depends, FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+
+from app.api import auth, messages, rooms
+from app.api.dependencies import get_current_user
+from app.core.config import settings
+from app.core.database import async_engine
+from app.core.logging import logger
+from app.core.rate_limit import limiter
+from app.core.redis import close_redis, init_redis
+from app.models.user import User
+from app.websocket.handlers import websocket_endpoint
 
 logger.info("Starting ChatApp API")
 
@@ -27,7 +30,9 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
-    openapi_url=f"{settings.API_V1_STR}/openapi.json",
+    openapi_url=f"{settings.API_V1_STR}/openapi.json" if settings.DEBUG else None,
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
     swagger_ui_parameters={"persistAuthorization": True},
     lifespan=lifespan,
 )
@@ -57,8 +62,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 
@@ -68,6 +73,12 @@ async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Strict-Transport-Security"] = (
+        "max-age=63072000; includeSubDomains; preload"
+    )
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["X-XSS-Protection"] = "0"
     return response
 
 
@@ -84,8 +95,8 @@ def root():
 
 
 @app.get(f"{settings.API_V1_STR}/health/db")
-async def db_health():
-    """Return database connection pool health metrics for operational monitoring."""
+async def db_health(_current_user: User = Depends(get_current_user)):
+    """Return database pool metrics for authenticated operational monitoring."""
     pool = async_engine.pool
     pool_size = pool.size()  # type: ignore
     checked_out = pool.checkedout()  # type: ignore

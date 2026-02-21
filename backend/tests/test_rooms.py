@@ -33,12 +33,8 @@ async def test_create_room_with_valid_name_returns_201(client: AsyncClient, crea
     assert data["created_by"] == user_data["user"]["id"]
 
 
-async def test_creator_automatically_added_as_room_member(
-    client: AsyncClient, create_user, db_session
-):
+async def test_creator_automatically_added_as_room_member(client: AsyncClient, create_user):
     """Creator is automatically added as room member."""
-    from app.crud import user_room as user_room_crud
-
     user_data = await create_user()
     token = user_data["access_token"]
 
@@ -51,12 +47,6 @@ async def test_creator_automatically_added_as_room_member(
     assert room_response.status_code == 201
     room_id = room_response.json()["id"]
 
-    # Check if creator is in member list
-    # Note: Current API doesn't have a member list endpoint
-    # So we check user_room table directly
-    user_room = await user_room_crud.get_user_room(
-        db_session, user_data["db_user"].id, room_id
-    )
     # Creator becomes member when they first access the room (mark_room_read)
     # For now, we verify room was created successfully
     assert room_id is not None
@@ -311,9 +301,9 @@ async def test_get_rooms_returns_all_user_rooms(client: AsyncClient, create_user
     token = user_data["access_token"]
 
     # Create 3 rooms
-    room1 = await create_room(token, "Room 1")
-    room2 = await create_room(token, "Room 2")
-    room3 = await create_room(token, "Room 3")
+    await create_room(token, "Room 1")
+    await create_room(token, "Room 2")
+    await create_room(token, "Room 3")
 
     # Get rooms
     response = await client.get(

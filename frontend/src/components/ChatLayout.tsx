@@ -7,15 +7,10 @@ import { useWebSocketContext } from "../context/useWebSocketContext";
 import { type WebSocketMessage } from "../context/WebSocketContext";
 import { useAuth } from "../context/AuthContext";
 import { markRoomRead, leaveRoom } from "../services/api";
-import type { Message, Room } from "../types";
+import type { Message, OnlineUser, Room } from "../types";
 
 const MAX_SUBSCRIPTIONS = 10;
 const INITIAL_AUTO_SUBSCRIBE_COUNT = 5;
-
-interface OnlineUser {
-  id: number;
-  username: string;
-}
 
 /**
  * ChatLayout Component
@@ -58,6 +53,10 @@ export default function ChatLayout() {
   const subscribedRoomIdsRef = useRef<number[]>([]);
   /** Room IDs we've already sent subscribe for (avoids re-subscribing when effect re-runs or list grows) */
   const subscribedSentRef = useRef<Set<number>>(new Set());
+  /** Tracks prior WS connection state so we can detect reconnect transitions. */
+  const prevConnectedRef = useRef(false);
+  /** Distinguish first-ever connect from later reconnects. */
+  const hasConnectedOnceRef = useRef(false);
   const hasInitialSubscriptionsDoneRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
   /** Track all active typing timeouts for cleanup on unmount */
@@ -318,6 +317,29 @@ export default function ChatLayout() {
 
   // Subscribe only to rooms we haven't sent subscribe for yet (avoids duplicate subscribe on re-run or when list grows)
   useEffect(() => {
+    let refreshTimeoutId: number | undefined;
+
+    // Server subscription state is reset on reconnect; clear local sent-cache so rooms are re-subscribed.
+    if (!prevConnectedRef.current && connected) {
+      subscribedSentRef.current.clear();
+      // Pull fresh unread counts after reconnect because messages may have arrived while disconnected.
+      if (hasConnectedOnceRef.current) {
+        refreshTimeoutId = window.setTimeout(() => {
+          setRefreshTrigger((prev) => prev + 1);
+        }, 0);
+      }
+      hasConnectedOnceRef.current = true;
+    }
+    prevConnectedRef.current = connected;
+
+    return () => {
+      if (refreshTimeoutId) {
+        clearTimeout(refreshTimeoutId);
+      }
+    };
+  }, [connected]);
+
+  useEffect(() => {
     if (!connected || subscribedRoomIds.length === 0) return;
 
     subscribedRoomIds.forEach((id) => {
@@ -400,7 +422,6 @@ export default function ChatLayout() {
           onRoomDeleted={handleRoomDeleted}
           onLeaveRoom={handleLeaveRoom}
           onBackToRooms={handleBackToRooms}
-          isMobile={true}
           typingUsernames={typingUsernames}
           wsError={wsError}
           onDismissWsError={() => setWsError(null)}

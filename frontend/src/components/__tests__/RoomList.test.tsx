@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import userEvent from "@testing-library/user-event";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ComponentProps } from "react";
 import RoomList from "../RoomList";
 import type { Room } from "../../types";
@@ -254,5 +254,39 @@ describe("RoomList", () => {
     await user.click(within(modal).getByRole("button", { name: "CREATE ROOM" }));
 
     expect(await screen.findByText("Failed to create room")).toBeInTheDocument();
+  });
+
+  it("closes create room modal on Escape", async () => {
+    const user = userEvent.setup();
+    mockGetRooms.mockResolvedValueOnce(roomsFixture);
+
+    renderRoomList();
+    await screen.findByText("General-Discussion");
+
+    await user.click(screen.getByRole("button", { name: "CREATE ROOM" }));
+    expect(screen.getByRole("heading", { name: "Create New Room" })).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Create New Room" }), { key: "Escape" });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Create New Room" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("closes logout confirmation modal on Escape", async () => {
+    const user = userEvent.setup();
+    mockGetRooms.mockResolvedValueOnce(roomsFixture);
+
+    renderRoomList();
+    await screen.findByText("General-Discussion");
+
+    await user.click(screen.getByRole("button", { name: "Logout" }));
+    expect(screen.getByRole("heading", { name: "Log Out?" })).toBeInTheDocument();
+
+    fireEvent.keyDown(screen.getByRole("dialog", { name: "Log Out?" }), { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByRole("heading", { name: "Log Out?" })).not.toBeInTheDocument();
+    });
   });
 });

@@ -1,6 +1,7 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketContext } from "../context/useWebSocketContext";
+import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
 
 interface MessageInputProps {
@@ -16,13 +17,24 @@ export default function MessageInput({
 }: MessageInputProps) {
   const displayRoomName = formatRoomNameForDisplay(roomName);
   const { token } = useAuth();
-  const { sendMessage: wsSendMessage, sendTypingIndicator } = useWebSocketContext();
+  const { connected, sendMessage: wsSendMessage, sendTypingIndicator } = useWebSocketContext();
   const [content, setContent] = useState("");
   const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [isFocused, setIsFocused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const typingCooldownRef = useRef(false);
+  const typingCooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Clear pending cooldown timeout on unmount to avoid stale timer callbacks.
+  useEffect(() => {
+    return () => {
+      if (typingCooldownTimeoutRef.current) {
+        clearTimeout(typingCooldownTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const syncTextareaHeight = (element: HTMLTextAreaElement) => {
     element.style.height = "0px";
@@ -31,14 +43,23 @@ export default function MessageInput({
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setContent(e.target.value);
+    if (sendError) {
+      setSendError(null);
+    }
     syncTextareaHeight(e.target);
 
     // Throttle: send at most one typing event per 2s
     if (e.target.value.length > 0 && !typingCooldownRef.current) {
       sendTypingIndicator(roomId);
       typingCooldownRef.current = true;
-      setTimeout(() => {
+
+      if (typingCooldownTimeoutRef.current) {
+        clearTimeout(typingCooldownTimeoutRef.current);
+      }
+
+      typingCooldownTimeoutRef.current = setTimeout(() => {
         typingCooldownRef.current = false;
+        typingCooldownTimeoutRef.current = null;
       }, 2000);
     }
   };
@@ -47,8 +68,13 @@ export default function MessageInput({
     e.preventDefault();
 
     if (!content.trim() || !token) return;
+    if (!connected) {
+      setSendError("Not connected. Wait for reconnection and try again.");
+      return;
+    }
 
     setSending(true);
+    setSendError(null);
     // Reset cooldown so next typing session starts fresh
     typingCooldownRef.current = false;
 
@@ -60,7 +86,8 @@ export default function MessageInput({
       }
       onMessageSent?.();
     } catch (err) {
-      console.error("Failed to send message", err);
+      logError("Failed to send message", err);
+      setSendError("Failed to send message. Please try again.");
     } finally {
       setSending(false);
     }
@@ -69,7 +96,7 @@ export default function MessageInput({
   return (
     <form
       onSubmit={handleSubmit}
-      className="shrink-0 flex items-center min-w-0"
+      className="shrink-0 min-w-0"
       style={{
         borderTop: "1px solid var(--border-primary)",
         background: "var(--bg-input)",
@@ -132,6 +159,15 @@ export default function MessageInput({
           SEND ▶
         </button>
       </div>
+      {sendError && (
+        <p
+          role="alert"
+          className="mt-2 font-mono text-[12px]"
+          style={{ color: "#ff4444" }}
+        >
+          {sendError}
+        </p>
+      )}
     </form>
   );
 }

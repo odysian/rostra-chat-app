@@ -15,7 +15,8 @@ Reusable code patterns and conventions in this project. All of the following are
 
 - API calls are wrapped in try/catch; error message is taken from `err instanceof Error ? err.message : "fallback"` (API client puts `response.json().detail` or status text into `Error.message`).
 - Errors are stored in local state (e.g. `error`, `setError`) and rendered in the UI (e.g. red box with message and optional Retry button).
-- No error boundary is used; failed fetches are handled per component. Delete room failure uses inline error state in MessageArea's delete modal.
+- A top-level `ErrorBoundary` catches render-time UI crashes and shows a reload fallback. Failed fetches are still handled per component.
+- Frontend debug logs go through `src/utils/logger.ts`, which only emits in development (or when `VITE_DEBUG=true`) to avoid leaking data in production consoles.
 - 401: the API client calls `onUnauthorized()` (set by AuthContext), which clears token and redirects to `/login` via `window.location.href`.
 
 ## Authentication Pattern

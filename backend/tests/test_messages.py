@@ -311,11 +311,10 @@ async def test_send_message_trims_whitespace(
     )
 
     assert response.status_code == 201
-    data = response.json()
 
     # Verify stored content is trimmed (if trimming is implemented)
     db_messages = await message_crud.get_messages_by_room(db_session, room_id, 1)
-    db_message = db_messages[0]
+    assert len(db_messages) == 1
     # If trimming is implemented, content should be "message"
     # If not, it will be "  message  "
 
@@ -620,7 +619,6 @@ async def test_message_content_is_sanitized_for_xss(
         headers={"Authorization": f"Bearer {token}"},
     )
     assert send_response.status_code == 201
-    sent_message = send_response.json()
 
     # Get message back
     get_response = await client.get(

@@ -21,6 +21,8 @@ class ConnectionManager:
     - Message broadcasting to room subscribers
     """
 
+    MAX_SUBSCRIPTIONS_PER_CONNECTION = 50
+
     def __init__(self):
         # WebSocket -> User ID mapping
         self.active_connections: dict[WebSocket, int] = {}
@@ -92,18 +94,31 @@ class ConnectionManager:
         self._message_counts[user_id] = (window_start, count + 1)
         return True
 
-    def subscribe_to_room(self, websocket: WebSocket, room_id: int):
+    def subscribe_to_room(self, websocket: WebSocket, room_id: int) -> bool:
         """
         Subscribe a WebSocket connection to a room.
 
         Args:
             websocket: The WebSocket connection
             room_id: ID of the room to subscribe to
+
+        Returns:
+            True if subscription is active, False if per-connection limit would be exceeded.
         """
+        if room_id in self.room_subscriptions and websocket in self.room_subscriptions[room_id]:
+            return True
+
+        subscription_count = sum(
+            1 for subscribers in self.room_subscriptions.values() if websocket in subscribers
+        )
+        if subscription_count >= self.MAX_SUBSCRIPTIONS_PER_CONNECTION:
+            return False
+
         if room_id not in self.room_subscriptions:
             self.room_subscriptions[room_id] = set()
 
         self.room_subscriptions[room_id].add(websocket)
+        return True
 
     def unsubscribe_from_room(self, websocket: WebSocket, room_id: int):
         """
@@ -135,10 +150,28 @@ class ConnectionManager:
         if room_id not in self.room_subscriptions:
             return  # Nobody subscribed, do nothing
 
-        # Send to all subscribers
+        # Send to all subscribers. A single stale socket must not block delivery
+        # to the rest of the room.
+        dead_connections: list[WebSocket] = []
         for connection in self.room_subscriptions[room_id]:
             if connection != exclude:
-                await connection.send_json(message)
+                try:
+                    await connection.send_json(message)
+                except Exception:
+                    dead_connections.append(connection)
+
+        if not dead_connections:
+            return
+
+        subscribers = self.room_subscriptions.get(room_id)
+        if subscribers is None:
+            return
+
+        for connection in dead_connections:
+            subscribers.discard(connection)
+
+        if len(subscribers) == 0:
+            del self.room_subscriptions[room_id]
 
     async def get_room_users(self, room_id: int, db: AsyncSession) -> list[User]:
         """

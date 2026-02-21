@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { AlertCircle } from 'lucide-react';
 import { discoverRooms, joinRoom, leaveRoom } from '../services/api';
 import { formatRoomNameForDisplay } from '../utils/roomNames';
+import { logError } from '../utils/logger';
 import type { Room } from '../types';
 
 interface RoomDiscoveryModalProps {
@@ -108,7 +109,7 @@ export function RoomDiscoveryModal({
       setRooms(sorted);
     } catch (err) {
       setError('Failed to load rooms');
-      console.error('Error loading rooms:', err);
+      logError('Error loading rooms:', err);
     } finally {
       setLoading(false);
     }
@@ -148,7 +149,7 @@ export function RoomDiscoveryModal({
       } else {
         setError('Failed to join room');
       }
-      console.error('Error joining room:', err);
+      logError('Error joining room:', err);
     } finally {
       setJoiningRoomId(null);
     }
@@ -184,7 +185,7 @@ export function RoomDiscoveryModal({
       } else {
         setError('Failed to leave room');
       }
-      console.error('Error leaving room:', err);
+      logError('Error leaving room:', err);
     } finally {
       setLeavingRoomId(null);
     }

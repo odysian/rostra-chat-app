@@ -36,7 +36,18 @@ These behavioral rules apply to every task in this project, in addition to WORKF
 Before considering any task complete, run the relevant checks:
 
 ### Backend (FastAPI/Python)
-Run these commands from the `backend/` directory:
+Preferred: run from repo root:
+```bash
+make backend-verify
+```
+
+If the environment cannot reach PostgreSQL (e.g., restricted sandbox), run:
+```bash
+make backend-verify SKIP_DB_BOOTSTRAP=1
+```
+This skips DB-backed test fixtures; DB-dependent tests will be skipped.
+
+Use individual commands from `backend/` only when isolating a specific failure:
 ```bash
 cd backend
 
@@ -162,6 +173,7 @@ _Project-specific lessons. Add to this section when the agent makes a mistake in
 - **Do not create `.env` files with real secrets.** Create `.env.example` with placeholder values.
 - **Do not add dependencies that duplicate existing functionality.** Check what's already installed before adding packages.
 - **Do not modify migration files after they've been applied.** Create a new migration instead.
+- **Use `make backend-verify` for backend verification by default.** Run individual backend checks only when narrowing down a specific failure.
 
 ---
 

@@ -21,9 +21,13 @@ class Settings(BaseSettings):
     # API
     API_V1_STR: str = "/api"
     PROJECT_NAME: str = "ChatApp"
+    DEBUG: bool = False
 
     # CORS
     BACKEND_CORS_ORIGINS: list[str] = []
+
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379/0"
 
 
 settings = Settings()  # type: ignore

@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import type { Message, Room } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { deleteRoom } from "../services/api";
+import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
@@ -16,7 +18,6 @@ interface MessageAreaProps {
   onRoomDeleted: () => void;
   onLeaveRoom: () => void;
   onBackToRooms: () => void;
-  isMobile: boolean;
   typingUsernames: string[];
   wsError?: string | null;
   onDismissWsError?: () => void;
@@ -44,6 +45,27 @@ export default function MessageArea({
   const [deleteError, setDeleteError] = useState("");
   // Incrementing this counter lets MessageList react to local sends and jump to latest.
   const [scrollToLatestSignal, setScrollToLatestSignal] = useState(0);
+  const deleteModalRef = useRef<HTMLDivElement>(null);
+  const closeDeleteModal = useCallback(() => {
+    setDeleteError("");
+    setShowDeleteModal(false);
+  }, []);
+
+  // Keyboard users should be able to dismiss the room options menu with Escape.
+  useEffect(() => {
+    if (!showRoomMenu) return;
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowRoomMenu(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showRoomMenu]);
+
+  useFocusTrap(deleteModalRef, showDeleteModal, closeDeleteModal);
 
   if (!selectedRoom) {
     return (
@@ -106,7 +128,7 @@ export default function MessageArea({
       setShowRoomMenu(false);
       onRoomDeleted();
     } catch (err) {
-      console.error("Failed to delete room:", err);
+      logError("Failed to delete room:", err);
       setDeleteError(
         err instanceof Error
           ? err.message
@@ -133,10 +155,12 @@ export default function MessageArea({
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {/* Back button - mobile only */}
           <button
+            type="button"
             onClick={onBackToRooms}
             className="shrink-0 transition-colors md:hidden"
             style={{ color: "var(--color-meta)" }}
             title="Back to rooms"
+            aria-label="Back to rooms"
           >
             <svg
               className="w-6 h-6"
@@ -184,10 +208,12 @@ export default function MessageArea({
           {/* Room Options Menu */}
           <div className="relative shrink-0">
             <button
+              type="button"
               onClick={() => setShowRoomMenu(!showRoomMenu)}
               className="transition-colors p-1"
               style={{ color: "var(--color-meta)" }}
               title="Room options"
+              aria-label="Room options"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
@@ -243,10 +269,12 @@ export default function MessageArea({
 
         {/* Search toggle */}
         <button
+          type="button"
           onClick={onToggleSearch}
           className="shrink-0 transition-colors"
           style={{ color: "var(--color-meta)" }}
           title="Search messages"
+          aria-label="Search messages"
         >
           <svg
             className="w-5 h-5"
@@ -264,10 +292,12 @@ export default function MessageArea({
         </button>
 
         <button
+          type="button"
           onClick={onToggleUsers}
           className="shrink-0 transition-colors"
           style={{ color: "var(--color-meta)" }}
           title="Toggle users panel"
+          aria-label="Toggle users panel"
         >
           <svg
             className="w-6 h-6"
@@ -289,6 +319,10 @@ export default function MessageArea({
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div
+            ref={deleteModalRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-room-title"
             className="p-6 max-w-md w-full mx-4"
             style={{
               background: "var(--bg-panel)",
@@ -296,6 +330,7 @@ export default function MessageArea({
             }}
           >
             <h3
+              id="delete-room-title"
               className="font-bebas text-[22px] tracking-[0.08em] mb-2"
               style={{ color: "var(--color-primary)" }}
             >
@@ -314,8 +349,7 @@ export default function MessageArea({
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => {
-                  setDeleteError("");
-                  setShowDeleteModal(false);
+                  closeDeleteModal();
                 }}
                 disabled={deleting}
                 className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"

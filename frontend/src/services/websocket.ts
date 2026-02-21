@@ -1,3 +1,5 @@
+import { logDebug, logError } from "../utils/logger";
+
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const WS_URL = API_URL.replace(/^http/, "ws") + "/ws/connect";
@@ -36,7 +38,7 @@ export class WebSocketService {
 
       return response.ok;
     } catch (error) {
-      console.error("Token validation failed:", error);
+      logError("Token validation failed:", error);
       return false;
     }
   }
@@ -62,7 +64,9 @@ export class WebSocketService {
     this.onStatusChangeCallback?.("reconnecting");
 
     const delay = this.getRetryDelay();
-    console.log(`WebSocket reconnecting in ${delay}ms (attempt ${this.retryCount}/${WS_RETRY_CONFIG.maxRetries})`);
+    logDebug(
+      `WebSocket reconnecting in ${delay}ms (attempt ${this.retryCount}/${WS_RETRY_CONFIG.maxRetries})`
+    );
 
     setTimeout(() => {
       this.isConnecting = false;
@@ -78,7 +82,7 @@ export class WebSocketService {
     // Validate token before connecting
     const isValid = await this.validateToken();
     if (!isValid) {
-      console.error("WebSocket token validation failed");
+      logError("WebSocket token validation failed");
       this.onStatusChangeCallback?.("error");
       return;
     }
@@ -95,12 +99,12 @@ export class WebSocketService {
       this.connectionTimeout = window.setTimeout(() => {
         if (this.ws?.readyState === WebSocket.CONNECTING) {
           this.ws.close();
-          console.error("WebSocket connection timeout");
+          logError("WebSocket connection timeout");
         }
       }, WS_RETRY_CONFIG.timeout);
 
       this.ws.onopen = () => {
-        console.log("WebSocket connected");
+        logDebug("WebSocket connected");
         clearTimeout(this.connectionTimeout);
         this.isConnecting = false;
         this.retryCount = 0; // Reset retry count on successful connection
@@ -108,20 +112,25 @@ export class WebSocketService {
       };
 
       this.ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        console.log("WebSocket received:", data);
-        this.onMessageCallback?.(data);
+        try {
+          const data = JSON.parse(event.data);
+          logDebug("WebSocket received:", data);
+          this.onMessageCallback?.(data);
+        } catch (error) {
+          // Keep the socket alive even if one payload is malformed.
+          logError("Failed to parse WebSocket message:", error);
+        }
       };
 
       this.ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
+        logError("WebSocket error:", error);
         clearTimeout(this.connectionTimeout);
         this.isConnecting = false;
         this.onStatusChangeCallback?.("error");
       };
 
       this.ws.onclose = (event) => {
-        console.error("WebSocket closed:", event.code, event.reason);
+        logError("WebSocket closed:", event.code, event.reason);
         clearTimeout(this.connectionTimeout);
         this.ws = null;
         this.isConnecting = false;
@@ -134,7 +143,7 @@ export class WebSocketService {
         }
       };
     } catch (error) {
-      console.error("WebSocket connection failed:", error);
+      logError("WebSocket connection failed:", error);
       this.isConnecting = false;
       this.onStatusChangeCallback?.("error");
     }
@@ -144,7 +153,7 @@ export class WebSocketService {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      console.error("WebSocket is not connected");
+      logError("WebSocket is not connected");
     }
   }
 

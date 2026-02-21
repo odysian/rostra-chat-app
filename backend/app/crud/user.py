@@ -6,13 +6,13 @@ from app.models.user import User
 from app.schemas.user import UserCreate
 
 
-async def get_user_by_username(db: AsyncSession, username: str):
+async def get_user_by_username(db: AsyncSession, username: str) -> User | None:
     """Get a user by username"""
     result = await db.execute(select(User).where(User.username == username))
     return result.scalar_one_or_none()
 
 
-async def get_user_by_email(db: AsyncSession, email: str):
+async def get_user_by_email(db: AsyncSession, email: str) -> User | None:
     """Get a user by email (case-insensitive lookup)"""
     normalized_email = email.lower().strip()
     result = await db.execute(select(User).where(User.email == normalized_email))
@@ -25,7 +25,7 @@ async def get_user_by_id(db: AsyncSession, user_id: int) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def create_user(db: AsyncSession, user: UserCreate):
+async def create_user(db: AsyncSession, user: UserCreate) -> User:
     """
     Create a new user with hashed password.
 

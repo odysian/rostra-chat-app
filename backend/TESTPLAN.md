@@ -57,6 +57,8 @@ When implementing these tests:
 
 - **Room name:** min 3 chars, max 50 chars
 - **Message content:** min 1 char (after trim), max 1000 chars
+- **Login credentials:** username and password max 50 chars
+- **Redis URL logging:** any password in Redis connection URLs must be redacted in logs
 - **Rate limiting:** Register and login only (disabled in tests except specific tests)
 
 ---
@@ -157,13 +159,23 @@ When implementing these tests:
 - `test_login_with_nonexistent_email_returns_401`
   - Login with email that doesn't exist
   - Assert error message is generic (same as wrong password)
+  - Backend should still run a dummy Argon2 verify to reduce timing leakage
 
 - `test_login_with_missing_credentials_returns_422`
   - Missing email
   - Missing password
 
+- `test_login_with_nonexistent_user_executes_dummy_password_verify`
+  - Verify login path for unknown username still performs password verification work
+
 - `test_login_with_empty_password_returns_401`
   - Email exists but password is empty string
+
+- `test_user_login_rejects_username_longer_than_50_chars`
+  - Schema-level validation rejects username length > 50
+
+- `test_user_login_rejects_password_longer_than_50_chars`
+  - Schema-level validation rejects password length > 50
 
 **Rate Limiting:**
 - `test_login_rate_limit_returns_429`
@@ -575,11 +587,32 @@ When implementing these tests:
 ### GET /api/health/db
 
 **Happy Path:**
-- `test_db_health_returns_pool_metrics_and_status`
+- `test_db_health_returns_pool_metrics_and_status_for_authenticated_user`
   - Returns 200
   - Response includes `pool_size`, `checked_out`, `overflow`, and `status`
   - Metric fields are integers
   - `status` is either `healthy` or `degraded`
+
+**Auth Cases:**
+- `test_db_health_requires_authentication`
+  - Missing bearer token returns unauthorized response
+
+---
+
+### Core: Redis URL Logging
+
+**Security Cases:**
+- `test_redact_redis_url_hides_password_only_credentials`
+  - Input URL with password-only auth (e.g. `redis://:secret@host:6379/0`)
+  - Redacted output must not contain plaintext password
+
+- `test_redact_redis_url_hides_username_password_credentials`
+  - Input URL with username + password auth
+  - Output keeps username/host while redacting password
+
+- `test_redact_redis_url_leaves_non_auth_url_unchanged`
+  - Input URL without credentials
+  - Output remains unchanged
 
 ---
 

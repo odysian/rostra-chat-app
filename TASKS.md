@@ -15,6 +15,7 @@ Based on the current codebase. Each task is scoped for one agent session (one en
 
 - [x] **Rate limiting:** slowapi on register (5/min), login (10/min), join/leave (10/min), discover (30/min).
 - [x] **WebSocket rate limit:** Fixed-window rate limit (30 msgs/min per user) in `ConnectionManager.check_message_rate`, checked before DB work in `handle_send_message`.
+- [ ] **Tighten CSP further:** move inline theme bootstrap in `frontend/index.html` to `public/theme-init.js`, then remove `'unsafe-inline'` from CSP `script-src` in `frontend/vercel.json`. Follow-up: reduce inline style usage so `style-src` can be tightened later.
 
 ### Performance / Data
 

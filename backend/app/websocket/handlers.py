@@ -55,7 +55,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
     async with AsyncSessionLocal() as db:
         user = await user_crud.get_user_by_id(db, int(user_id))
         if not user:
-            logger.warning(f"WebSocket connection rejected: User {user_id} not found")
+            logger.warning("WebSocket connection rejected: User %s not found", user_id)
             await websocket.close(code=1008, reason="User not found")
             return
         # Extract plain values before session closes — no ORM object leak
@@ -64,7 +64,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
 
     # Accept connection and register with manager
     await manager.connect(websocket, user_id_int)
-    logger.info(f"User connected: {username} (ID: {user_id_int})")
+    logger.info("User connected: %s (ID: %s)", username, user_id_int)
 
     try:
         # Message handling loop
@@ -103,11 +103,11 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
                         )
 
             else:
-                logger.warning(f"Unknown action from {username}: {action}")
+                logger.warning("Unknown action from %s: %s", username, action)
                 await send_error(websocket, f"Unknown action: {action}")
 
     except WebSocketDisconnect:
-        logger.info(f"User disconnected: {username} (ID: {user_id_int})")
+        logger.info("User disconnected: %s (ID: %s)", username, user_id_int)
         rooms_user_was_in = manager.disconnect(websocket)
 
         for room_id in rooms_user_was_in:
@@ -121,7 +121,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str) -> None:
             )
 
     except Exception as e:
-        logger.error(f"WebSocket error for {username}: {e}", exc_info=True)
+        logger.error("WebSocket error for %s: %s", username, e, exc_info=True)
         manager.disconnect(websocket)
 
 
@@ -143,7 +143,7 @@ async def handle_subscribe(
     try:
         msg = WSSubscribe(**data)
     except ValidationError as e:
-        logger.warning(f"Invalid subscribe message from {username}: {e}")
+        logger.warning("Invalid subscribe message from %s: %s", username, e)
         await send_error(websocket, "Invalid subscribe message format", e.errors())
         return
 
@@ -151,7 +151,9 @@ async def handle_subscribe(
     room = await room_crud.get_room_by_id(db, msg.room_id)
     if not room:
         logger.warning(
-            f"User {username} tried to subscribe to non-existent room {msg.room_id}"
+            "User %s tried to subscribe to non-existent room %s",
+            username,
+            msg.room_id,
         )
         await send_error(websocket, "Room not found")
         return
@@ -160,14 +162,33 @@ async def handle_subscribe(
     membership = await user_room_crud.get_user_room(db, user_id, msg.room_id)
     if not membership:
         logger.warning(
-            f"User {username} tried to subscribe to room {msg.room_id} without membership"
+            "User %s tried to subscribe to room %s without membership",
+            username,
+            msg.room_id,
         )
         await send_error(websocket, "Not a member of this room")
         return
 
     # Subscribe to room
-    manager.subscribe_to_room(websocket, msg.room_id)
-    logger.info(f"User {username} subscribed to room '{room.name}' (ID: {room.id})")
+    subscribed = manager.subscribe_to_room(websocket, msg.room_id)
+    if not subscribed:
+        logger.warning(
+            "User %s subscription rejected: room limit exceeded (limit=%s)",
+            username,
+            manager.MAX_SUBSCRIPTIONS_PER_CONNECTION,
+        )
+        await send_error(
+            websocket,
+            f"Subscription limit reached ({manager.MAX_SUBSCRIPTIONS_PER_CONNECTION} rooms).",
+        )
+        return
+
+    logger.info(
+        "User %s subscribed to room '%s' (ID: %s)",
+        username,
+        room.name,
+        room.id,
+    )
 
     # Get online users (uses the same short-lived session)
     online_users = await manager.get_room_users(msg.room_id, db)
@@ -177,7 +198,15 @@ async def handle_subscribe(
     response = WSSubscribed(
         type="subscribed", room_id=msg.room_id, online_users=online_users_data
     )
-    await websocket.send_json(response.model_dump(mode="json"))
+    sent = await safe_send(
+        websocket,
+        response.model_dump(mode="json"),
+        context="subscribe_ack",
+    )
+    if not sent:
+        # Client dropped before receiving subscribe ack; clean up connection state.
+        manager.disconnect(websocket)
+        return
 
     # Notify others in room
     notification = WSUserJoined(
@@ -203,17 +232,24 @@ async def handle_unsubscribe(
     try:
         msg = WSUnsubscribe(**data)
     except ValidationError as e:
-        logger.warning(f"Invalid unsubscribe message from {username}: {e}")
+        logger.warning("Invalid unsubscribe message from %s: %s", username, e)
         await send_error(websocket, "Invalid unsubscribe message format", e.errors())
         return
 
     # Unsubscribe from room
     manager.unsubscribe_from_room(websocket, msg.room_id)
-    logger.info(f"User {username} unsubscribed from room ID {msg.room_id}")
+    logger.info("User %s unsubscribed from room ID %s", username, msg.room_id)
 
     # Send confirmation
     response = WSUnsubscribed(type="unsubscribed", room_id=msg.room_id)
-    await websocket.send_json(response.model_dump(mode="json"))
+    sent = await safe_send(
+        websocket,
+        response.model_dump(mode="json"),
+        context="unsubscribe_ack",
+    )
+    if not sent:
+        manager.disconnect(websocket)
+        return
 
     # Notify others
     notification = WSUserLeft(
@@ -241,7 +277,7 @@ async def handle_user_typing(
     try:
         msg = WSUserTyping(**data)
     except ValidationError as e:
-        logger.warning(f"Invalid user_typing message from {username}: {e}")
+        logger.warning("Invalid user_typing message from %s: %s", username, e)
         await send_error(websocket, "Invalid typing message format", e.errors())
         return
 
@@ -249,7 +285,9 @@ async def handle_user_typing(
     # Subscription implies membership because handle_subscribe validates it
     if websocket not in manager.room_subscriptions.get(msg.room_id, set()):
         logger.warning(
-            f"User {username} tried to send typing event without subscription to room {msg.room_id}"
+            "User %s tried to send typing event without subscription to room %s",
+            username,
+            msg.room_id,
         )
         await send_error(websocket, "Not subscribed to this room")
         return
@@ -266,7 +304,9 @@ async def handle_user_typing(
     )
 
     logger.debug(
-        f"Typing indicator sent: {username} → room {msg.room_id}",
+        "Typing indicator sent: %s -> room %s",
+        username,
+        msg.room_id,
         extra={"user_id": user_id, "room_id": msg.room_id},
     )
 
@@ -377,4 +417,17 @@ async def send_error(websocket: WebSocket, message: str, details: Any = None) ->
     if details:
         error_dict["details"] = details
 
-    await websocket.send_json(error_dict)
+    sent = await safe_send(websocket, error_dict, context="error_response")
+    if not sent:
+        # Failed sends usually mean the socket dropped between receive and response.
+        manager.disconnect(websocket)
+
+
+async def safe_send(websocket: WebSocket, payload: dict[str, Any], context: str) -> bool:
+    """Send JSON safely; return False if socket write fails."""
+    try:
+        await websocket.send_json(payload)
+        return True
+    except Exception as err:
+        logger.warning("WebSocket send failed during %s: %s", context, err)
+        return False

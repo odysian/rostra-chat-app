@@ -171,12 +171,13 @@ describe("Register", () => {
     );
 
     const passwordInput = screen.getByLabelText("PASSWORD");
-    const toggleButton = screen.getByRole("button", { name: "" });
+    const toggleButton = screen.getByRole("button", { name: "Show password" });
 
     expect(passwordInput).toHaveAttribute("type", "password");
     await user.click(toggleButton);
+    expect(screen.getByRole("button", { name: "Hide password" })).toBeInTheDocument();
     expect(passwordInput).toHaveAttribute("type", "text");
-    await user.click(toggleButton);
+    await user.click(screen.getByRole("button", { name: "Hide password" }));
     expect(passwordInput).toHaveAttribute("type", "password");
   });
 
