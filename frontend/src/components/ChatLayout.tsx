@@ -440,6 +440,10 @@ export default function ChatLayout() {
   const typingUsernames = selectedRoom
     ? Object.values(typingUsersByRoom[selectedRoom.id] ?? {}).map((t) => t.username)
     : [];
+  const hasOtherUnreadRooms = Object.entries(unreadCounts).some(
+    ([roomId, unreadCount]) =>
+      unreadCount > 0 && Number(roomId) !== selectedRoom?.id,
+  );
 
   return (
     <div className="flex h-dvh" style={{ background: "var(--bg-app)" }}>
@@ -490,6 +494,7 @@ export default function ChatLayout() {
         <MessageArea
           selectedRoom={selectedRoom}
           density={density}
+          hasOtherUnreadRooms={hasOtherUnreadRooms}
           incomingMessages={incomingMessagesForRoom}
           onIncomingMessagesProcessed={handleIncomingMessagesProcessed}
           onToggleUsers={() => setRightPanel((prev) => prev === "users" ? "none" : "users")}

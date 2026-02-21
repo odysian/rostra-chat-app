@@ -156,7 +156,7 @@ export default function MessageInput({
             e.currentTarget.style.filter = "brightness(1)";
           }}
         >
-          SEND ▶
+          SEND
         </button>
       </div>
       {sendError && (

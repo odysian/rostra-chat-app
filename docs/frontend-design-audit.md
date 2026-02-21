@@ -1,7 +1,7 @@
 # Frontend Design Audit and Phased Roadmap — Rostra
 
 **Date:** 2026-02-21
-**Status:** Phase 2 in progress on 2026-02-21 (2.1-2.4 complete, 2.8 deferred). Phase 3 pending.
+**Status:** Phase 2 completed on 2026-02-21 (2.1-2.7 complete, 2.8 deferred). Phase 3 pending.
 **Canonical file:** `docs/frontend-design-audit.md`
 
 ---
@@ -174,16 +174,16 @@ Ship high-value micro-features with no backend changes.
 - Include lightweight actions: create room, toggle theme, toggle CRT.
 - Implement with existing modal patterns, no new dependency by default.
 
-### 2.5 Mobile Back-Button Unread Indicator
+### 2.5 Mobile Back-Button Unread Indicator ✅ Completed 2026-02-21
 - Show a small dot on the "Back to rooms" arrow in `MessageArea` when any other room has unread messages.
 - Data already available in ChatLayout (`unreadCounts`) — pass total-unread-exists boolean down.
 - Helps mobile users know there's activity in other rooms without leaving the current one.
 
-### 2.6 Room Menu Overflow Guard
+### 2.6 Room Menu Overflow Guard ✅ Completed 2026-02-21
 - Room options dropdown in `MessageArea` uses `absolute right-0` which can overflow on narrow viewports.
 - Add `max-h` with scroll or reposition logic to keep menu on-screen.
 
-### 2.7 Send Button Glyph Cleanup
+### 2.7 Send Button Glyph Cleanup ✅ Completed 2026-02-21
 - Replace triangle glyph with text-only SEND or icon+text (using existing `lucide-react`).
 - Keep button labeling and semantics unchanged.
 

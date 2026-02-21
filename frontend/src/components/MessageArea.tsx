@@ -12,6 +12,7 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 interface MessageAreaProps {
   selectedRoom: Room | null;
   density: "compact" | "comfortable";
+  hasOtherUnreadRooms?: boolean;
   incomingMessages: Message[];
   onIncomingMessagesProcessed: () => void;
   onToggleUsers: () => void;
@@ -27,6 +28,7 @@ interface MessageAreaProps {
 export default function MessageArea({
   selectedRoom,
   density,
+  hasOtherUnreadRooms = false,
   incomingMessages,
   onIncomingMessagesProcessed,
   onToggleUsers,
@@ -162,28 +164,40 @@ export default function MessageArea({
       >
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {/* Back button - mobile only */}
-          <button
-            type="button"
-            onClick={onBackToRooms}
-            className="shrink-0 transition-colors md:hidden p-1 icon-button-focus"
-            style={{ color: "var(--color-meta)" }}
-            title="Back to rooms"
-            aria-label="Back to rooms"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="relative md:hidden">
+            <button
+              type="button"
+              onClick={onBackToRooms}
+              className="shrink-0 transition-colors p-1 icon-button-focus"
+              style={{ color: "var(--color-meta)" }}
+              title="Back to rooms"
+              aria-label="Back to rooms"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+            {hasOtherUnreadRooms && (
+              <span
+                className="absolute top-0 right-0 w-2 h-2 rounded-full"
+                style={{
+                  background: "var(--color-secondary)",
+                  boxShadow: "var(--glow-secondary)",
+                }}
+                aria-hidden
               />
-            </svg>
-          </button>
+            )}
+          </div>
 
           <div className="min-w-0 flex-1 overflow-hidden">
             {/* Room name — gradient for neon, solid glow for amber */}
@@ -236,7 +250,7 @@ export default function MessageArea({
                   onClick={() => setShowRoomMenu(false)}
                 />
                 <div
-                  className="absolute right-0 mt-2 w-48 shadow-lg py-1 z-20"
+                  className="absolute right-0 mt-2 w-48 max-w-[calc(100vw-16px)] max-h-64 overflow-y-auto shadow-lg py-1 z-20"
                   style={{
                     background: "var(--bg-panel)",
                     border: "1px solid var(--border-primary)",
