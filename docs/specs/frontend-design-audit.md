@@ -2,7 +2,7 @@
 
 **Date:** 2026-02-21
 **Status:** Phase 2 completed on 2026-02-21 (2.1-2.7 and 2.9-2.12 complete, 2.8 deferred). Phase 3 pending.
-**Canonical file:** `docs/frontend-design-audit.md`
+**Canonical file:** `docs/specs/frontend-design-audit.md`
 
 ---
 
@@ -278,93 +278,254 @@ Ship high-value micro-features with no backend changes.
 ### 3.1 New Messages Divider (Recommended First)
 **Value:** High, low complexity.
 
-Backend:
-- Extend room payload to include current-user `last_read_at` where missing.
+How it works:
+1. Room list response includes `last_read_at` for each joined room.
+2. When user opens a room, frontend snapshots that room's `last_read_at` at open time.
+3. `MessageList` inserts one `NEW MESSAGES` divider before the first message with `created_at > last_read_at_snapshot`.
+4. Divider is not re-positioned while viewing the room; it is recomputed on next room entry.
 
-Frontend:
-- Insert `NEW MESSAGES` divider at first message newer than `last_read_at`.
-- Divider clears naturally when room is marked read.
+Backend plan:
+- Extend `RoomResponse` with optional `last_read_at: datetime | None`.
+- Update `GET /api/rooms` mapper (both `include_unread` true/false paths) to return `last_read_at` from `user_room`.
+- Ensure room query path returns membership row data needed for this field (no N+1).
+
+Frontend plan:
+- Extend `Room` type with optional `last_read_at`.
+- In `ChatLayout`, pass room-open snapshot timestamp into `MessageList`.
+- In `MessageList`, compute divider insertion in render loop (single divider max).
+
+Files expected:
+- `backend/app/schemas/room.py`
+- `backend/app/api/rooms.py`
+- `backend/app/crud/room.py`
+- `frontend/src/types/index.ts`
+- `frontend/src/components/ChatLayout.tsx`
+- `frontend/src/components/MessageList.tsx`
+
+Tests:
+- Backend: rooms endpoint returns `last_read_at` for joined rooms.
+- Frontend: divider appears for unread boundary, absent when all messages are read.
+- Regression: divider does not duplicate across pagination loads.
+
+Details to lock before implementation:
+- Divider label text variant: `NEW MESSAGES` vs `UNREAD`.
+- Divider behavior when `last_read_at` is null (recommend: no divider, all are effectively unread but baseline unknown).
 
 ### 3.2 Global Jump-to-Message (Search -> Any Message in History)
 **Value:** High.
 
-Backend:
-- Add a message-context endpoint for a target message (recommended shape: `GET /api/rooms/{room_id}/messages/{message_id}/context?before=25&after=25` with cursors for continued paging).
-- Validate room membership and target message existence in that room.
-- Return enough context to render the target in place and continue paginating in both directions.
-- Keep existing history endpoints backward-compatible.
+How it works:
+1. User clicks a search result.
+2. Frontend requests message context around target message from backend.
+3. Frontend replaces current message buffer with returned context window, scrolls target into view, and highlights target briefly.
+4. User can continue loading older/newer messages from that anchored context.
 
-Frontend:
-- Search result click requests target context when message is outside current buffer.
-- Navigate to target message, center/scroll it into view, and apply temporary highlight.
-- Preserve existing message list behavior for normal scrolling/loading.
+Backend plan:
+- Add endpoint (recommended): `GET /api/rooms/{room_id}/messages/{message_id}/context?before=25&after=25`.
+- Validate room exists, message exists in room, and requester is a room member.
+- Response includes:
+- ordered messages (oldest -> newest in payload),
+- `target_message_id`,
+- cursor for older history,
+- cursor for newer history.
+- Keep existing `/messages` and `/messages/search` unchanged.
 
-Open decisions:
-- Final context window size defaults.
-- Whether to introduce a dedicated route for target message navigation in this phase.
+Frontend plan:
+- Add `getMessageContext(...)` in API client.
+- Wire search-result click -> context fetch -> message list anchor mode.
+- Add temporary highlight state keyed by `target_message_id`.
+- Extend `MessageList` pagination model to support both older and newer loading in context mode.
+
+Files expected:
+- `backend/app/api/messages.py`
+- `backend/app/crud/message.py`
+- `backend/app/schemas/message.py`
+- `frontend/src/services/api.ts`
+- `frontend/src/components/SearchResults.tsx`
+- `frontend/src/components/SearchPanel.tsx`
+- `frontend/src/components/ChatLayout.tsx`
+- `frontend/src/components/MessageList.tsx`
+- `frontend/src/types/index.ts`
+
+Tests:
+- Backend: context endpoint authz/membership/not-found branches.
+- Backend: context window and cursors are stable and ordered.
+- Frontend: click search result jumps/highlights even when message is not currently loaded.
+- Regression: normal room entry and infinite scroll behavior remains unchanged.
+
+Details to lock before implementation:
+- Default window size (`before/after`) (recommend: 25/25).
+- Route strategy (internal context only vs also support deep-link URL now).
 
 ### 3.3 Message Editing
 **Value:** High.
 
-Backend:
-- Add `edited_at` column on messages.
-- `PATCH /api/messages/{message_id}` for message owner.
-- Update search vector/content path on edit.
-- Emit `message_edited` WS event.
+How it works:
+1. Message owner enters inline edit mode for their message.
+2. Edit is submitted via `PATCH`.
+3. Backend updates message content, sets `edited_at`, and broadcasts WS update.
+4. All clients update message content in place and show `(edited)`.
 
-Frontend:
-- Inline edit mode for own messages.
-- `(edited)` marker near timestamp.
-- WS-driven in-place update.
+Backend plan:
+- Add nullable `edited_at` column to `messages`.
+- Add `PATCH /api/messages/{message_id}` endpoint (owner-only authz).
+- Reuse message content validation rules (trim + 1..1000 chars).
+- Return updated message payload including `edited_at`.
+- Add WS event `message_edited` with updated fields.
 
-Open decisions:
-- Edit window limit (none vs time-boxed).
+Frontend plan:
+- Add edit affordance on own messages only.
+- Inline textarea with save/cancel (`Enter` save, `Escape` cancel).
+- Render `(edited)` in message metadata when `edited_at` exists.
+- Handle `message_edited` WS event in `ChatLayout`/`MessageList`.
+
+Files expected:
+- `backend/app/models/message.py`
+- `backend/app/schemas/message.py`
+- `backend/app/crud/message.py`
+- `backend/app/api/messages.py`
+- `backend/app/websocket/schemas.py`
+- `backend/app/websocket/handlers.py`
+- `frontend/src/types/index.ts`
+- `frontend/src/context/webSocketContextState.ts`
+- `frontend/src/components/ChatLayout.tsx`
+- `frontend/src/components/MessageList.tsx`
+
+Tests:
+- Backend: owner can edit; non-owner forbidden; validation errors.
+- Backend: `edited_at` set and returned.
+- Frontend: inline edit UX + WS updates reflected.
+
+Details to lock before implementation:
+- Edit time window policy (recommend v1: no time limit).
+- Whether edited messages keep original timestamp + `(edited)` (recommend yes).
 
 ### 3.4 Message Deletion
 **Value:** High.
 
-Backend:
-- Soft-delete approach: add `deleted_at`; scrub/replace content consistently.
-- `DELETE /api/messages/{message_id}` for owner and optionally room creator.
-- Exclude deleted content from search results.
-- Emit `message_deleted` WS event.
+How it works:
+1. Authorized user deletes a message.
+2. Backend soft-deletes message (`deleted_at`), removes searchable content, broadcasts WS event.
+3. Clients render a tombstone row in place of original content.
 
-Frontend:
-- Delete action with confirmation.
-- Render consistent tombstone text style.
-- WS-driven in-place update.
+Backend plan:
+- Add nullable `deleted_at` column to `messages`.
+- On delete:
+- set `deleted_at`,
+- replace `content` with empty string (or fixed tombstone token) so search vector no longer matches original text.
+- Add `DELETE /api/messages/{message_id}` endpoint.
+- Authz: owner and optionally room creator (decision required).
+- Exclude deleted rows from search endpoint results.
+- Add WS event `message_deleted`.
 
-Open decisions:
-- Room creator delete authority scope.
+Frontend plan:
+- Show delete affordance for authorized users.
+- Confirm before delete.
+- Render deleted message tombstone style in list.
+- Ignore edit/reaction actions on deleted rows.
+- Handle `message_deleted` WS event to update local list in place.
+
+Files expected:
+- `backend/app/models/message.py`
+- `backend/app/schemas/message.py`
+- `backend/app/crud/message.py`
+- `backend/app/api/messages.py`
+- `backend/app/websocket/schemas.py`
+- `backend/app/websocket/handlers.py`
+- `frontend/src/types/index.ts`
+- `frontend/src/components/ChatLayout.tsx`
+- `frontend/src/components/MessageList.tsx`
+
+Tests:
+- Backend: delete authz matrix; deleted message excluded from search.
+- Frontend: tombstone render and WS sync.
+- Regression: pagination ordering unaffected.
+
+Details to lock before implementation:
+- Final authz policy: owner-only vs owner + room creator (recommend owner + room creator).
+- Tombstone copy text (recommend: `This message was deleted`).
 
 ### 3.5 Message Reactions
 **Value:** Medium-high.
 
-Backend:
-- Add `message_reactions` table with unique `(message_id, user_id, emoji)`.
-- Indexes on `message_id` and `user_id`.
-- Add reaction add/remove endpoints.
-- Include summarized reactions on message payload.
-- Emit `reaction_added` and `reaction_removed` WS events.
+How it works:
+1. User toggles an emoji reaction on a message.
+2. Backend upserts/removes reaction row and broadcasts delta event.
+3. Clients update aggregated reaction pills in real time.
 
-Frontend:
-- Reaction pills with counts.
-- Small fixed emoji set initially.
-- Toggle own reaction quickly.
+Backend plan:
+- Add `message_reactions` table:
+- columns: `id`, `message_id`, `user_id`, `emoji`, `created_at`,
+- unique constraint on (`message_id`, `user_id`, `emoji`),
+- indexes on `message_id`, `user_id`.
+- Add endpoints:
+- `POST /api/messages/{message_id}/reactions` (add),
+- `DELETE /api/messages/{message_id}/reactions/{emoji}` (remove own).
+- Include reaction summary in message payloads (count + reacted_by_me).
+- Add WS events `reaction_added` and `reaction_removed`.
 
-Open decisions:
-- Final emoji set and per-message cap.
+Frontend plan:
+- Add reaction bar under each message.
+- Fixed starter emoji set (no full picker in v1).
+- Toggle own reaction on click.
+- Apply WS delta updates without full refetch.
+
+Files expected:
+- `backend/app/models/` (new reaction model)
+- `backend/app/schemas/message.py` (reaction summary)
+- `backend/app/crud/message.py` (aggregation + mutation helpers)
+- `backend/app/api/messages.py`
+- `backend/app/websocket/schemas.py`
+- `backend/app/websocket/handlers.py`
+- Alembic migration
+- `frontend/src/types/index.ts`
+- `frontend/src/components/MessageList.tsx`
+- `frontend/src/components/ChatLayout.tsx`
+
+Tests:
+- Backend: unique constraint and toggle semantics.
+- Backend: summary aggregation correctness.
+- Frontend: pill rendering and real-time updates.
+
+Details to lock before implementation:
+- Emoji allowlist for v1 (recommend: 👍 ❤️ 😂 🔥 👀 🎉).
+- Per-message reaction UI cap before overflow behavior.
 
 ### 3.6 Room Descriptions (Optional)
 **Value:** Medium.
 
-Backend:
-- Add `description` on rooms.
-- Extend room create/update contracts with validation.
+How it works:
+1. Room creator can add/edit a short room description.
+2. Description appears in room header and discovery surfaces.
 
-Frontend:
-- Display description in room header/discovery UI.
-- Creator-only editing path.
+Backend plan:
+- Add nullable `description` to `rooms`.
+- Extend `RoomCreate` and `RoomResponse` with optional description.
+- Add creator-only room update endpoint for description/name edits.
+- Validate and trim (recommend max 500 chars).
+
+Frontend plan:
+- Show description below room title in chat header.
+- Show description in room discovery modal/list.
+- Provide creator-only edit entry point.
+
+Files expected:
+- `backend/app/models/room.py`
+- `backend/app/schemas/room.py`
+- `backend/app/crud/room.py`
+- `backend/app/api/rooms.py`
+- Alembic migration
+- `frontend/src/types/index.ts`
+- `frontend/src/components/MessageArea.tsx`
+- `frontend/src/components/RoomDiscoveryModal.tsx`
+
+Tests:
+- Backend: creator-only update, validation boundaries.
+- Frontend: display fallback when description missing.
+
+Details to lock before implementation:
+- Whether room name + description share one update endpoint (recommend yes).
+- Whether markdown/rich text is allowed (recommend no; plain text only).
 
 ### 3.7 Parking Lot (Defer)
 - URL permalink/deep-link route support (separate from internal jump, higher complexity).
