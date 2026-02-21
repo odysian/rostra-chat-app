@@ -1,7 +1,7 @@
 # Frontend Design Audit and Phased Roadmap — Rostra
 
 **Date:** 2026-02-21
-**Status:** Phase 2 completed on 2026-02-21 (2.1-2.7 and 2.9-2.11 complete, 2.8 deferred). Phase 3 pending.
+**Status:** Phase 2 completed on 2026-02-21 (2.1-2.7 and 2.9-2.12 complete, 2.8 deferred). Phase 3 pending.
 **Canonical file:** `docs/frontend-design-audit.md`
 
 ---
@@ -206,6 +206,52 @@ Ship high-value micro-features with no backend changes.
 - Truncate very long room names in composer placeholder to prevent horizontal scrollbar behavior.
 - Tighten truncation threshold so room-aware placeholder text still fits around 375px widths.
 
+### 2.12 Desktop Collapsed Sidebar Expand Affordance (`R>`) ✅ Completed 2026-02-21
+**Goal:** Make collapsed-sidebar expand/collapse intent obvious for desktop users without changing mobile behavior.
+
+**Scope:**
+- Desktop only (`md` and up). Mobile sidebar/backdrop behavior remains unchanged.
+- Replace collapsed-state single `R` mark with explicit directional affordance (`R>` visual treatment).
+- Expanded state keeps full `ROSTRA` branding and shows a clear collapse affordance.
+
+**Intended interaction model:**
+1. Collapsed desktop sidebar:
+- Header control renders as one button with `R>` affordance.
+- Clicking, Enter, or Space expands the sidebar.
+
+2. Expanded desktop sidebar:
+- Header row renders full `ROSTRA` plus collapse affordance.
+- Clicking, Enter, or Space on collapse affordance collapses the sidebar.
+
+3. Transition behavior:
+- Width transition and logo/affordance transition happen together.
+- Transition should feel like the `R>` expands into `ROSTRA`, and reverse on collapse.
+- Keep motion subtle and fast (target ~180–240ms) with no visible flicker.
+- No layout jank in the center chat area during toggle.
+
+**Temporary layout adjustment (approved):**
+- Move the `NEON` / `CRT` / `COMPACT` controls down to a separate row beneath the logo row.
+- Render these controls horizontally for now so they are visually and interactively out of the way of the expand/collapse affordance.
+- This is an interim layout decision pending a future dedicated settings modal.
+
+**Accessibility requirements:**
+- Control label updates between `Expand sidebar` and `Collapse sidebar`.
+- Visible focus ring for keyboard users.
+- Pointer hit area remains comfortably clickable in both states.
+
+**Non-goals:**
+- No backend/API changes.
+- No new persistence/state settings.
+- No changes to room list logic or command palette behavior.
+- Do not redesign settings architecture in this task (future modal can supersede this temporary row layout).
+
+**Open design choices to lock before implementation:**
+- Arrow style: use icon-first approach (`ChevronRight`/`ChevronLeft`) with theme-consistent gradient/tint styling.
+- Composition: use hybrid text + icon (Option 2) as the first implementation:
+  - Collapsed: `R` + right chevron icon.
+  - Expanded: `ROSTRA` + left chevron icon as a clear collapse control.
+- Fallback (only if visual result is poor): revert to text-glyph variant (`R>` / `ROSTRA<`).
+
 ### Acceptance Criteria
 - No backend/API changes.
 - No regressions in search, messaging, or navigation.
@@ -326,13 +372,14 @@ Frontend:
 1. Phase 1 cosmetic pass.
 2. Phase 2.1 density + 2.2 browser title.
 3. Phase 2.3 shortcuts + 2.4 command palette.
-4. Phase 3.1 new messages divider.
-5. Phase 3.2 global jump-to-message.
-6. Phase 3.3 editing.
-7. Phase 3.4 deletion.
-8. Phase 3.5 reactions.
-9. Phase 3.6 room descriptions.
-10. Parking lot items only with explicit product demand.
+4. Phase 2.12 desktop collapsed sidebar `R>` affordance.
+5. Phase 3.1 new messages divider.
+6. Phase 3.2 global jump-to-message.
+7. Phase 3.3 editing.
+8. Phase 3.4 deletion.
+9. Phase 3.5 reactions.
+10. Phase 3.6 room descriptions.
+11. Parking lot items only with explicit product demand.
 
 ---
 
@@ -342,8 +389,9 @@ Frontend:
 3. Keyboard-only usage and predictable focus order.
 4. Mobile panel overlap and discoverability.
 5. Regression checks for scroll, unread counts, search debounce/abort, send flow.
-6. For Phase 3: deep-history jump targets resolve correctly and preserve pagination behavior.
-7. For Phase 3: WS event handling must not regress existing message flow.
+6. Desktop sidebar collapsed/expanded affordance is obvious and keyboard-accessible; mobile behavior unchanged.
+7. For Phase 3: deep-history jump targets resolve correctly and preserve pagination behavior.
+8. For Phase 3: WS event handling must not regress existing message flow.
 
 ---
 
