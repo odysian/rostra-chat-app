@@ -647,6 +647,21 @@ When implementing these tests:
 
 ---
 
+### Frontend: WebSocket URL Configuration
+
+**Config Cases:**
+- `test_uses_explicit_ws_url_when_provided`
+  - `VITE_WS_URL` is set
+  - WebSocket base URL resolves from `VITE_WS_URL` (with trailing slash normalized)
+  - `VITE_API_URL` does not override it
+
+- `test_derives_ws_url_from_api_url_when_ws_url_missing`
+  - `VITE_WS_URL` is not set
+  - WebSocket base URL is derived from `VITE_API_URL`
+  - Optional trailing `/api` suffix is stripped to avoid `/api/ws/connect`
+
+---
+
 ## Rate Limit Configuration
 
 Add to `conftest.py`:

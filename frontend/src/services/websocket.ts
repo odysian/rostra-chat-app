@@ -1,8 +1,22 @@
 import { logDebug, logError } from "../utils/logger";
 
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const WS_BASE_URL =
+  resolveWebSocketBaseUrl(API_URL, import.meta.env.VITE_WS_URL) ||
+  "ws://localhost:8000";
 
-const WS_URL = API_URL.replace(/^http/, "ws") + "/ws/connect";
+const WS_URL = `${WS_BASE_URL}/ws/connect`;
+
+export function resolveWebSocketBaseUrl(apiUrl: string, wsUrl?: string): string {
+  const explicitWsUrl = wsUrl?.trim();
+  if (explicitWsUrl) {
+    return explicitWsUrl.replace(/^http/i, "ws").replace(/\/+$/, "");
+  }
+
+  // Accept API URLs with optional trailing slash or /api suffix.
+  const normalizedApiUrl = apiUrl.trim().replace(/\/+$/, "").replace(/\/api$/i, "");
+  return normalizedApiUrl.replace(/^http/i, "ws");
+}
 
 // WebSocket retry configuration
 const WS_RETRY_CONFIG = {
@@ -90,7 +104,7 @@ export class WebSocketService {
     this.isConnecting = true;
     this.onStatusChangeCallback?.("connecting");
 
-    const url = `${WS_URL}?token=${this.token}`;
+    const url = `${WS_URL}?token=${encodeURIComponent(this.token)}`;
     
     try {
       this.ws = new WebSocket(url);

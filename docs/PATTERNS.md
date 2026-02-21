@@ -72,7 +72,7 @@ Reusable code patterns and conventions in this project. All of the following are
 
 ## WebSocket Pattern
 
-- **Service class:** `WebSocketService` in `services/websocket.ts`. Constructor takes token; `connect()` builds URL `ws(s)://host/ws/connect?token=<token>`. Before connecting, token is validated via a quick GET to `/api/auth/me`.
+- **Service class:** `WebSocketService` in `services/websocket.ts`. Constructor takes token; `connect()` builds URL `ws(s)://host/ws/connect?token=<token>`. Base URL resolves from `VITE_WS_URL` when present, otherwise derives from `VITE_API_URL` (with optional `/api` suffix stripped). Before connecting, token is validated via a quick GET to `/api/auth/me`.
 - **Connection lifecycle:** `connect()` → onopen/onclose/onerror set status and call `onStatusChange`. On abnormal close (code !== 1000), `attemptReconnect()` with exponential backoff (max 5 retries, 2s base, 30s max delay, jitter). On success, retry count is reset. `disconnect()` sets `shouldReconnect = false`, closes socket, clears timeout.
 - **Message handling:** `onMessage(callback)` stores a single callback; incoming JSON is passed to it. WebSocketContext sets this callback and also pushes the same message into `lastMessage` state and forwards to `messageHandlerRef.current` (so ChatLayout can register one handler and process every message without missing any between re-renders).
 - **Sending:** `send(message)` does `ws.send(JSON.stringify(message))` if state is OPEN; otherwise logs and does nothing.

@@ -28,7 +28,7 @@ Rostra is a real-time chat application. Users register and log in with username/
 │  Browser (React SPA – Vite dev or static build)                          │
 │  - Auth: token in localStorage; 401 → redirect to /login               │
 │  - REST: fetch to VITE_API_URL (e.g. http://localhost:8000)             │
-│  - WS:   WebSocket to same origin /ws/connect?token=<jwt>                │
+│  - WS:   WebSocket to /ws/connect?token=<jwt> (from VITE_WS_URL or API base) │
 └───────────────────────────────┬─────────────────────────────────────────┘
                                 │
         ┌───────────────────────┼───────────────────────┐
