@@ -14,6 +14,13 @@ const MAX_SUBSCRIPTIONS = 10;
 const INITIAL_AUTO_SUBSCRIBE_COUNT = 5;
 type UiDensity = "compact" | "comfortable";
 
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return Boolean(
+    target.closest("input, textarea, select, [contenteditable='true']"),
+  );
+}
+
 /**
  * ChatLayout Component
  *
@@ -50,6 +57,9 @@ export default function ChatLayout() {
     const stored = localStorage.getItem("rostra-density");
     return stored === "comfortable" ? "comfortable" : "compact";
   });
+  const [searchFocusSignal, setSearchFocusSignal] = useState(0);
+  const [openCommandPaletteSignal, setOpenCommandPaletteSignal] = useState(0);
+  const [closeCommandPaletteSignal, setCloseCommandPaletteSignal] = useState(0);
   /** Typing users per room: roomId → userId → {username, timeout} */
   const [typingUsersByRoom, setTypingUsersByRoom] = useState<
     Record<number, Record<number, { username: string; timeout: ReturnType<typeof setTimeout> }>>
@@ -99,6 +109,42 @@ export default function ChatLayout() {
 
     const roomName = formatRoomNameForDisplay(selectedRoom.name);
     document.title = `#${roomName} - Rostra`;
+  }, [selectedRoom]);
+
+  useEffect(() => {
+    const handleGlobalShortcuts = (event: KeyboardEvent) => {
+      if (isTypingTarget(event.target)) return;
+
+      if (
+        (event.metaKey || event.ctrlKey) &&
+        event.key.toLowerCase() === "k"
+      ) {
+        event.preventDefault();
+        setOpenCommandPaletteSignal((prev) => prev + 1);
+        return;
+      }
+
+      if (
+        event.key === "/" &&
+        !event.metaKey &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        selectedRoom
+      ) {
+        event.preventDefault();
+        setRightPanel("search");
+        setSearchFocusSignal((prev) => prev + 1);
+        return;
+      }
+
+      if (event.key === "Escape") {
+        setRightPanel("none");
+        setCloseCommandPaletteSignal((prev) => prev + 1);
+      }
+    };
+
+    window.addEventListener("keydown", handleGlobalShortcuts);
+    return () => window.removeEventListener("keydown", handleGlobalShortcuts);
   }, [selectedRoom]);
 
   useEffect(() => {
@@ -402,6 +448,8 @@ export default function ChatLayout() {
         isOpen={sidebarOpen || !selectedRoom}
         onToggle={() => setSidebarOpen(!sidebarOpen)}
         density={density}
+        openCommandPaletteSignal={openCommandPaletteSignal}
+        closeCommandPaletteSignal={closeCommandPaletteSignal}
         onToggleDensity={() =>
           setDensity((prev) =>
             prev === "compact" ? "comfortable" : "compact",
@@ -471,6 +519,7 @@ export default function ChatLayout() {
           onClose={() => setRightPanel("none")}
           roomId={selectedRoom.id}
           token={token}
+          focusSignal={searchFocusSignal}
         />
       )}
     </div>

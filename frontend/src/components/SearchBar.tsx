@@ -3,9 +3,10 @@ import { useState, useEffect, useRef } from "react";
 interface SearchBarProps {
   onSearch: (query: string) => void;
   onClose: () => void;
+  focusSignal?: number;
 }
 
-export default function SearchBar({ onSearch, onClose }: SearchBarProps) {
+export default function SearchBar({ onSearch, onClose, focusSignal = 0 }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<number | undefined>(undefined);
@@ -14,6 +15,10 @@ export default function SearchBar({ onSearch, onClose }: SearchBarProps) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [focusSignal]);
 
   // Debounce: wait 300ms after user stops typing before firing search.
   // This prevents hammering the API on every keystroke.

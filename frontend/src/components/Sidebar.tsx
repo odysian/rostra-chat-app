@@ -7,6 +7,8 @@ interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
   density: "compact" | "comfortable";
+  openCommandPaletteSignal: number;
+  closeCommandPaletteSignal: number;
   onToggleDensity: () => void;
   selectedRoom: Room | null;
   onSelectRoom: (room: Room) => void;
@@ -36,6 +38,8 @@ export default function Sidebar({
   isOpen,
   onToggle,
   density,
+  openCommandPaletteSignal,
+  closeCommandPaletteSignal,
   onToggleDensity,
   selectedRoom,
   onSelectRoom,
@@ -240,6 +244,11 @@ export default function Sidebar({
           selectedRoom={selectedRoom}
           onSelectRoom={onSelectRoom}
           sidebarOpen={isOpen}
+          openCommandPaletteSignal={openCommandPaletteSignal}
+          closeCommandPaletteSignal={closeCommandPaletteSignal}
+          onToggleTheme={toggleTheme}
+          onToggleCrt={() => setCrtEnabled((prev) => !prev)}
+          crtEnabled={crtEnabled}
           refreshTrigger={refreshTrigger}
           unreadCounts={unreadCounts}
           onUnreadCountsLoaded={onUnreadCountsLoaded}

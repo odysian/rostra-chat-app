@@ -1,7 +1,7 @@
 # Frontend Design Audit and Phased Roadmap — Rostra
 
 **Date:** 2026-02-21
-**Status:** Phase 2 in progress on 2026-02-21 (2.1-2.2 complete, 2.8 deferred). Phase 3 pending.
+**Status:** Phase 2 in progress on 2026-02-21 (2.1-2.4 complete, 2.8 deferred). Phase 3 pending.
 **Canonical file:** `docs/frontend-design-audit.md`
 
 ---
@@ -163,12 +163,12 @@ Ship high-value micro-features with no backend changes.
 - Selected room: `#room-name - Rostra`.
 - No selected room: `Rostra`.
 
-### 2.3 Keyboard Shortcuts
+### 2.3 Keyboard Shortcuts ✅ Completed 2026-02-21
 - `/` opens/focuses search.
 - `Escape` closes currently active panel/menu/modal.
 - Must not fire while typing in inputs/textareas/content-editable controls.
 
-### 2.4 Command Palette (Moved from prior Phase 3)
+### 2.4 Command Palette (Moved from prior Phase 3) ✅ Completed 2026-02-21
 - `Cmd/Ctrl+K` opens room/action palette.
 - Filter rooms and navigate on Enter.
 - Include lightweight actions: create room, toggle theme, toggle CRT.

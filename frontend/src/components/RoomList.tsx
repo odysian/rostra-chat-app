@@ -14,6 +14,11 @@ interface RoomListProps {
   selectedRoom: Room | null;
   onSelectRoom: (room: Room) => void;
   sidebarOpen: boolean;
+  openCommandPaletteSignal?: number;
+  closeCommandPaletteSignal?: number;
+  onToggleTheme?: () => void;
+  onToggleCrt?: () => void;
+  crtEnabled?: boolean;
   refreshTrigger?: number;
   unreadCounts: Record<number, number>;
   onUnreadCountsLoaded: (counts: Record<number, number>) => void;
@@ -31,6 +36,11 @@ export default function RoomList({
   selectedRoom,
   onSelectRoom,
   sidebarOpen,
+  openCommandPaletteSignal = 0,
+  closeCommandPaletteSignal = 0,
+  onToggleTheme,
+  onToggleCrt,
+  crtEnabled = false,
   refreshTrigger,
   unreadCounts,
   onUnreadCountsLoaded,
@@ -58,9 +68,15 @@ export default function RoomList({
   // Discovery modal state
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   const prevSidebarOpenRef = useRef(sidebarOpen);
   const createModalRef = useRef<HTMLDivElement>(null);
   const logoutModalRef = useRef<HTMLDivElement>(null);
+  const commandPaletteRef = useRef<HTMLDivElement>(null);
+  const commandInputRef = useRef<HTMLInputElement>(null);
+  const prevOpenCommandPaletteSignalRef = useRef(openCommandPaletteSignal);
+  const prevCloseCommandPaletteSignalRef = useRef(closeCommandPaletteSignal);
   const closeCreateModal = useCallback(() => {
     setShowCreateModal(false);
     setNewRoomName("");
@@ -68,6 +84,10 @@ export default function RoomList({
   }, []);
   const closeLogoutModal = useCallback(() => {
     setShowLogoutModal(false);
+  }, []);
+  const closeCommandPalette = useCallback(() => {
+    setShowCommandPalette(false);
+    setCommandQuery("");
   }, []);
 
   // When sidebar transitions from open to closed (e.g. user taps message area on mobile), close discovery modal to avoid stray content. Do not close when sidebar is already collapsed and user opens discovery from the compass.
@@ -80,6 +100,30 @@ export default function RoomList({
 
   useFocusTrap(createModalRef, showCreateModal, closeCreateModal);
   useFocusTrap(logoutModalRef, showLogoutModal, closeLogoutModal);
+  useFocusTrap(commandPaletteRef, showCommandPalette, closeCommandPalette);
+
+  useEffect(() => {
+    if (openCommandPaletteSignal === prevOpenCommandPaletteSignalRef.current) return;
+    prevOpenCommandPaletteSignalRef.current = openCommandPaletteSignal;
+    setShowCommandPalette(true);
+    setCommandQuery("");
+  }, [openCommandPaletteSignal]);
+
+  useEffect(() => {
+    if (closeCommandPaletteSignal === prevCloseCommandPaletteSignalRef.current) return;
+    prevCloseCommandPaletteSignalRef.current = closeCommandPaletteSignal;
+    closeCommandPalette();
+  }, [closeCommandPaletteSignal, closeCommandPalette]);
+
+  useEffect(() => {
+    if (!showCommandPalette) return;
+    const timeoutId = window.setTimeout(() => {
+      commandInputRef.current?.focus();
+    }, 0);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [showCommandPalette]);
 
   useEffect(() => {
     let timeoutId: number;
@@ -203,6 +247,61 @@ export default function RoomList({
   // Keep amber visuals cohesive by using per-user hues only in neon mode.
   const sidebarUserColors =
     theme === "neon" && user ? getUserColorPalette(user.username) : null;
+  const normalizedCommandQuery = commandQuery.trim().toLowerCase();
+  const paletteActionItems = [
+    {
+      id: "create-room",
+      label: "Create room",
+      keywords: "create room new",
+      run: () => {
+        closeCommandPalette();
+        setShowCreateModal(true);
+      },
+    },
+    {
+      id: "toggle-theme",
+      label: theme === "neon" ? "Switch to amber theme" : "Switch to neon theme",
+      keywords: "theme neon amber",
+      run: () => {
+        closeCommandPalette();
+        onToggleTheme?.();
+      },
+    },
+    {
+      id: "toggle-crt",
+      label: crtEnabled ? "Turn CRT off" : "Turn CRT on",
+      keywords: "crt scanline display",
+      run: () => {
+        closeCommandPalette();
+        onToggleCrt?.();
+      },
+    },
+  ];
+  const paletteVisibleActions = paletteActionItems.filter((action) =>
+    !normalizedCommandQuery
+      || action.label.toLowerCase().includes(normalizedCommandQuery)
+      || action.keywords.includes(normalizedCommandQuery),
+  );
+  const paletteVisibleRooms = rooms.filter((room) =>
+    !normalizedCommandQuery
+      || formatRoomNameForDisplay(room.name)
+        .toLowerCase()
+        .includes(normalizedCommandQuery),
+  );
+
+  const runFirstPaletteMatch = () => {
+    const firstAction = paletteVisibleActions[0];
+    if (firstAction) {
+      firstAction.run();
+      return;
+    }
+
+    const firstRoom = paletteVisibleRooms[0];
+    if (firstRoom) {
+      closeCommandPalette();
+      onSelectRoom(firstRoom);
+    }
+  };
 
   return (
     <>
@@ -510,6 +609,116 @@ export default function RoomList({
           )}
         </div>
       </div>
+
+      {/* Command Palette - global quick actions and room jump */}
+      {showCommandPalette &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div
+              ref={commandPaletteRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="command-palette-title"
+              className="max-w-xl w-full mx-4"
+              style={{
+                background: "var(--bg-panel)",
+                border: "1px solid var(--border-primary)",
+              }}
+            >
+              <div className="px-4 pt-4 pb-3" style={{ borderBottom: "1px solid var(--border-dim)" }}>
+                <h3
+                  id="command-palette-title"
+                  className="font-bebas text-[22px] tracking-[0.08em] mb-2"
+                  style={{ color: "var(--color-primary)" }}
+                >
+                  Command Palette
+                </h3>
+                <input
+                  ref={commandInputRef}
+                  type="text"
+                  value={commandQuery}
+                  onChange={(e) => setCommandQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      runFirstPaletteMatch();
+                    }
+                  }}
+                  placeholder="Filter actions and rooms..."
+                  className="w-full px-3 py-2 font-mono text-[13px] focus:outline-none"
+                  style={{
+                    background: "var(--bg-app)",
+                    color: "var(--color-primary)",
+                    border: "1px solid var(--border-primary)",
+                    borderRadius: "2px",
+                  }}
+                />
+              </div>
+
+              <div className="max-h-80 overflow-y-auto p-2">
+                {paletteVisibleActions.length > 0 && (
+                  <>
+                    <p
+                      className="font-pixel text-[8px] tracking-[0.18em] px-2 pt-1 pb-2"
+                      style={{ color: "var(--color-meta)" }}
+                    >
+                      ACTIONS
+                    </p>
+                    {paletteVisibleActions.map((action) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={action.run}
+                        className="w-full text-left px-3 py-2 font-mono text-[13px] transition-colors"
+                        style={{ color: "var(--color-text)" }}
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {paletteVisibleRooms.length > 0 && (
+                  <>
+                    <p
+                      className="font-pixel text-[8px] tracking-[0.18em] px-2 pt-3 pb-2"
+                      style={{ color: "var(--color-meta)" }}
+                    >
+                      ROOMS
+                    </p>
+                    {paletteVisibleRooms.map((room) => {
+                      const displayRoomName = formatRoomNameForDisplay(room.name);
+                      return (
+                        <button
+                          key={room.id}
+                          type="button"
+                          onClick={() => {
+                            closeCommandPalette();
+                            onSelectRoom(room);
+                          }}
+                          className="w-full text-left px-3 py-2 font-mono text-[13px] transition-colors"
+                          style={{ color: "var(--color-text)" }}
+                        >
+                          #{displayRoomName}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+
+                {paletteVisibleActions.length === 0 && paletteVisibleRooms.length === 0 && (
+                  <p
+                    className="px-3 py-4 font-mono text-[12px]"
+                    style={{ color: "var(--color-meta)" }}
+                  >
+                    No matches found.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* Create Room Modal - rendered via portal to escape sidebar constraints */}
       {showCreateModal &&
