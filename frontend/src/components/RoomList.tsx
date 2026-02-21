@@ -110,14 +110,16 @@ export default function RoomList({
   useFocusTrap(commandPaletteRef, showCommandPalette, closeCommandPalette);
 
   useEffect(() => {
-    if (openCommandPaletteSignal === prevOpenCommandPaletteSignalRef.current) return;
+    if (openCommandPaletteSignal === prevOpenCommandPaletteSignalRef.current)
+      return;
     prevOpenCommandPaletteSignalRef.current = openCommandPaletteSignal;
     setShowCommandPalette(true);
     setCommandQuery("");
   }, [openCommandPaletteSignal]);
 
   useEffect(() => {
-    if (closeCommandPaletteSignal === prevCloseCommandPaletteSignalRef.current) return;
+    if (closeCommandPaletteSignal === prevCloseCommandPaletteSignalRef.current)
+      return;
     prevCloseCommandPaletteSignalRef.current = closeCommandPaletteSignal;
     closeCommandPalette();
   }, [closeCommandPaletteSignal, closeCommandPalette]);
@@ -146,7 +148,9 @@ export default function RoomList({
       // 5-second timeout for local testing
       timeoutId = window.setTimeout(() => {
         timeoutFiredRef.current = true;
-        setError("Loading is taking longer than expected. The server may be waking up.");
+        setError(
+          "Loading is taking longer than expected. The server may be waking up.",
+        );
         setLoading(false);
       }, 5000);
 
@@ -180,8 +184,8 @@ export default function RoomList({
         clearTimeout(timeoutId);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [token, refreshTrigger, retryCount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, refreshTrigger, retryCount]);
 
   const handleRetry = () => {
     setLoading(true);
@@ -205,8 +209,6 @@ export default function RoomList({
       logError("Error loading rooms:", err);
     }
   };
-
-
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,8 +268,18 @@ export default function RoomList({
       },
     },
     {
+      id: "discover-rooms",
+      label: "Discover rooms",
+      keywords: "discover browse join rooms",
+      run: () => {
+        closeCommandPalette();
+        setShowDiscovery(true);
+      },
+    },
+    {
       id: "toggle-theme",
-      label: theme === "neon" ? "Switch to amber theme" : "Switch to neon theme",
+      label:
+        theme === "neon" ? "Switch to amber theme" : "Switch to neon theme",
       keywords: "theme neon amber",
       run: () => {
         closeCommandPalette();
@@ -284,14 +296,16 @@ export default function RoomList({
       },
     },
   ];
-  const paletteVisibleActions = paletteActionItems.filter((action) =>
-    !normalizedCommandQuery
-      || action.label.toLowerCase().includes(normalizedCommandQuery)
-      || action.keywords.includes(normalizedCommandQuery),
+  const paletteVisibleActions = paletteActionItems.filter(
+    (action) =>
+      !normalizedCommandQuery ||
+      action.label.toLowerCase().includes(normalizedCommandQuery) ||
+      action.keywords.includes(normalizedCommandQuery),
   );
-  const paletteVisibleRooms = rooms.filter((room) =>
-    !normalizedCommandQuery
-      || formatRoomNameForDisplay(room.name)
+  const paletteVisibleRooms = rooms.filter(
+    (room) =>
+      !normalizedCommandQuery ||
+      formatRoomNameForDisplay(room.name)
         .toLowerCase()
         .includes(normalizedCommandQuery),
   );
@@ -316,7 +330,11 @@ export default function RoomList({
       {sidebarOpen && (
         <div
           className="font-pixel text-[8px] tracking-[0.15em]"
-          style={{ color: "var(--color-text)", opacity: 0.78, padding: "10px 14px 6px" }}
+          style={{
+            color: "var(--color-text)",
+            opacity: 0.78,
+            padding: "10px 14px 6px",
+          }}
         >
           ROOMS
         </div>
@@ -326,7 +344,10 @@ export default function RoomList({
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {loading ? (
           <div className="flex items-center justify-center p-4">
-            <p className="font-mono text-[12px]" style={{ color: "var(--color-meta)" }}>
+            <p
+              className="font-mono text-[12px]"
+              style={{ color: "var(--color-meta)" }}
+            >
               Loading rooms...
             </p>
           </div>
@@ -355,7 +376,10 @@ export default function RoomList({
           </div>
         ) : rooms.length === 0 ? (
           <div className="flex items-center justify-center p-4">
-            <p className="font-mono text-[12px] text-center" style={{ color: "var(--color-meta)" }}>
+            <p
+              className="font-mono text-[12px] text-center"
+              style={{ color: "var(--color-meta)" }}
+            >
               No rooms yet. Create one below!
             </p>
           </div>
@@ -389,7 +413,8 @@ export default function RoomList({
                 onMouseEnter={(e) => {
                   if (!isSelected) {
                     e.currentTarget.style.transform = "translateX(2px)";
-                    e.currentTarget.style.borderLeftColor = "var(--border-primary)";
+                    e.currentTarget.style.borderLeftColor =
+                      "var(--border-primary)";
                     e.currentTarget.style.background = roomHoverBackground;
                   }
                 }}
@@ -501,7 +526,8 @@ export default function RoomList({
               }}
               title="Discover rooms"
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = secondaryButtonHoverBackground;
+                e.currentTarget.style.background =
+                  secondaryButtonHoverBackground;
                 e.currentTarget.style.boxShadow = "var(--glow-secondary)";
               }}
               onMouseLeave={(e) => {
@@ -530,8 +556,18 @@ export default function RoomList({
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
             </button>
             <button
@@ -542,7 +578,8 @@ export default function RoomList({
               title="Discover rooms"
               aria-label="Discover rooms"
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = secondaryButtonHoverBackground;
+                e.currentTarget.style.background =
+                  secondaryButtonHoverBackground;
                 e.currentTarget.style.boxShadow = "var(--glow-secondary)";
               }}
               onMouseLeave={(e) => {
@@ -550,9 +587,19 @@ export default function RoomList({
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <circle cx="12" cy="12" r="10" strokeWidth={2} />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"
+                />
               </svg>
             </button>
           </div>
@@ -560,15 +607,19 @@ export default function RoomList({
 
         {/* User block: identity + logout */}
         <div
-          className="h-14 sm:h-16 shrink-0 px-3 flex items-center"
-          style={{ borderTop: "1px solid var(--border-dim)" }}
+          className="h-[66.5px] shrink-0 px-3 flex items-center"
+          style={{
+            borderTop: "1px solid var(--border-dim)",
+            marginTop: "-1px",
+          }}
         >
           {sidebarOpen ? (
             <div className="flex items-center gap-3 w-full">
               <div
                 className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bebas text-[16px]"
                 style={{
-                  background: sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
+                  background:
+                    sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
                   border: `1px solid ${sidebarUserColors?.borderColor ?? "var(--border-primary)"}`,
                   color: sidebarUserColors?.textColor ?? "var(--color-primary)",
                   boxShadow: sidebarUserColors?.glowColor ?? "none",
@@ -579,7 +630,10 @@ export default function RoomList({
               </div>
               <span
                 className="font-mono text-[13px] tracking-[0.06em] truncate min-w-0 flex-1"
-                style={{ color: sidebarUserColors?.textColor ?? "var(--color-text)", opacity: 0.92 }}
+                style={{
+                  color: sidebarUserColors?.textColor ?? "var(--color-text)",
+                  opacity: 0.92,
+                }}
                 title={user?.username ?? "User"}
               >
                 {user?.username ?? "Username"}
@@ -592,8 +646,18 @@ export default function RoomList({
                 title="Logout"
                 aria-label="Logout"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
                 </svg>
               </button>
             </div>
@@ -609,9 +673,11 @@ export default function RoomList({
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center font-bebas text-[16px]"
                   style={{
-                    background: sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
+                    background:
+                      sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
                     border: `1px solid ${sidebarUserColors?.borderColor ?? "var(--border-primary)"}`,
-                    color: sidebarUserColors?.textColor ?? "var(--color-primary)",
+                    color:
+                      sidebarUserColors?.textColor ?? "var(--color-primary)",
                     boxShadow: sidebarUserColors?.glowColor ?? "none",
                   }}
                   title={user?.username ?? "User"}
@@ -639,7 +705,10 @@ export default function RoomList({
                 border: "1px solid var(--border-primary)",
               }}
             >
-              <div className="px-4 pt-4 pb-3" style={{ borderBottom: "1px solid var(--border-dim)" }}>
+              <div
+                className="px-4 pt-4 pb-3"
+                style={{ borderBottom: "1px solid var(--border-dim)" }}
+              >
                 <h3
                   id="command-palette-title"
                   className="font-bebas text-[22px] tracking-[0.08em] mb-2"
@@ -701,7 +770,9 @@ export default function RoomList({
                       ROOMS
                     </p>
                     {paletteVisibleRooms.map((room) => {
-                      const displayRoomName = formatRoomNameForDisplay(room.name);
+                      const displayRoomName = formatRoomNameForDisplay(
+                        room.name,
+                      );
                       return (
                         <button
                           key={room.id}
@@ -720,18 +791,19 @@ export default function RoomList({
                   </>
                 )}
 
-                {paletteVisibleActions.length === 0 && paletteVisibleRooms.length === 0 && (
-                  <p
-                    className="px-3 py-4 font-mono text-[12px]"
-                    style={{ color: "var(--color-meta)" }}
-                  >
-                    No matches found.
-                  </p>
-                )}
+                {paletteVisibleActions.length === 0 &&
+                  paletteVisibleRooms.length === 0 && (
+                    <p
+                      className="px-3 py-4 font-mono text-[12px]"
+                      style={{ color: "var(--color-meta)" }}
+                    >
+                      No matches found.
+                    </p>
+                  )}
               </div>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
 
       {/* Create Room Modal - rendered via portal to escape sidebar constraints */}
@@ -792,7 +864,9 @@ export default function RoomList({
                     }}
                   />
                   {createError && (
-                    <p className="mt-2 text-sm" style={{ color: "#ff4444" }}>{createError}</p>
+                    <p className="mt-2 text-sm" style={{ color: "#ff4444" }}>
+                      {createError}
+                    </p>
                   )}
                   <p
                     className="mt-2 font-pixel text-[7px] tracking-[0.12em]"
@@ -834,7 +908,7 @@ export default function RoomList({
               </form>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
 
       {/* Logout Confirmation Modal - matches other destructive action prompts */}
@@ -896,7 +970,7 @@ export default function RoomList({
               </div>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
 
       {/* Room Discovery Modal - portal to body so it stays on top and backdrop click works on mobile */}
@@ -914,7 +988,7 @@ export default function RoomList({
             joinedRoomIds={new Set(rooms.map((r) => r.id))}
             token={token}
           />,
-          document.body
+          document.body,
         )}
     </>
   );

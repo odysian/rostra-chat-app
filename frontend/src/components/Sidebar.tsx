@@ -69,7 +69,8 @@ export default function Sidebar({
 
   const actionButtonBaseClass =
     "font-pixel text-[8px] tracking-[0.15em] px-2.5 py-1.5 transition-colors duration-150";
-  const crtAccentColor = theme === "neon" ? "#9069E2" : "var(--color-secondary)";
+  const crtAccentColor =
+    theme === "neon" ? "#9069E2" : "var(--color-secondary)";
   const densityButtonBackground = "var(--color-secondary)";
   const densityButtonBorder = "1px solid var(--border-secondary)";
 
@@ -98,10 +99,10 @@ export default function Sidebar({
       >
         {/* Header with logo, tagline, and theme toggle */}
         <div
-          className="shrink-0 flex flex-col"
+          className={`shrink-0 flex flex-col ${!isOpen ? "md:h-[57px] md:justify-center" : ""}`}
           style={{
             borderBottom: "1px solid var(--border-dim)",
-            padding: isOpen ? "16px 16px 12px" : "16px 0 12px",
+            padding: isOpen ? "16px 16px 12px" : "0",
           }}
         >
           {isOpen ? (
@@ -140,15 +141,21 @@ export default function Sidebar({
                   <ChevronLeft
                     className="w-5 h-5"
                     style={{
-                      color: theme === "neon" ? "var(--color-secondary)" : "var(--color-primary)",
-                      filter: theme === "neon" ? "drop-shadow(0 0 5px rgba(255, 0, 204, 0.5))" : undefined,
+                      color:
+                        theme === "neon"
+                          ? "var(--color-secondary)"
+                          : "var(--color-primary)",
+                      filter:
+                        theme === "neon"
+                          ? "drop-shadow(0 0 5px rgba(255, 0, 204, 0.5))"
+                          : undefined,
                     }}
                   />
                 </button>
               </div>
 
-              {/* Mobile: keep current logo/control interaction model. */}
-              <div className="md:hidden flex items-start justify-between">
+              {/* Mobile logo row (controls are rendered in the shared row below). */}
+              <div className="md:hidden flex items-start">
                 <button
                   onClick={onToggle}
                   className="group"
@@ -177,67 +184,6 @@ export default function Sidebar({
                     </h1>
                   )}
                 </button>
-
-                <div className="flex flex-col items-end gap-1.5 mt-1">
-                  <button
-                    onClick={toggleTheme}
-                    className={actionButtonBaseClass}
-                    style={{
-                      border: "1px solid var(--border-primary)",
-                      color: "#000",
-                      background: "var(--color-primary)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.filter = "brightness(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.filter = "brightness(1)";
-                    }}
-                  >
-                    {theme === "neon" ? "NEON" : "AMBER"}
-                  </button>
-                  <button
-                    onClick={() => setCrtEnabled((prev) => !prev)}
-                    className={actionButtonBaseClass}
-                    style={{
-                      border: "1px solid var(--border-secondary)",
-                      color: crtEnabled ? "#000" : crtAccentColor,
-                      background: crtEnabled ? crtAccentColor : "transparent",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.filter = "brightness(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.filter = "brightness(1)";
-                    }}
-                    aria-pressed={crtEnabled}
-                    title={crtEnabled ? "CRT on" : "CRT off"}
-                  >
-                    CRT
-                  </button>
-                  <button
-                    onClick={onToggleDensity}
-                    className={actionButtonBaseClass}
-                    style={{
-                      border: densityButtonBorder,
-                      color: "#000",
-                      background: densityButtonBackground,
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.filter = "brightness(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.filter = "brightness(1)";
-                    }}
-                    title={
-                      density === "compact"
-                        ? "Switch to comfortable density"
-                        : "Switch to compact density"
-                    }
-                  >
-                    {density === "compact" ? "TIGHT" : "COMFY"}
-                  </button>
-                </div>
               </div>
 
               {/* Tagline */}
@@ -248,8 +194,8 @@ export default function Sidebar({
                 REAL·TIME·CHAT
               </span>
 
-              {/* Desktop controls row (temporary layout adjustment). */}
-              <div className="hidden md:flex items-center gap-1.5 mt-2">
+              {/* Controls row (temporary layout adjustment). */}
+              <div className="flex items-center gap-1.5 mt-2 justify-end md:justify-start">
                 <button
                   onClick={toggleTheme}
                   className={actionButtonBaseClass}
@@ -271,7 +217,7 @@ export default function Sidebar({
                   onClick={() => setCrtEnabled((prev) => !prev)}
                   className={actionButtonBaseClass}
                   style={{
-                    border: "1px solid var(--border-secondary)",
+                    border: `1px solid ${crtAccentColor}`,
                     color: crtEnabled ? "#000" : crtAccentColor,
                     background: crtEnabled ? crtAccentColor : "transparent",
                   }}
@@ -309,19 +255,26 @@ export default function Sidebar({
                   {density === "compact" ? "TIGHT" : "COMFY"}
                 </button>
               </div>
+
+              <span
+                className="hidden md:block font-pixel text-[7px] tracking-[0.14em] mt-2"
+                style={{ color: "var(--color-meta)", opacity: 0.65 }}
+              >
+                TIP: CMD/CTRL+K
+              </span>
             </>
           ) : (
             <>
               {/* Desktop collapsed affordance: R + right chevron. */}
               <button
                 onClick={onToggle}
-                className="hidden md:flex w-full items-center justify-center gap-0.5 hover:scale-105 transition-transform icon-button-focus"
+                className="hidden md:flex w-full h-full items-center justify-center gap-0.5 md:pl-2.5 hover:scale-105 transition-transform icon-button-focus"
                 title="Expand sidebar"
                 aria-label="Expand sidebar"
               >
                 {theme === "neon" ? (
                   <span
-                    className="font-bebas text-[38px] leading-none gradient-text"
+                    className="font-bebas text-[40px] leading-none gradient-text"
                     style={{
                       backgroundImage:
                         "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
@@ -348,8 +301,14 @@ export default function Sidebar({
                 <ChevronRight
                   className="w-4 h-4"
                   style={{
-                    color: theme === "neon" ? "var(--color-secondary)" : "var(--color-primary)",
-                    filter: theme === "neon" ? "drop-shadow(0 0 5px rgba(255, 0, 204, 0.5))" : undefined,
+                    color:
+                      theme === "neon"
+                        ? "var(--color-secondary)"
+                        : "var(--color-primary)",
+                    filter:
+                      theme === "neon"
+                        ? "drop-shadow(0 0 5px rgba(255, 0, 204, 0.5))"
+                        : undefined,
                   }}
                 />
               </button>

@@ -113,8 +113,6 @@ export default function ChatLayout() {
 
   useEffect(() => {
     const handleGlobalShortcuts = (event: KeyboardEvent) => {
-      if (isTypingTarget(event.target)) return;
-
       if (
         (event.metaKey || event.ctrlKey) &&
         event.key.toLowerCase() === "k"
@@ -123,6 +121,8 @@ export default function ChatLayout() {
         setOpenCommandPaletteSignal((prev) => prev + 1);
         return;
       }
+
+      if (isTypingTarget(event.target)) return;
 
       if (
         event.key === "/" &&
