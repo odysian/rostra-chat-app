@@ -77,7 +77,7 @@ export default function UsersPanel({
 
       {/* Panel */}
       <div
-        className="w-[170px] flex flex-col md:relative fixed inset-y-0 right-0 z-50 md:z-auto overflow-y-auto"
+        className="w-[190px] flex flex-col md:relative fixed inset-y-0 right-0 z-50 md:z-auto overflow-y-auto"
         style={{
           background: "var(--bg-panel)",
           borderLeft: "1px solid var(--border-secondary)",
@@ -142,7 +142,7 @@ export default function UsersPanel({
                   >
                     {/* Online dot */}
                     <div
-                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      className="w-2 h-2 rounded-full shrink-0"
                       style={{
                         background: isCurrentUser
                           ? getConnectionStatusColor()
@@ -154,7 +154,7 @@ export default function UsersPanel({
                     />
 
                     <span
-                      className="font-mono font-semibold text-[14px] tracking-[0.06em] truncate flex items-center gap-1.5 min-w-0 flex-1"
+                      className="font-mono font-semibold text-[15px] tracking-[0.05em] truncate flex items-center gap-1.5 min-w-0 flex-1"
                       style={{
                         color: userColors?.textColor ?? "var(--color-text)",
                         opacity: 0.92,
@@ -164,7 +164,7 @@ export default function UsersPanel({
                       {isRoomOwner && (
                         <span title="Room owner">
                           <Crown
-                            className="w-3.5 h-3.5 shrink-0"
+                            className="w-4 h-4 shrink-0"
                             style={{ color: "var(--color-primary)" }}
                             aria-hidden
                           />

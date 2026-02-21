@@ -289,4 +289,22 @@ describe("RoomList", () => {
       expect(screen.queryByRole("heading", { name: "Log Out?" })).not.toBeInTheDocument();
     });
   });
+
+  it("moves focus to message input when tabbing from a room row", async () => {
+    mockGetRooms.mockResolvedValueOnce(roomsFixture);
+    const composer = document.createElement("textarea");
+    composer.setAttribute("data-tab-focus", "message-input");
+    document.body.appendChild(composer);
+
+    renderRoomList({ selectedRoom: roomsFixture[0] });
+    const roomButton = await screen.findByRole("button", {
+      name: /Engineering-Room/i,
+    });
+
+    roomButton.focus();
+    fireEvent.keyDown(roomButton, { key: "Tab" });
+    expect(document.activeElement).toBe(composer);
+
+    composer.remove();
+  });
 });

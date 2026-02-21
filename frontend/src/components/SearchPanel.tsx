@@ -9,6 +9,7 @@ interface SearchPanelProps {
   onClose: () => void;
   roomId: number;
   token: string;
+  focusSignal?: number;
 }
 
 /**
@@ -23,6 +24,7 @@ export default function SearchPanel({
   onClose,
   roomId,
   token,
+  focusSignal = 0,
 }: SearchPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<Message[]>([]);
@@ -132,7 +134,11 @@ export default function SearchPanel({
           borderLeft: "1px solid var(--border-primary)",
         }}
       >
-        <SearchBar onSearch={handleSearch} onClose={handleClose} />
+        <SearchBar
+          onSearch={handleSearch}
+          onClose={handleClose}
+          focusSignal={focusSignal}
+        />
         <SearchResults
           messages={searchResults}
           query={searchQuery}

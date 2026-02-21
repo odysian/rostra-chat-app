@@ -14,6 +14,11 @@ interface RoomListProps {
   selectedRoom: Room | null;
   onSelectRoom: (room: Room) => void;
   sidebarOpen: boolean;
+  openCommandPaletteSignal?: number;
+  closeCommandPaletteSignal?: number;
+  onToggleTheme?: () => void;
+  onToggleCrt?: () => void;
+  crtEnabled?: boolean;
   refreshTrigger?: number;
   unreadCounts: Record<number, number>;
   onUnreadCountsLoaded: (counts: Record<number, number>) => void;
@@ -27,10 +32,22 @@ function getUserInitials(username: string): string {
   return username.substring(0, 2).toUpperCase();
 }
 
+function focusMessageInput(): void {
+  const input = document.querySelector<HTMLTextAreaElement>(
+    "[data-tab-focus='message-input']",
+  );
+  input?.focus();
+}
+
 export default function RoomList({
   selectedRoom,
   onSelectRoom,
   sidebarOpen,
+  openCommandPaletteSignal = 0,
+  closeCommandPaletteSignal = 0,
+  onToggleTheme,
+  onToggleCrt,
+  crtEnabled = false,
   refreshTrigger,
   unreadCounts,
   onUnreadCountsLoaded,
@@ -58,9 +75,15 @@ export default function RoomList({
   // Discovery modal state
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [commandQuery, setCommandQuery] = useState("");
   const prevSidebarOpenRef = useRef(sidebarOpen);
   const createModalRef = useRef<HTMLDivElement>(null);
   const logoutModalRef = useRef<HTMLDivElement>(null);
+  const commandPaletteRef = useRef<HTMLDivElement>(null);
+  const commandInputRef = useRef<HTMLInputElement>(null);
+  const prevOpenCommandPaletteSignalRef = useRef(openCommandPaletteSignal);
+  const prevCloseCommandPaletteSignalRef = useRef(closeCommandPaletteSignal);
   const closeCreateModal = useCallback(() => {
     setShowCreateModal(false);
     setNewRoomName("");
@@ -68,6 +91,10 @@ export default function RoomList({
   }, []);
   const closeLogoutModal = useCallback(() => {
     setShowLogoutModal(false);
+  }, []);
+  const closeCommandPalette = useCallback(() => {
+    setShowCommandPalette(false);
+    setCommandQuery("");
   }, []);
 
   // When sidebar transitions from open to closed (e.g. user taps message area on mobile), close discovery modal to avoid stray content. Do not close when sidebar is already collapsed and user opens discovery from the compass.
@@ -80,6 +107,32 @@ export default function RoomList({
 
   useFocusTrap(createModalRef, showCreateModal, closeCreateModal);
   useFocusTrap(logoutModalRef, showLogoutModal, closeLogoutModal);
+  useFocusTrap(commandPaletteRef, showCommandPalette, closeCommandPalette);
+
+  useEffect(() => {
+    if (openCommandPaletteSignal === prevOpenCommandPaletteSignalRef.current)
+      return;
+    prevOpenCommandPaletteSignalRef.current = openCommandPaletteSignal;
+    setShowCommandPalette(true);
+    setCommandQuery("");
+  }, [openCommandPaletteSignal]);
+
+  useEffect(() => {
+    if (closeCommandPaletteSignal === prevCloseCommandPaletteSignalRef.current)
+      return;
+    prevCloseCommandPaletteSignalRef.current = closeCommandPaletteSignal;
+    closeCommandPalette();
+  }, [closeCommandPaletteSignal, closeCommandPalette]);
+
+  useEffect(() => {
+    if (!showCommandPalette) return;
+    const timeoutId = window.setTimeout(() => {
+      commandInputRef.current?.focus();
+    }, 0);
+    return () => {
+      clearTimeout(timeoutId);
+    };
+  }, [showCommandPalette]);
 
   useEffect(() => {
     let timeoutId: number;
@@ -95,7 +148,9 @@ export default function RoomList({
       // 5-second timeout for local testing
       timeoutId = window.setTimeout(() => {
         timeoutFiredRef.current = true;
-        setError("Loading is taking longer than expected. The server may be waking up.");
+        setError(
+          "Loading is taking longer than expected. The server may be waking up.",
+        );
         setLoading(false);
       }, 5000);
 
@@ -129,8 +184,8 @@ export default function RoomList({
         clearTimeout(timeoutId);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [token, refreshTrigger, retryCount]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, refreshTrigger, retryCount]);
 
   const handleRetry = () => {
     setLoading(true);
@@ -154,8 +209,6 @@ export default function RoomList({
       logError("Error loading rooms:", err);
     }
   };
-
-
 
   const handleCreateRoom = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -203,14 +256,85 @@ export default function RoomList({
   // Keep amber visuals cohesive by using per-user hues only in neon mode.
   const sidebarUserColors =
     theme === "neon" && user ? getUserColorPalette(user.username) : null;
+  const normalizedCommandQuery = commandQuery.trim().toLowerCase();
+  const paletteActionItems = [
+    {
+      id: "create-room",
+      label: "Create room",
+      keywords: "create room new",
+      run: () => {
+        closeCommandPalette();
+        setShowCreateModal(true);
+      },
+    },
+    {
+      id: "discover-rooms",
+      label: "Discover rooms",
+      keywords: "discover browse join rooms",
+      run: () => {
+        closeCommandPalette();
+        setShowDiscovery(true);
+      },
+    },
+    {
+      id: "toggle-theme",
+      label:
+        theme === "neon" ? "Switch to amber theme" : "Switch to neon theme",
+      keywords: "theme neon amber",
+      run: () => {
+        closeCommandPalette();
+        onToggleTheme?.();
+      },
+    },
+    {
+      id: "toggle-crt",
+      label: crtEnabled ? "Turn CRT off" : "Turn CRT on",
+      keywords: "crt scanline display",
+      run: () => {
+        closeCommandPalette();
+        onToggleCrt?.();
+      },
+    },
+  ];
+  const paletteVisibleActions = paletteActionItems.filter(
+    (action) =>
+      !normalizedCommandQuery ||
+      action.label.toLowerCase().includes(normalizedCommandQuery) ||
+      action.keywords.includes(normalizedCommandQuery),
+  );
+  const paletteVisibleRooms = rooms.filter(
+    (room) =>
+      !normalizedCommandQuery ||
+      formatRoomNameForDisplay(room.name)
+        .toLowerCase()
+        .includes(normalizedCommandQuery),
+  );
+
+  const runFirstPaletteMatch = () => {
+    const firstAction = paletteVisibleActions[0];
+    if (firstAction) {
+      firstAction.run();
+      return;
+    }
+
+    const firstRoom = paletteVisibleRooms[0];
+    if (firstRoom) {
+      closeCommandPalette();
+      onSelectRoom(firstRoom);
+    }
+  };
 
   return (
     <>
       {/* Section label */}
       {sidebarOpen && (
         <div
-          className="font-pixel text-[7px] tracking-[0.15em]"
-          style={{ color: "var(--color-meta)", padding: "8px 14px 4px" }}
+          className="font-pixel text-[8px] tracking-[0.15em]"
+          style={{
+            color: "var(--color-text)",
+            opacity: 0.78,
+            padding: "10px 14px 6px",
+          }}
         >
           ROOMS
         </div>
@@ -220,7 +344,10 @@ export default function RoomList({
       <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {loading ? (
           <div className="flex items-center justify-center p-4">
-            <p className="font-mono text-[12px]" style={{ color: "var(--color-meta)" }}>
+            <p
+              className="font-mono text-[12px]"
+              style={{ color: "var(--color-meta)" }}
+            >
               Loading rooms...
             </p>
           </div>
@@ -249,7 +376,10 @@ export default function RoomList({
           </div>
         ) : rooms.length === 0 ? (
           <div className="flex items-center justify-center p-4">
-            <p className="font-mono text-[12px] text-center" style={{ color: "var(--color-meta)" }}>
+            <p
+              className="font-mono text-[12px] text-center"
+              style={{ color: "var(--color-meta)" }}
+            >
               No rooms yet. Create one below!
             </p>
           </div>
@@ -263,9 +393,16 @@ export default function RoomList({
               <button
                 key={room.id}
                 onClick={() => onSelectRoom(room)}
+                onKeyDown={(event) => {
+                  // Prioritize jumping straight into composer from room focus.
+                  if (event.key === "Tab" && !event.shiftKey && selectedRoom) {
+                    event.preventDefault();
+                    focusMessageInput();
+                  }
+                }}
                 className="w-full text-left flex items-center justify-between gap-2 transition-all duration-150"
                 style={{
-                  padding: "10px 12px 10px 14px",
+                  padding: "11px 12px 11px 14px",
                   borderBottom: "1px solid var(--border-dim)",
                   borderLeft: isSelected
                     ? "2px solid var(--color-primary)"
@@ -276,7 +413,8 @@ export default function RoomList({
                 onMouseEnter={(e) => {
                   if (!isSelected) {
                     e.currentTarget.style.transform = "translateX(2px)";
-                    e.currentTarget.style.borderLeftColor = "var(--border-primary)";
+                    e.currentTarget.style.borderLeftColor =
+                      "var(--border-primary)";
                     e.currentTarget.style.background = roomHoverBackground;
                   }
                 }}
@@ -312,11 +450,11 @@ export default function RoomList({
                     </div>
                     {hasUnread && (
                       <span
-                        className="shrink-0 font-mono text-[10px] px-1.5 py-px"
+                        className="shrink-0 font-mono text-[11px] font-semibold px-2 py-0.5 leading-none"
                         style={{
                           background: "var(--color-secondary)",
                           color: "#000",
-                          borderRadius: "2px",
+                          borderRadius: "999px",
                           boxShadow: "var(--glow-secondary)",
                         }}
                       >
@@ -338,7 +476,7 @@ export default function RoomList({
                     </span>
                     {hasUnread && (
                       <span
-                        className="absolute top-0 right-0 w-2 h-2 rounded-full"
+                        className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full"
                         style={{
                           background: "var(--color-secondary)",
                           boxShadow: "var(--glow-secondary)",
@@ -388,7 +526,8 @@ export default function RoomList({
               }}
               title="Discover rooms"
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = secondaryButtonHoverBackground;
+                e.currentTarget.style.background =
+                  secondaryButtonHoverBackground;
                 e.currentTarget.style.boxShadow = "var(--glow-secondary)";
               }}
               onMouseLeave={(e) => {
@@ -404,7 +543,7 @@ export default function RoomList({
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
-              className="w-full flex justify-center py-2 transition-all duration-150"
+              className="w-full flex justify-center py-2 transition-all duration-150 icon-button-focus"
               style={{ color: "var(--color-primary)", boxShadow: "none" }}
               title="Create new room"
               aria-label="Create new room"
@@ -417,19 +556,30 @@ export default function RoomList({
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 4v16m8-8H4"
+                />
               </svg>
             </button>
             <button
               type="button"
               onClick={() => setShowDiscovery(true)}
-              className="w-full flex justify-center py-2 transition-all duration-150"
+              className="w-full flex justify-center py-2 transition-all duration-150 icon-button-focus"
               style={{ color: "var(--color-secondary)", boxShadow: "none" }}
               title="Discover rooms"
               aria-label="Discover rooms"
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = secondaryButtonHoverBackground;
+                e.currentTarget.style.background =
+                  secondaryButtonHoverBackground;
                 e.currentTarget.style.boxShadow = "var(--glow-secondary)";
               }}
               onMouseLeave={(e) => {
@@ -437,9 +587,19 @@ export default function RoomList({
                 e.currentTarget.style.boxShadow = "none";
               }}
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
                 <circle cx="12" cy="12" r="10" strokeWidth={2} />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M16.24 7.76l-2.12 6.36-6.36 2.12 2.12-6.36 6.36-2.12z"
+                />
               </svg>
             </button>
           </div>
@@ -447,15 +607,19 @@ export default function RoomList({
 
         {/* User block: identity + logout */}
         <div
-          className="h-14 sm:h-16 shrink-0 px-3 flex items-center"
-          style={{ borderTop: "1px solid var(--border-dim)" }}
+          className="h-[66.5px] shrink-0 px-3 flex items-center"
+          style={{
+            borderTop: "1px solid var(--border-dim)",
+            marginTop: "-1px",
+          }}
         >
           {sidebarOpen ? (
             <div className="flex items-center gap-3 w-full">
               <div
                 className="w-9 h-9 shrink-0 rounded-full flex items-center justify-center font-bebas text-[16px]"
                 style={{
-                  background: sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
+                  background:
+                    sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
                   border: `1px solid ${sidebarUserColors?.borderColor ?? "var(--border-primary)"}`,
                   color: sidebarUserColors?.textColor ?? "var(--color-primary)",
                   boxShadow: sidebarUserColors?.glowColor ?? "none",
@@ -466,7 +630,10 @@ export default function RoomList({
               </div>
               <span
                 className="font-mono text-[13px] tracking-[0.06em] truncate min-w-0 flex-1"
-                style={{ color: sidebarUserColors?.textColor ?? "var(--color-text)", opacity: 0.92 }}
+                style={{
+                  color: sidebarUserColors?.textColor ?? "var(--color-text)",
+                  opacity: 0.92,
+                }}
                 title={user?.username ?? "User"}
               >
                 {user?.username ?? "Username"}
@@ -474,13 +641,23 @@ export default function RoomList({
               <button
                 type="button"
                 onClick={() => setShowLogoutModal(true)}
-                className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 text-sm transition-colors"
+                className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 text-sm transition-colors icon-button-focus"
                 style={{ color: "#ff4444" }}
                 title="Logout"
                 aria-label="Logout"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                  />
                 </svg>
               </button>
             </div>
@@ -489,16 +666,18 @@ export default function RoomList({
               <button
                 type="button"
                 onClick={onExpandSidebar}
-                className="hover:scale-110 transition-transform"
+                className="hover:scale-110 transition-transform icon-button-focus"
                 title="Expand sidebar"
                 aria-label="Expand sidebar"
               >
                 <div
                   className="w-9 h-9 rounded-full flex items-center justify-center font-bebas text-[16px]"
                   style={{
-                    background: sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
+                    background:
+                      sidebarUserColors?.backgroundColor ?? "var(--bg-app)",
                     border: `1px solid ${sidebarUserColors?.borderColor ?? "var(--border-primary)"}`,
-                    color: sidebarUserColors?.textColor ?? "var(--color-primary)",
+                    color:
+                      sidebarUserColors?.textColor ?? "var(--color-primary)",
                     boxShadow: sidebarUserColors?.glowColor ?? "none",
                   }}
                   title={user?.username ?? "User"}
@@ -510,6 +689,122 @@ export default function RoomList({
           )}
         </div>
       </div>
+
+      {/* Command Palette - global quick actions and room jump */}
+      {showCommandPalette &&
+        createPortal(
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div
+              ref={commandPaletteRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="command-palette-title"
+              className="max-w-xl w-full mx-4"
+              style={{
+                background: "var(--bg-panel)",
+                border: "1px solid var(--border-primary)",
+              }}
+            >
+              <div
+                className="px-4 pt-4 pb-3"
+                style={{ borderBottom: "1px solid var(--border-dim)" }}
+              >
+                <h3
+                  id="command-palette-title"
+                  className="font-bebas text-[22px] tracking-[0.08em] mb-2"
+                  style={{ color: "var(--color-primary)" }}
+                >
+                  Command Palette
+                </h3>
+                <input
+                  ref={commandInputRef}
+                  type="text"
+                  value={commandQuery}
+                  onChange={(e) => setCommandQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      runFirstPaletteMatch();
+                    }
+                  }}
+                  placeholder="Filter actions and rooms..."
+                  className="w-full px-3 py-2 font-mono text-[13px] focus:outline-none"
+                  style={{
+                    background: "var(--bg-app)",
+                    color: "var(--color-primary)",
+                    border: "1px solid var(--border-primary)",
+                    borderRadius: "2px",
+                  }}
+                />
+              </div>
+
+              <div className="max-h-80 overflow-y-auto p-2">
+                {paletteVisibleActions.length > 0 && (
+                  <>
+                    <p
+                      className="font-pixel text-[8px] tracking-[0.18em] px-2 pt-1 pb-2"
+                      style={{ color: "var(--color-meta)" }}
+                    >
+                      ACTIONS
+                    </p>
+                    {paletteVisibleActions.map((action) => (
+                      <button
+                        key={action.id}
+                        type="button"
+                        onClick={action.run}
+                        className="w-full text-left px-3 py-2 font-mono text-[13px] transition-colors"
+                        style={{ color: "var(--color-text)" }}
+                      >
+                        {action.label}
+                      </button>
+                    ))}
+                  </>
+                )}
+
+                {paletteVisibleRooms.length > 0 && (
+                  <>
+                    <p
+                      className="font-pixel text-[8px] tracking-[0.18em] px-2 pt-3 pb-2"
+                      style={{ color: "var(--color-meta)" }}
+                    >
+                      ROOMS
+                    </p>
+                    {paletteVisibleRooms.map((room) => {
+                      const displayRoomName = formatRoomNameForDisplay(
+                        room.name,
+                      );
+                      return (
+                        <button
+                          key={room.id}
+                          type="button"
+                          onClick={() => {
+                            closeCommandPalette();
+                            onSelectRoom(room);
+                          }}
+                          className="w-full text-left px-3 py-2 font-mono text-[13px] transition-colors"
+                          style={{ color: "var(--color-text)" }}
+                        >
+                          #{displayRoomName}
+                        </button>
+                      );
+                    })}
+                  </>
+                )}
+
+                {paletteVisibleActions.length === 0 &&
+                  paletteVisibleRooms.length === 0 && (
+                    <p
+                      className="px-3 py-4 font-mono text-[12px]"
+                      style={{ color: "var(--color-meta)" }}
+                    >
+                      No matches found.
+                    </p>
+                  )}
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Create Room Modal - rendered via portal to escape sidebar constraints */}
       {showCreateModal &&
@@ -538,7 +833,7 @@ export default function RoomList({
                 <div className="mb-4">
                   <label
                     htmlFor="roomName"
-                    className="block font-pixel text-[7px] tracking-[0.2em] mb-2"
+                    className="block font-pixel text-[8px] tracking-[0.2em] mb-2"
                     style={{ color: "var(--color-meta)" }}
                   >
                     ROOM NAME
@@ -569,7 +864,9 @@ export default function RoomList({
                     }}
                   />
                   {createError && (
-                    <p className="mt-2 text-sm" style={{ color: "#ff4444" }}>{createError}</p>
+                    <p className="mt-2 text-sm" style={{ color: "#ff4444" }}>
+                      {createError}
+                    </p>
                   )}
                   <p
                     className="mt-2 font-pixel text-[7px] tracking-[0.12em]"
@@ -611,7 +908,7 @@ export default function RoomList({
               </form>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
 
       {/* Logout Confirmation Modal - matches other destructive action prompts */}
@@ -673,7 +970,7 @@ export default function RoomList({
               </div>
             </div>
           </div>,
-          document.body
+          document.body,
         )}
 
       {/* Room Discovery Modal - portal to body so it stays on top and backdrop click works on mobile */}
@@ -691,7 +988,7 @@ export default function RoomList({
             joinedRoomIds={new Set(rooms.map((r) => r.id))}
             token={token}
           />,
-          document.body
+          document.body,
         )}
     </>
   );

@@ -11,6 +11,8 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
+  density: "compact" | "comfortable";
+  hasOtherUnreadRooms?: boolean;
   incomingMessages: Message[];
   onIncomingMessagesProcessed: () => void;
   onToggleUsers: () => void;
@@ -25,6 +27,8 @@ interface MessageAreaProps {
 
 export default function MessageArea({
   selectedRoom,
+  density,
+  hasOtherUnreadRooms = false,
   incomingMessages,
   onIncomingMessagesProcessed,
   onToggleUsers,
@@ -67,13 +71,60 @@ export default function MessageArea({
 
   useFocusTrap(deleteModalRef, showDeleteModal, closeDeleteModal);
 
+  // Keep tab flow optimized for send-first workflows:
+  // input -> send -> back -> room menu -> search -> users.
+  useEffect(() => {
+    const handleTabOrder = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      if (!(event.target instanceof HTMLElement)) return;
+
+      const selectors = [
+        "[data-tab-focus='message-input']",
+        "[data-tab-focus='send-button']",
+        "[data-tab-focus='back-button']",
+        "[data-tab-focus='room-menu-button']",
+        "[data-tab-focus='search-button']",
+        "[data-tab-focus='users-button']",
+      ];
+
+      const tabStops = selectors
+        .map((selector) => document.querySelector<HTMLElement>(selector))
+        .filter((element): element is HTMLElement => element !== null);
+
+      const currentIndex = tabStops.indexOf(event.target);
+      if (currentIndex === -1) return;
+
+      const direction = event.shiftKey ? -1 : 1;
+      let nextIndex = currentIndex + direction;
+
+      while (nextIndex >= 0 && nextIndex < tabStops.length) {
+        const nextStop = tabStops[nextIndex];
+        nextStop.focus();
+        if (document.activeElement === nextStop) {
+          event.preventDefault();
+          return;
+        }
+        nextIndex += direction;
+      }
+    };
+
+    window.addEventListener("keydown", handleTabOrder);
+    return () => window.removeEventListener("keydown", handleTabOrder);
+  }, []);
+
   if (!selectedRoom) {
     return (
       <div
         className="flex-1 flex items-center justify-center"
         style={{ background: "var(--bg-app)" }}
       >
-        <div className="text-center">
+        <div
+          className="text-center px-8 py-7 mx-4 max-w-xl"
+          style={{
+            border: "1px solid var(--border-dim)",
+            background: "var(--bg-panel)",
+          }}
+        >
           {theme === "neon" ? (
             <h2
               className="font-bebas text-[36px] tracking-[0.06em] mb-2 gradient-text"
@@ -95,7 +146,7 @@ export default function MessageArea({
               Welcome to Rostra
             </h2>
           )}
-          <p className="font-mono text-[14px]" style={{ color: "var(--color-meta)" }}>
+          <p className="font-mono text-[15px]" style={{ color: "var(--color-meta)" }}>
             Select a room from the sidebar to start chatting
           </p>
         </div>
@@ -154,34 +205,47 @@ export default function MessageArea({
       >
         <div className="flex items-center gap-2.5 min-w-0 flex-1">
           {/* Back button - mobile only */}
-          <button
-            type="button"
-            onClick={onBackToRooms}
-            className="shrink-0 transition-colors md:hidden"
-            style={{ color: "var(--color-meta)" }}
-            title="Back to rooms"
-            aria-label="Back to rooms"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <div className="relative md:hidden">
+            <button
+              type="button"
+              data-tab-focus="back-button"
+              onClick={onBackToRooms}
+              className="shrink-0 transition-colors p-1 icon-button-focus"
+              style={{ color: "var(--color-meta)" }}
+              title="Back to rooms"
+              aria-label="Back to rooms"
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
+              <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 19l-7-7 7-7"
+                />
+              </svg>
+            </button>
+            {hasOtherUnreadRooms && (
+              <span
+                className="absolute top-0 right-0 w-2 h-2 rounded-full"
+                style={{
+                  background: "var(--color-secondary)",
+                  boxShadow: "var(--glow-secondary)",
+                }}
+                aria-hidden
               />
-            </svg>
-          </button>
+            )}
+          </div>
 
           <div className="min-w-0 flex-1 overflow-hidden">
             {/* Room name — gradient for neon, solid glow for amber */}
             {theme === "neon" ? (
               <h2
-                className="inline-block max-w-full font-bebas text-[22px] tracking-[0.12em] truncate gradient-text"
+                className="inline-flex items-center max-w-full font-bebas text-[24px] leading-none tracking-[0.11em] truncate gradient-text"
                 title={`#${displayRoomName}`}
                 style={{
                   backgroundImage:
@@ -193,7 +257,7 @@ export default function MessageArea({
               </h2>
             ) : (
               <h2
-                className="inline-block max-w-full font-bebas text-[22px] tracking-[0.12em] truncate"
+                className="inline-flex items-center max-w-full font-bebas text-[24px] leading-none tracking-[0.11em] truncate"
                 title={`#${displayRoomName}`}
                 style={{
                   color: "var(--color-primary)",
@@ -209,8 +273,9 @@ export default function MessageArea({
           <div className="relative shrink-0">
             <button
               type="button"
+              data-tab-focus="room-menu-button"
               onClick={() => setShowRoomMenu(!showRoomMenu)}
-              className="transition-colors p-1"
+              className="transition-colors p-1.5 icon-button-focus"
               style={{ color: "var(--color-meta)" }}
               title="Room options"
               aria-label="Room options"
@@ -228,7 +293,7 @@ export default function MessageArea({
                   onClick={() => setShowRoomMenu(false)}
                 />
                 <div
-                  className="absolute right-0 mt-2 w-48 shadow-lg py-1 z-20"
+                  className="absolute right-0 mt-2 w-48 max-w-[calc(100vw-16px)] max-h-64 overflow-y-auto shadow-lg py-1 z-20"
                   style={{
                     background: "var(--bg-panel)",
                     border: "1px solid var(--border-primary)",
@@ -239,7 +304,7 @@ export default function MessageArea({
                       setShowRoomMenu(false);
                       onLeaveRoom();
                     }}
-                    className="w-full px-4 py-2 text-left font-mono text-[12px] transition-colors"
+                    className="w-full px-4 py-2 text-left font-mono text-[12px] room-menu-item"
                     style={{ color: "var(--color-text)" }}
                   >
                     Leave Room
@@ -254,7 +319,7 @@ export default function MessageArea({
                           setDeleteError("");
                           setShowDeleteModal(true);
                         }}
-                        className="w-full px-4 py-2 text-left font-mono text-[12px] transition-colors"
+                        className="w-full px-4 py-2 text-left font-mono text-[12px] room-menu-item"
                         style={{ color: "#ff4444" }}
                       >
                         Delete Room
@@ -270,8 +335,9 @@ export default function MessageArea({
         {/* Search toggle */}
         <button
           type="button"
+          data-tab-focus="search-button"
           onClick={onToggleSearch}
-          className="shrink-0 transition-colors"
+          className="shrink-0 transition-colors p-1 icon-button-focus"
           style={{ color: "var(--color-meta)" }}
           title="Search messages"
           aria-label="Search messages"
@@ -293,8 +359,9 @@ export default function MessageArea({
 
         <button
           type="button"
+          data-tab-focus="users-button"
           onClick={onToggleUsers}
-          className="shrink-0 transition-colors"
+          className="shrink-0 transition-colors p-1 icon-button-focus"
           style={{ color: "var(--color-meta)" }}
           title="Toggle users panel"
           aria-label="Toggle users panel"
@@ -381,6 +448,7 @@ export default function MessageArea({
       <MessageList
         key={selectedRoom.id}
         roomId={selectedRoom.id}
+        density={density}
         incomingMessages={incomingMessages}
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
         scrollToLatestSignal={scrollToLatestSignal}
@@ -430,6 +498,7 @@ export default function MessageArea({
           <button
             type="button"
             onClick={onDismissWsError}
+            className="icon-button-focus"
             style={{ color: "#ff4444" }}
             aria-label="Dismiss"
           >

@@ -41,6 +41,19 @@ describe("MessageInput", () => {
     ).toBeInTheDocument();
   });
 
+  it("truncates long room names in placeholder", () => {
+    render(
+      <MessageInput
+        roomId={1}
+        roomName="This Is A Very Long Room Name For Placeholder Testing"
+      />,
+    );
+
+    expect(
+      screen.getByPlaceholderText("Message #This-Is-A-Very-..."),
+    ).toBeInTheDocument();
+  });
+
   it("keeps send disabled when input is empty", () => {
     render(<MessageInput roomId={1} roomName="General Discussion" />);
     expect(screen.getByRole("button", { name: /SEND/i })).toBeDisabled();

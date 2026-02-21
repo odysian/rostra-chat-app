@@ -3,9 +3,10 @@ import { useState, useEffect, useRef } from "react";
 interface SearchBarProps {
   onSearch: (query: string) => void;
   onClose: () => void;
+  focusSignal?: number;
 }
 
-export default function SearchBar({ onSearch, onClose }: SearchBarProps) {
+export default function SearchBar({ onSearch, onClose, focusSignal = 0 }: SearchBarProps) {
   const [query, setQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const debounceRef = useRef<number | undefined>(undefined);
@@ -14,6 +15,10 @@ export default function SearchBar({ onSearch, onClose }: SearchBarProps) {
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [focusSignal]);
 
   // Debounce: wait 300ms after user stops typing before firing search.
   // This prevents hammering the API on every keystroke.
@@ -63,7 +68,7 @@ export default function SearchBar({ onSearch, onClose }: SearchBarProps) {
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Search messages..."
-          className="flex-1 px-3 py-2 focus:outline-none font-mono text-[11px] tracking-[0.10em] placeholder:text-[var(--color-meta)]"
+          className="flex-1 px-3 py-2 focus:outline-none font-mono text-[12px] tracking-[0.09em] placeholder:text-[var(--color-meta)]"
           style={{
             background: "var(--bg-app)",
             border: "1px solid var(--border-primary)",
@@ -81,13 +86,13 @@ export default function SearchBar({ onSearch, onClose }: SearchBarProps) {
         <button
           type="button"
           onClick={onClose}
-          className="transition-colors shrink-0 p-1"
+          className="transition-colors shrink-0 p-2 icon-button-focus"
           style={{ color: "var(--color-meta)" }}
           title="Close search (Esc)"
           aria-label="Close search"
         >
           <svg
-            className="w-4 h-4"
+            className="w-[18px] h-[18px]"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"

@@ -96,7 +96,7 @@ export default function SearchResults({
     <div className="flex-1 overflow-y-auto min-h-0">
       {/* Result count */}
       <div
-        className="px-3.5 py-2 font-mono text-[10px] tracking-[0.08em]"
+        className="px-3.5 py-2 font-mono text-[11px] tracking-[0.07em]"
         style={{ color: "var(--color-meta)" }}
       >
         {messages.length}{hasMore ? "+" : ""} result{messages.length !== 1 ? "s" : ""}
@@ -124,13 +124,13 @@ export default function SearchResults({
             <div className="min-w-0 flex-1">
               <div className="flex items-baseline gap-2 mb-1">
                 <span
-                  className="font-mono text-[10px] tracking-[0.08em]"
+                  className="font-mono text-[11px] tracking-[0.07em]"
                   style={{ color: "var(--color-primary)" }}
                 >
                   {msg.username}
                 </span>
                 <span
-                  className="font-mono text-[10px] tracking-[0.08em]"
+                  className="font-mono text-[11px] tracking-[0.07em]"
                   style={{ color: "var(--color-meta)" }}
                 >
                   {formatDate(msg.created_at)}

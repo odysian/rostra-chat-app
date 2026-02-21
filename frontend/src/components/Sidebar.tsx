@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import RoomList from "./RoomList";
 import { useTheme } from "../context/ThemeContext";
 import type { Room } from "../types";
@@ -6,6 +7,10 @@ import type { Room } from "../types";
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
+  density: "compact" | "comfortable";
+  openCommandPaletteSignal: number;
+  closeCommandPaletteSignal: number;
+  onToggleDensity: () => void;
   selectedRoom: Room | null;
   onSelectRoom: (room: Room) => void;
   refreshTrigger: number;
@@ -33,6 +38,10 @@ function parseCrtEnabled(value: string | null): boolean {
 export default function Sidebar({
   isOpen,
   onToggle,
+  density,
+  openCommandPaletteSignal,
+  closeCommandPaletteSignal,
+  onToggleDensity,
   selectedRoom,
   onSelectRoom,
   refreshTrigger,
@@ -57,6 +66,13 @@ export default function Sidebar({
   }, [crtEnabled]);
 
   if (!visible) return null;
+
+  const actionButtonBaseClass =
+    "font-pixel text-[8px] tracking-[0.15em] px-2.5 py-1.5 transition-colors duration-150";
+  const crtAccentColor =
+    theme === "neon" ? "#9069E2" : "var(--color-secondary)";
+  const densityButtonBackground = "var(--color-secondary)";
+  const densityButtonBorder = "1px solid var(--border-secondary)";
 
   return (
     <>
@@ -83,16 +99,63 @@ export default function Sidebar({
       >
         {/* Header with logo, tagline, and theme toggle */}
         <div
-          className="shrink-0 flex flex-col"
+          className={`shrink-0 flex flex-col ${!isOpen ? "md:h-[57px] md:justify-center" : ""}`}
           style={{
             borderBottom: "1px solid var(--border-dim)",
-            padding: isOpen ? "16px 16px 12px" : "16px 0 12px",
+            padding: isOpen ? "16px 16px 12px" : "0",
           }}
         >
           {isOpen ? (
             <>
-              {/* Top row: logo + control buttons */}
-              <div className="flex items-start justify-between">
+              {/* Desktop: explicit collapse affordance + controls row below. */}
+              <div className="hidden md:flex items-start justify-between">
+                {/* Logo — gradient for neon, solid glow for amber */}
+                {theme === "neon" ? (
+                  <h1
+                    className="font-bebas text-[40px] leading-none tracking-[0.06em] gradient-text"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                    }}
+                  >
+                    ROSTRA
+                  </h1>
+                ) : (
+                  <h1
+                    className="font-bebas text-[40px] leading-none tracking-[0.06em]"
+                    style={{
+                      color: "var(--color-primary)",
+                      textShadow: "var(--glow-primary)",
+                    }}
+                  >
+                    ROSTRA
+                  </h1>
+                )}
+
+                <button
+                  onClick={onToggle}
+                  className="mt-1 p-1 icon-button-focus transition-transform hover:scale-105"
+                  title="Collapse sidebar"
+                  aria-label="Collapse sidebar"
+                >
+                  <ChevronLeft
+                    className="w-5 h-5"
+                    style={{
+                      color:
+                        theme === "neon"
+                          ? "var(--color-secondary)"
+                          : "var(--color-primary)",
+                      filter:
+                        theme === "neon"
+                          ? "drop-shadow(0 0 5px rgba(255, 0, 204, 0.5))"
+                          : undefined,
+                    }}
+                  />
+                </button>
+              </div>
+
+              {/* Mobile logo row (controls are rendered in the shared row below). */}
+              <div className="md:hidden flex items-start">
                 <button
                   onClick={onToggle}
                   className="group"
@@ -121,90 +184,169 @@ export default function Sidebar({
                     </h1>
                   )}
                 </button>
-
-                <div className="flex flex-col items-end gap-1 mt-1">
-                  <button
-                    onClick={toggleTheme}
-                    className="font-pixel text-[7px] tracking-[0.15em] px-2 py-1 transition-colors duration-150"
-                    style={{
-                      border: "1px solid var(--border-primary)",
-                      color: "var(--color-primary)",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--color-primary)";
-                      e.currentTarget.style.color = "#000";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "var(--color-primary)";
-                    }}
-                  >
-                    {theme === "neon" ? "NEON" : "AMBER"}
-                  </button>
-                  <button
-                    onClick={() => setCrtEnabled((prev) => !prev)}
-                    className="font-pixel text-[7px] tracking-[0.15em] px-2 py-1 transition-colors duration-150"
-                    style={{
-                      border: "1px solid var(--border-secondary)",
-                      color: crtEnabled ? "#000" : "var(--color-secondary)",
-                      background: crtEnabled ? "var(--color-secondary)" : "transparent",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.filter = "brightness(1.1)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.filter = "brightness(1)";
-                    }}
-                    aria-pressed={crtEnabled}
-                    title={crtEnabled ? "CRT on" : "CRT off"}
-                  >
-                    CRT
-                  </button>
-                </div>
               </div>
 
               {/* Tagline */}
               <span
-                className="font-pixel text-[7px] tracking-[0.25em] mt-1"
+                className="font-pixel text-[8px] tracking-[0.23em] mt-1"
                 style={{ color: "var(--color-meta)" }}
               >
                 REAL·TIME·CHAT
               </span>
+
+              {/* Controls row (temporary layout adjustment). */}
+              <div className="flex items-center gap-1.5 mt-2 justify-end md:justify-start">
+                <button
+                  onClick={toggleTheme}
+                  className={actionButtonBaseClass}
+                  style={{
+                    border: "1px solid var(--border-primary)",
+                    color: "#000",
+                    background: "var(--color-primary)",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.filter = "brightness(1.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.filter = "brightness(1)";
+                  }}
+                >
+                  {theme === "neon" ? "NEON" : "AMBER"}
+                </button>
+                <button
+                  onClick={() => setCrtEnabled((prev) => !prev)}
+                  className={actionButtonBaseClass}
+                  style={{
+                    border: `1px solid ${crtAccentColor}`,
+                    color: crtEnabled ? "#000" : crtAccentColor,
+                    background: crtEnabled ? crtAccentColor : "transparent",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.filter = "brightness(1.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.filter = "brightness(1)";
+                  }}
+                  aria-pressed={crtEnabled}
+                  title={crtEnabled ? "CRT on" : "CRT off"}
+                >
+                  CRT
+                </button>
+                <button
+                  onClick={onToggleDensity}
+                  className={actionButtonBaseClass}
+                  style={{
+                    border: densityButtonBorder,
+                    color: "#000",
+                    background: densityButtonBackground,
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.filter = "brightness(1.1)";
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.filter = "brightness(1)";
+                  }}
+                  title={
+                    density === "compact"
+                      ? "Switch to comfortable density"
+                      : "Switch to compact density"
+                  }
+                >
+                  {density === "compact" ? "TIGHT" : "COMFY"}
+                </button>
+              </div>
+
+              <span
+                className="hidden md:block font-pixel text-[7px] tracking-[0.14em] mt-2"
+                style={{ color: "var(--color-meta)", opacity: 0.65 }}
+              >
+                TIP: CMD/CTRL+K
+              </span>
             </>
           ) : (
-            // Collapsed: Show just "R" as expand button
-            <button
-              onClick={onToggle}
-              className="w-full flex justify-center hover:scale-110 transition-transform"
-              title="Expand sidebar"
-            >
-              {theme === "neon" ? (
-                <span
-                  className="font-bebas text-[40px] leading-none gradient-text"
+            <>
+              {/* Desktop collapsed affordance: R + right chevron. */}
+              <button
+                onClick={onToggle}
+                className="hidden md:flex w-full h-full items-center justify-center gap-0.5 md:pl-2.5 hover:scale-105 transition-transform icon-button-focus"
+                title="Expand sidebar"
+                aria-label="Expand sidebar"
+              >
+                {theme === "neon" ? (
+                  <span
+                    className="font-bebas text-[40px] leading-none gradient-text"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                      // Show only the beginning of the logo gradient so collapsed "R"
+                      // visually matches the first letter of expanded "ROSTRA".
+                      backgroundSize: "600% 100%",
+                      backgroundPosition: "0% 0%",
+                      backgroundRepeat: "no-repeat",
+                    }}
+                  >
+                    R
+                  </span>
+                ) : (
+                  <span
+                    className="font-bebas text-[38px] leading-none"
+                    style={{
+                      color: "var(--color-primary)",
+                      textShadow: "var(--glow-primary)",
+                    }}
+                  >
+                    R
+                  </span>
+                )}
+                <ChevronRight
+                  className="w-4 h-4"
                   style={{
-                    backgroundImage:
-                      "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
-                    // Show only the beginning of the logo gradient so collapsed "R"
-                    // visually matches the first letter of expanded "ROSTRA".
-                    backgroundSize: "600% 100%",
-                    backgroundPosition: "0% 0%",
-                    backgroundRepeat: "no-repeat",
+                    color:
+                      theme === "neon"
+                        ? "var(--color-secondary)"
+                        : "var(--color-primary)",
+                    filter:
+                      theme === "neon"
+                        ? "drop-shadow(0 0 5px rgba(255, 0, 204, 0.5))"
+                        : undefined,
                   }}
-                >
-                  R
-                </span>
-              ) : (
-                <span
-                  className="font-bebas text-[40px] leading-none"
-                  style={{
-                    color: "var(--color-primary)",
-                    textShadow: "var(--glow-primary)",
-                  }}
-                >
-                  R
-                </span>
-              )}
-            </button>
+                />
+              </button>
+
+              {/* Mobile fallback (effectively hidden because closed sidebar is off-canvas on mobile). */}
+              <button
+                onClick={onToggle}
+                className="md:hidden w-full flex justify-center hover:scale-110 transition-transform"
+                title="Expand sidebar"
+              >
+                {theme === "neon" ? (
+                  <span
+                    className="font-bebas text-[40px] leading-none gradient-text"
+                    style={{
+                      backgroundImage:
+                        "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                      // Show only the beginning of the logo gradient so collapsed "R"
+                      // visually matches the first letter of expanded "ROSTRA".
+                      backgroundSize: "600% 100%",
+                      backgroundPosition: "0% 0%",
+                      backgroundRepeat: "no-repeat",
+                    }}
+                  >
+                    R
+                  </span>
+                ) : (
+                  <span
+                    className="font-bebas text-[40px] leading-none"
+                    style={{
+                      color: "var(--color-primary)",
+                      textShadow: "var(--glow-primary)",
+                    }}
+                  >
+                    R
+                  </span>
+                )}
+              </button>
+            </>
           )}
         </div>
 
@@ -213,6 +355,11 @@ export default function Sidebar({
           selectedRoom={selectedRoom}
           onSelectRoom={onSelectRoom}
           sidebarOpen={isOpen}
+          openCommandPaletteSignal={openCommandPaletteSignal}
+          closeCommandPaletteSignal={closeCommandPaletteSignal}
+          onToggleTheme={toggleTheme}
+          onToggleCrt={() => setCrtEnabled((prev) => !prev)}
+          crtEnabled={crtEnabled}
           refreshTrigger={refreshTrigger}
           unreadCounts={unreadCounts}
           onUnreadCountsLoaded={onUnreadCountsLoaded}
