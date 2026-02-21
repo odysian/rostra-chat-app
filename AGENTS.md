@@ -14,6 +14,7 @@ Read in this order:
 7. `skills/write-prd.md`
 8. `skills/prd-to-issues.md`
 9. `skills/issue-to-pr.md`
+10. `skills/prd-workflow-gh.md`
 
 ## Unit of Work Rule
 
@@ -26,6 +27,7 @@ Read in this order:
 - PRDs close only when all child Tasks are done.
 - Quick-fix fast lane is allowed for tiny low-risk changes; use the criteria in `docs/ISSUES_WORKFLOW.md`.
 - Detailed control-plane rules are canonical in `docs/ISSUES_WORKFLOW.md`.
+- For one-shot PRD + Task + `gh` issue command generation, use `skills/prd-workflow-gh.md`.
 
 ## Agent Operating Loop
 

@@ -63,6 +63,24 @@ A Task can be closed when:
 Use the Verification section in `AGENTS.md` as the canonical command set.  
 Task and PR issue bodies should copy commands from there.
 
+## Codex + GitHub CLI Playbook
+
+If using Codex in VS Code with GitHub CLI, follow `skills/prd-workflow-gh.md` for the end-to-end flow:
+
+- PRD draft
+- 6-8 PR-sized Task issue bodies
+- `gh issue create` command generation
+- optional Task execution and PR creation
+
+## Common GitHub CLI Commands
+
+```bash
+gh issue create --title "PRD: <feature>" --label "type:prd" --body-file prd-<feature>.md
+gh issue create --title "Task: <task title>" --label "type:task,area:frontend" --body-file task-<feature>-01.md
+gh issue list --label type:task
+gh issue view <id>
+```
+
 ## Manual GitHub Setup
 
 Recommended labels:

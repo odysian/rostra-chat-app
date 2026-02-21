@@ -311,14 +311,29 @@ Details to lock before implementation:
 - Divider label text variant: `NEW MESSAGES` vs `UNREAD`.
 - Divider behavior when `last_read_at` is null (recommend: no divider, all are effectively unread but baseline unknown).
 
+Implementation Ready Checklist (3.1):
+- `Open`: `RoomResponse` contract includes `last_read_at?: string | null` and backend mapping path is explicitly selected.
+- `Open`: `last_read_at = null` behavior is locked (recommended: no divider).
+- `Open`: Divider recompute strategy locked (recommended: snapshot on room open; no live reposition while viewing).
+- `Open`: Divider insertion rule locked (single divider before first `created_at > last_read_at_snapshot`).
+- `Open`: Frontend ownership of snapshot state locked (`ChatLayout` owns and passes to `MessageList`).
+- `Open`: Backend rooms query path for `last_read_at` locked (single-query/member-join, no N+1).
+- `Open`: Test assertions enumerated in `backend/TESTPLAN.md` before implementation starts.
+
 ### 3.2 Global Jump-to-Message (Search -> Any Message in History)
 **Value:** High.
+
+Implementation slices:
+- **3.2A Infrastructure:** Bidirectional context pagination (older + newer) and anchored-mode message loading primitives.
+- **3.2B UX Behavior:** Search-result jump, target highlight, and live-update indicator behavior while anchored.
+- Note: 3.2B depends on 3.2A. Do not implement 3.2B first.
 
 How it works:
 1. User clicks a search result.
 2. Frontend requests message context around target message from backend.
 3. Frontend replaces current message buffer with returned context window, scrolls target into view, and highlights target briefly.
-4. User can continue loading older/newer messages from that anchored context.
+4. User can continue loading older *and newer* messages from that anchored context.
+5. While user is not at latest, incoming live messages are surfaced via indicator and do not break anchored context.
 
 Backend plan:
 - Add endpoint (recommended): `GET /api/rooms/{room_id}/messages/{message_id}/context?before=25&after=25`.
@@ -334,7 +349,13 @@ Frontend plan:
 - Add `getMessageContext(...)` in API client.
 - Wire search-result click -> context fetch -> message list anchor mode.
 - Add temporary highlight state keyed by `target_message_id`.
-- Extend `MessageList` pagination model to support both older and newer loading in context mode.
+- Extend `MessageList` pagination model to support both older and newer loading in context mode:
+- top sentinel loads older using `older_cursor`,
+- bottom sentinel loads newer using `newer_cursor`.
+- Add context-mode live update indicator:
+- when WS `new_message` arrives and viewer is not at latest, show a non-blocking "new messages available" affordance,
+- allow user to jump to latest explicitly,
+- once latest is reached, resume normal append-to-bottom behavior.
 
 Files expected:
 - `backend/app/api/messages.py`
@@ -351,11 +372,31 @@ Tests:
 - Backend: context endpoint authz/membership/not-found branches.
 - Backend: context window and cursors are stable and ordered.
 - Frontend: click search result jumps/highlights even when message is not currently loaded.
+- Frontend: after jump, scrolling up loads older and scrolling down loads newer until latest.
+- Frontend: live updates indicator appears when anchored away from latest and clears when latest is reached.
 - Regression: normal room entry and infinite scroll behavior remains unchanged.
 
 Details to lock before implementation:
 - Default window size (`before/after`) (recommend: 25/25).
 - Route strategy (internal context only vs also support deep-link URL now).
+- Context-mode pagination policy (recommend: bidirectional required for v1 completeness).
+- Live-update policy while in context mode (recommend: indicator + explicit jump-to-latest, no forced auto-jump).
+
+Implementation Ready Checklist (3.2):
+- `Open`: Context endpoint response schema is finalized (messages ordering + `target_message_id` + `older_cursor` + `newer_cursor`).
+- `Open`: Cursor semantics are finalized (strictly older/newer than boundary message; stable tie-break with `(created_at,id)`).
+- `Open`: Default context window is locked (`before`, `after`).
+- `Open`: Frontend mode/state model is locked (`normal` vs `context` anchored mode, owner component defined).
+- `Open`: Sentinel behavior is locked in context mode (top=>older, bottom=>newer).
+- `Open`: Live updates while anchored are locked (indicator text/placement + jump-to-latest action + no forced auto-jump).
+- `Open`: Exit conditions from context mode are locked (user jump-to-latest, newer cursor exhausted, room switch).
+- `Open`: Failure handling is locked (403/404 target missing, stale cursor, network retry behavior).
+- `Open`: Regression contract is locked (normal room history behavior unchanged outside context mode).
+- `Open`: 3.2A/3.2B branch split and merge order is locked in execution notes.
+
+Delivery sequence for 3.2:
+1. **3.2A:** Ship backend + frontend bidirectional context pagination primitives with tests.
+2. **3.2B:** Ship search-click jump/highlight and live-update indicator UX on top of 3.2A.
 
 ### 3.3 Message Editing
 **Value:** High.
@@ -533,18 +574,91 @@ Details to lock before implementation:
 
 ---
 
+## Phase 3 Decision Locks (Proposed)
+
+Use this section as the implementation gate. A Phase 3 feature starts only when all of its locks are marked `Locked`.
+
+### 3.1 New Messages Divider
+- Decision: Divider label text.
+- Proposed choice: `NEW MESSAGES`.
+- Status: `Proposed`.
+
+- Decision: Behavior when `last_read_at` is `null`.
+- Proposed choice: Do not render divider when `last_read_at` is `null`.
+- Status: `Proposed`.
+
+### 3.2 Global Jump-to-Message
+- Decision: Default context window size.
+- Proposed choice: `before=25`, `after=25`.
+- Status: `Proposed`.
+
+- Decision: Route strategy for v1.
+- Proposed choice: Internal context loading only (no deep-link route in this feature).
+- Status: `Proposed`.
+
+- Decision: Context-mode pagination behavior.
+- Proposed choice: Bidirectional pagination is required (load older at top sentinel, load newer at bottom sentinel).
+- Status: `Proposed`.
+
+- Decision: Live updates while in context mode.
+- Proposed choice: Show non-blocking "new messages available" indicator and explicit jump-to-latest control; do not auto-jump user.
+- Status: `Proposed`.
+
+- Decision: 3.2 implementation order.
+- Proposed choice: `3.2A` infrastructure must land before `3.2B` UX behavior.
+- Status: `Proposed`.
+
+### 3.3 Message Editing
+- Decision: Edit time window.
+- Proposed choice: No time limit in v1.
+- Status: `Proposed`.
+
+- Decision: Timestamp semantics for edited messages.
+- Proposed choice: Keep original `created_at` display, append `(edited)` indicator.
+- Status: `Proposed`.
+
+### 3.4 Message Deletion
+- Decision: Delete authorization policy.
+- Proposed choice: Message owner + room creator can delete.
+- Status: `Proposed`.
+
+- Decision: Tombstone copy.
+- Proposed choice: `This message was deleted`.
+- Status: `Proposed`.
+
+### 3.5 Message Reactions
+- Decision: Emoji allowlist for v1.
+- Proposed choice: `👍 ❤️ 😂 🔥 👀 🎉`.
+- Status: `Proposed`.
+
+- Decision: Reaction overflow behavior.
+- Proposed choice: Show up to 5 pills inline, then `+N` overflow indicator.
+- Status: `Proposed`.
+
+### 3.6 Room Descriptions
+- Decision: Room updates API shape.
+- Proposed choice: Single creator-only `PATCH /api/rooms/{room_id}` endpoint for name + description.
+- Status: `Proposed`.
+
+- Decision: Description content type.
+- Proposed choice: Plain text only (no markdown/rich text) in v1.
+- Status: `Proposed`.
+
+---
+
 ## Priority Order (Recommended)
 1. Phase 1 cosmetic pass.
 2. Phase 2.1 density + 2.2 browser title.
 3. Phase 2.3 shortcuts + 2.4 command palette.
 4. Phase 2.12 desktop collapsed sidebar `R>` affordance.
 5. Phase 3.1 new messages divider.
-6. Phase 3.2 global jump-to-message.
-7. Phase 3.3 editing.
-8. Phase 3.4 deletion.
-9. Phase 3.5 reactions.
-10. Phase 3.6 room descriptions.
-11. Parking lot items only with explicit product demand.
+6. Phase 3.2A bidirectional context pagination infrastructure.
+7. Phase 3.2B global jump-to-message UX (search click + highlight + live-update indicator).
+8. Phase 3.3 editing.
+9. Phase 3.4 deletion.
+10. Phase 3.5 reactions.
+11. Phase 3.6 room descriptions.
+12. Parking lot items only with explicit product demand.
 
 ---
 
