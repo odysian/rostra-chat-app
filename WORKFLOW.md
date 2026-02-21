@@ -821,6 +821,7 @@ These rules govern agent behavior across all tasks. They supplement project-spec
 Canonical execution rules live in `docs/ISSUES_WORKFLOW.md`.
 
 - PRD -> Task -> PR is the model.
+- Default sizing is 1 PRD -> 1 Task -> 1 PR unless split criteria apply.
 - GitHub issues are source of truth for execution (`TASKS.md` is scratchpad only).
 - PRs close Task issues, and PRDs close after all child Tasks are done.
 - Backend-coupled work requires Decision Locks before implementation.

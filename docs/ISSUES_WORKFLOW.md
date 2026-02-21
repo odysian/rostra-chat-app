@@ -14,8 +14,18 @@ This repository uses PRD -> Task -> PR as the execution control plane.
 2. PRD -> Task -> PR is the default execution model.
 3. PRs close Task issues (`Closes #...`), not PRDs.
 4. PRDs close only when all child Tasks are done.
-5. Task sizing target is 1-4 hours. If larger, split before implementation.
-6. Phase 3/backend-coupled work requires Decision Locks checked before implementation begins.
+5. Default sizing rule: **1 PRD -> 1 Task -> 1 PR**.
+6. Tasks are PR-sized; in this workflow, PR-sized usually means end-to-end feature delivery.
+7. Phase 3/backend-coupled work requires Decision Locks checked before implementation begins.
+
+## When to Split Into Multiple Tasks
+
+Split only when it clearly improves delivery or risk control:
+
+- change is too large for one PR (guideline: ~600+ LOC or hard to review)
+- backend contract should land before frontend integration
+- migrations or WebSocket contract changes increase risk
+- parallel work or staged rollout is needed
 
 ## Fast Lane (Quick Fix Flexibility)
 
@@ -49,6 +59,7 @@ A Task can be closed when:
 
 - PR is merged
 - verification commands pass
+- tests and docs for the feature are included in the same Task by default
 - docs are updated if required
 - follow-ups are created
 
@@ -68,7 +79,7 @@ Task and PR issue bodies should copy commands from there.
 If using Codex in VS Code with GitHub CLI, follow `skills/prd-workflow-gh.md` for the end-to-end flow:
 
 - PRD draft
-- 6-8 PR-sized Task issue bodies
+- one default end-to-end Task issue body (optional splits only when criteria apply)
 - `gh issue create` command generation
 - optional Task execution and PR creation
 
@@ -101,11 +112,12 @@ Recommended board columns:
 3. Define canonical verification commands in `AGENTS.md`.
 4. Wire `WORKFLOW.md` to reference this file as execution control plane.
 5. Open the first PRD issue with scope, acceptance criteria, and Decision Locks.
-6. Split the PRD into PR-sized Task issues (target 1-4 hours each).
-7. Implement by closing Task issues via PRs (`Closes #...`).
-8. Close the PRD only after all child Tasks are done.
-9. Record lasting architecture/security/performance decisions as ADRs.
-10. Keep `TASKS.md` optional and non-authoritative.
+6. Create one default end-to-end Task issue linked to that PRD.
+7. Split into additional Tasks only if the split criteria above apply.
+8. Implement by closing Task issues via PRs (`Closes #...`).
+9. Close the PRD only after all child Tasks are done.
+10. Record lasting architecture/security/performance decisions as ADRs.
+11. Keep `TASKS.md` optional and non-authoritative.
 
 ## Optional Later
 

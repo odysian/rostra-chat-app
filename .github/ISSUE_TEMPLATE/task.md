@@ -7,6 +7,7 @@ labels: ["type:task"]
 
 ## Goal
 What should exist when this is done?
+Default: this Task should represent the entire feature end-to-end unless split criteria apply.
 
 ## Scope
 **In:**

@@ -191,7 +191,7 @@ Just do it. No plan needed. Execute, verify, done.
 
 ### Issues Workflow (Control Plane)
 
-- PRD defines scope and locks; Tasks are PR-sized; PRs close Tasks.
+- Default sizing: 1 PRD -> 1 Task -> 1 PR unless split criteria apply.
 - GitHub issues are the execution source of truth. `TASKS.md` is scratchpad-only.
 - Follow canonical rules in `docs/ISSUES_WORKFLOW.md` for DoR/DoD and Phase 3 gates.
 - Decision Locks default to PRD checkboxes; use Decision issues only for non-trivial/reused discussion.
