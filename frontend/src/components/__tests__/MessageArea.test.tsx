@@ -48,7 +48,13 @@ vi.mock("../MessageList", () => ({
 
 vi.mock("../MessageInput", () => ({
   default: ({ roomName }: { roomName: string }) => (
-    <div data-testid="message-input">Input for {roomName}</div>
+    <div data-testid="message-input">
+      <label htmlFor="mock-message-input">Input for {roomName}</label>
+      <textarea id="mock-message-input" data-tab-focus="message-input" />
+      <button type="button" data-tab-focus="send-button">
+        Send
+      </button>
+    </div>
   ),
 }));
 
@@ -252,5 +258,41 @@ describe("MessageArea", () => {
     expect(screen.getByText("Message rate limit exceeded")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(mockOnDismissWsError).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses requested tab order inside chat area controls", () => {
+    renderMessageArea();
+
+    const input = screen.getByLabelText(/Input for General-Discussion/i);
+    const sendButton = screen.getByRole("button", { name: "Send" });
+    const backButton = screen.getByRole("button", { name: "Back to rooms" });
+    const roomMenuButton = screen.getByRole("button", { name: "Room options" });
+    const searchButton = screen.getByRole("button", { name: "Search messages" });
+    const usersButton = screen.getByRole("button", { name: "Toggle users panel" });
+    const pressTab = (shiftKey = false) => {
+      if (!(document.activeElement instanceof HTMLElement)) {
+        throw new Error("No active element to tab from");
+      }
+      fireEvent.keyDown(document.activeElement, { key: "Tab", shiftKey });
+    };
+
+    input.focus();
+    pressTab();
+    expect(sendButton).toHaveFocus();
+
+    pressTab();
+    expect(backButton).toHaveFocus();
+
+    pressTab();
+    expect(roomMenuButton).toHaveFocus();
+
+    pressTab();
+    expect(searchButton).toHaveFocus();
+
+    pressTab();
+    expect(usersButton).toHaveFocus();
+
+    pressTab(true);
+    expect(searchButton).toHaveFocus();
   });
 });

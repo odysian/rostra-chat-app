@@ -1,7 +1,7 @@
 # Frontend Design Audit and Phased Roadmap — Rostra
 
 **Date:** 2026-02-21
-**Status:** Phase 2 completed on 2026-02-21 (2.1-2.7 complete, 2.8 deferred). Phase 3 pending.
+**Status:** Phase 2 completed on 2026-02-21 (2.1-2.7 and 2.9 complete, 2.8 deferred). Phase 3 pending.
 **Canonical file:** `docs/frontend-design-audit.md`
 
 ---
@@ -191,6 +191,11 @@ Ship high-value micro-features with no backend changes.
 - Only for background tab new messages (`document.hidden === true`).
 - User-controlled persisted toggle `rostra-sound`.
 - Defer if autoplay/browser policy friction creates unstable behavior.
+
+### 2.9 Keyboard Tab Focus Flow (Addendum) ✅ Completed 2026-02-21
+- First Tab from a focused room row jumps to composer input.
+- Chat area tab order: input -> send -> back -> room menu -> search -> users.
+- Shift+Tab follows reverse order where applicable.
 
 ### Acceptance Criteria
 - No backend/API changes.

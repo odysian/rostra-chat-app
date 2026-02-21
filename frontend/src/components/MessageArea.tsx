@@ -71,6 +71,47 @@ export default function MessageArea({
 
   useFocusTrap(deleteModalRef, showDeleteModal, closeDeleteModal);
 
+  // Keep tab flow optimized for send-first workflows:
+  // input -> send -> back -> room menu -> search -> users.
+  useEffect(() => {
+    const handleTabOrder = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      if (!(event.target instanceof HTMLElement)) return;
+
+      const selectors = [
+        "[data-tab-focus='message-input']",
+        "[data-tab-focus='send-button']",
+        "[data-tab-focus='back-button']",
+        "[data-tab-focus='room-menu-button']",
+        "[data-tab-focus='search-button']",
+        "[data-tab-focus='users-button']",
+      ];
+
+      const tabStops = selectors
+        .map((selector) => document.querySelector<HTMLElement>(selector))
+        .filter((element): element is HTMLElement => element !== null);
+
+      const currentIndex = tabStops.indexOf(event.target);
+      if (currentIndex === -1) return;
+
+      const direction = event.shiftKey ? -1 : 1;
+      let nextIndex = currentIndex + direction;
+
+      while (nextIndex >= 0 && nextIndex < tabStops.length) {
+        const nextStop = tabStops[nextIndex];
+        nextStop.focus();
+        if (document.activeElement === nextStop) {
+          event.preventDefault();
+          return;
+        }
+        nextIndex += direction;
+      }
+    };
+
+    window.addEventListener("keydown", handleTabOrder);
+    return () => window.removeEventListener("keydown", handleTabOrder);
+  }, []);
+
   if (!selectedRoom) {
     return (
       <div
@@ -167,6 +208,7 @@ export default function MessageArea({
           <div className="relative md:hidden">
             <button
               type="button"
+              data-tab-focus="back-button"
               onClick={onBackToRooms}
               className="shrink-0 transition-colors p-1 icon-button-focus"
               style={{ color: "var(--color-meta)" }}
@@ -231,6 +273,7 @@ export default function MessageArea({
           <div className="relative shrink-0">
             <button
               type="button"
+              data-tab-focus="room-menu-button"
               onClick={() => setShowRoomMenu(!showRoomMenu)}
               className="transition-colors p-1.5 icon-button-focus"
               style={{ color: "var(--color-meta)" }}
@@ -292,6 +335,7 @@ export default function MessageArea({
         {/* Search toggle */}
         <button
           type="button"
+          data-tab-focus="search-button"
           onClick={onToggleSearch}
           className="shrink-0 transition-colors p-1 icon-button-focus"
           style={{ color: "var(--color-meta)" }}
@@ -315,6 +359,7 @@ export default function MessageArea({
 
         <button
           type="button"
+          data-tab-focus="users-button"
           onClick={onToggleUsers}
           className="shrink-0 transition-colors p-1 icon-button-focus"
           style={{ color: "var(--color-meta)" }}

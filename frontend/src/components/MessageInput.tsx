@@ -119,6 +119,7 @@ export default function MessageInput({
       >
         <textarea
           ref={textareaRef}
+          data-tab-focus="message-input"
           value={content}
           onChange={handleChange}
           onFocus={() => setIsFocused(true)}
@@ -140,6 +141,7 @@ export default function MessageInput({
         />
         <button
           type="submit"
+          data-tab-focus="send-button"
           disabled={sending || !content.trim()}
           className="shrink-0 px-5 py-2 font-bebas text-[16px] tracking-[0.15em] border-0 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           style={{

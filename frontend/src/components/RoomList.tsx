@@ -32,6 +32,13 @@ function getUserInitials(username: string): string {
   return username.substring(0, 2).toUpperCase();
 }
 
+function focusMessageInput(): void {
+  const input = document.querySelector<HTMLTextAreaElement>(
+    "[data-tab-focus='message-input']",
+  );
+  input?.focus();
+}
+
 export default function RoomList({
   selectedRoom,
   onSelectRoom,
@@ -362,6 +369,13 @@ export default function RoomList({
               <button
                 key={room.id}
                 onClick={() => onSelectRoom(room)}
+                onKeyDown={(event) => {
+                  // Prioritize jumping straight into composer from room focus.
+                  if (event.key === "Tab" && !event.shiftKey && selectedRoom) {
+                    event.preventDefault();
+                    focusMessageInput();
+                  }
+                }}
                 className="w-full text-left flex items-center justify-between gap-2 transition-all duration-150"
                 style={{
                   padding: "11px 12px 11px 14px",
