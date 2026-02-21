@@ -10,7 +10,6 @@ export function logDebug(...args: unknown[]): void {
 }
 
 export function logError(...args: unknown[]): void {
-  if (isDebugLoggingEnabled) {
-    console.error(...args);
-  }
+  // Keep production failures visible in browser logs.
+  console.error(...args);
 }

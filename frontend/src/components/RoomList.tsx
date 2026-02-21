@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -8,6 +8,7 @@ import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
 import { getUserColorPalette } from "../utils/userColors";
 import type { Room } from "../types";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface RoomListProps {
   selectedRoom: Room | null;
@@ -60,6 +61,14 @@ export default function RoomList({
   const prevSidebarOpenRef = useRef(sidebarOpen);
   const createModalRef = useRef<HTMLDivElement>(null);
   const logoutModalRef = useRef<HTMLDivElement>(null);
+  const closeCreateModal = useCallback(() => {
+    setShowCreateModal(false);
+    setNewRoomName("");
+    setCreateError("");
+  }, []);
+  const closeLogoutModal = useCallback(() => {
+    setShowLogoutModal(false);
+  }, []);
 
   // When sidebar transitions from open to closed (e.g. user taps message area on mobile), close discovery modal to avoid stray content. Do not close when sidebar is already collapsed and user opens discovery from the compass.
   useEffect(() => {
@@ -69,77 +78,8 @@ export default function RoomList({
     prevSidebarOpenRef.current = sidebarOpen;
   }, [sidebarOpen, showDiscovery]);
 
-  // Trap keyboard focus in the create room modal and allow Escape to close.
-  useEffect(() => {
-    if (!showCreateModal) return;
-
-    const modal = createModalRef.current;
-    if (!modal) return;
-
-    const focusable = modal.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    first?.focus();
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setShowCreateModal(false);
-        setNewRoomName("");
-        setCreateError("");
-        return;
-      }
-
-      if (event.key !== "Tab" || !first || !last) return;
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    modal.addEventListener("keydown", handleKeyDown);
-    return () => modal.removeEventListener("keydown", handleKeyDown);
-  }, [showCreateModal]);
-
-  // Trap keyboard focus in the logout modal and allow Escape to close.
-  useEffect(() => {
-    if (!showLogoutModal) return;
-
-    const modal = logoutModalRef.current;
-    if (!modal) return;
-
-    const focusable = modal.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    first?.focus();
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setShowLogoutModal(false);
-        return;
-      }
-
-      if (event.key !== "Tab" || !first || !last) return;
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    modal.addEventListener("keydown", handleKeyDown);
-    return () => modal.removeEventListener("keydown", handleKeyDown);
-  }, [showLogoutModal]);
+  useFocusTrap(createModalRef, showCreateModal, closeCreateModal);
+  useFocusTrap(logoutModalRef, showLogoutModal, closeLogoutModal);
 
   useEffect(() => {
     let timeoutId: number;
@@ -643,9 +583,7 @@ export default function RoomList({
                   <button
                     type="button"
                     onClick={() => {
-                      setShowCreateModal(false);
-                      setNewRoomName("");
-                      setCreateError("");
+                      closeCreateModal();
                     }}
                     disabled={creating}
                     className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"
@@ -707,7 +645,7 @@ export default function RoomList({
               <div className="flex gap-3 justify-end">
                 <button
                   type="button"
-                  onClick={() => setShowLogoutModal(false)}
+                  onClick={closeLogoutModal}
                   className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors"
                   style={{
                     border: "1px solid var(--border-dim)",
@@ -720,7 +658,7 @@ export default function RoomList({
                 <button
                   type="button"
                   onClick={() => {
-                    setShowLogoutModal(false);
+                    closeLogoutModal();
                     onLogout();
                   }}
                   className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors"

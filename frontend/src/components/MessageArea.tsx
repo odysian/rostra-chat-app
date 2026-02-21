@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
 import type { Message, Room } from "../types";
@@ -7,6 +7,7 @@ import { useTheme } from "../context/ThemeContext";
 import { deleteRoom } from "../services/api";
 import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
@@ -45,6 +46,10 @@ export default function MessageArea({
   // Incrementing this counter lets MessageList react to local sends and jump to latest.
   const [scrollToLatestSignal, setScrollToLatestSignal] = useState(0);
   const deleteModalRef = useRef<HTMLDivElement>(null);
+  const closeDeleteModal = useCallback(() => {
+    setDeleteError("");
+    setShowDeleteModal(false);
+  }, []);
 
   // Keyboard users should be able to dismiss the room options menu with Escape.
   useEffect(() => {
@@ -60,41 +65,7 @@ export default function MessageArea({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [showRoomMenu]);
 
-  // Keep focus inside the delete confirmation modal while it is open.
-  useEffect(() => {
-    if (!showDeleteModal) return;
-
-    const modal = deleteModalRef.current;
-    if (!modal) return;
-
-    const focusable = modal.querySelectorAll<HTMLElement>(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    );
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    first?.focus();
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setDeleteError("");
-        setShowDeleteModal(false);
-        return;
-      }
-
-      if (event.key !== "Tab" || !first || !last) return;
-
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-
-    modal.addEventListener("keydown", handleKeyDown);
-    return () => modal.removeEventListener("keydown", handleKeyDown);
-  }, [showDeleteModal]);
+  useFocusTrap(deleteModalRef, showDeleteModal, closeDeleteModal);
 
   if (!selectedRoom) {
     return (
@@ -378,8 +349,7 @@ export default function MessageArea({
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => {
-                  setDeleteError("");
-                  setShowDeleteModal(false);
+                  closeDeleteModal();
                 }}
                 disabled={deleting}
                 className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"

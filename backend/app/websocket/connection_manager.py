@@ -8,8 +8,6 @@ from app.models.user import User
 
 
 class ConnectionManager:
-    MAX_SUBSCRIPTIONS_PER_CONNECTION = 50
-
     """
     Manages WebSocket connections and room subscriptions.
 
@@ -22,6 +20,8 @@ class ConnectionManager:
     - Room subscription management
     - Message broadcasting to room subscribers
     """
+
+    MAX_SUBSCRIPTIONS_PER_CONNECTION = 50
 
     def __init__(self):
         # WebSocket -> User ID mapping
