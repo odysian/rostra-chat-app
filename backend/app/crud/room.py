@@ -9,25 +9,25 @@ from app.models.user_room import UserRoom
 from app.schemas.room import RoomCreate
 
 
-async def get_room_by_id(db: AsyncSession, room_id: int):
+async def get_room_by_id(db: AsyncSession, room_id: int) -> Room | None:
     """Get a room by id"""
     result = await db.execute(select(Room).where(Room.id == room_id))
     return result.scalar_one_or_none()
 
 
-async def get_room_by_name(db: AsyncSession, name: str):
+async def get_room_by_name(db: AsyncSession, name: str) -> Room | None:
     """Get a room by name"""
     result = await db.execute(select(Room).where(Room.name == name))
     return result.scalar_one_or_none()
 
 
-async def get_all_rooms(db: AsyncSession):
+async def get_all_rooms(db: AsyncSession) -> list[Room]:
     """Gets all rooms"""
     result = await db.execute(select(Room))
     return list(result.scalars().all())
 
 
-async def get_rooms_for_user(db: AsyncSession, user_id: int):
+async def get_rooms_for_user(db: AsyncSession, user_id: int) -> list[Room]:
     """
     Get rooms the user is a member of (without unread counts).
 
@@ -42,7 +42,9 @@ async def get_rooms_for_user(db: AsyncSession, user_id: int):
     return list(result.scalars().all())
 
 
-async def get_all_rooms_with_unread(db: AsyncSession, user_id: int):
+async def get_all_rooms_with_unread(
+    db: AsyncSession, user_id: int
+) -> list[tuple[Room, int]]:
     """
     Get rooms the user is a MEMBER of, with unread message counts.
 
@@ -69,10 +71,10 @@ async def get_all_rooms_with_unread(db: AsyncSession, user_id: int):
     )
 
     result = await db.execute(stmt)
-    return result.all()
+    return [(room, int(unread_count)) for room, unread_count in result.all()]
 
 
-async def create_room(db: AsyncSession, room: RoomCreate, user_id: int):
+async def create_room(db: AsyncSession, room: RoomCreate, user_id: int) -> Room:
     """
     Create a new room.
 
@@ -102,7 +104,7 @@ async def create_room(db: AsyncSession, room: RoomCreate, user_id: int):
     return db_room
 
 
-async def delete_room(db: AsyncSession, room_id: int):
+async def delete_room(db: AsyncSession, room_id: int) -> None:
     """
     Delete room by ID.
 

@@ -3,10 +3,13 @@ from datetime import UTC, datetime
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.message import Message
 from app.models.user_room import UserRoom
 
 
-async def get_user_room(db: AsyncSession, user_id: int, room_id: int):
+async def get_user_room(
+    db: AsyncSession, user_id: int, room_id: int
+) -> UserRoom | None:
     """Get user_room record for a specific user and room."""
     result = await db.execute(
         select(UserRoom).where(UserRoom.user_id == user_id, UserRoom.room_id == room_id)
@@ -14,7 +17,7 @@ async def get_user_room(db: AsyncSession, user_id: int, room_id: int):
     return result.scalar_one_or_none()
 
 
-async def mark_room_read(db: AsyncSession, user_id: int, room_id: int):
+async def mark_room_read(db: AsyncSession, user_id: int, room_id: int) -> UserRoom:
     """
     Mark a room as read for a user.
 
@@ -50,8 +53,6 @@ async def get_unread_count(db: AsyncSession, user_id: int, room_id: int) -> int:
     - If user_room.last_read_at is NULL: count ALL messages in room
     - Otherwise: count messages where created_at > last_read_at
     """
-    from app.models.message import Message
-
     user_room = await get_user_room(db, user_id, room_id)
 
     if user_room and user_room.last_read_at:  # type: ignore[truthy-bool]

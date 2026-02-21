@@ -46,15 +46,12 @@ def create_user(db_session: AsyncSession):
         access_token = create_access_token({"sub": str(db_user.id)})
 
         # Shape user dict similar to API response
+        created_at = db_user.created_at
         user_data = {
             "id": db_user.id,
             "email": db_user.email,
             "username": db_user.username,
-            "created_at": (
-                db_user.created_at.isoformat()
-                if getattr(db_user, "created_at", None)
-                else None
-            ),
+            "created_at": created_at.isoformat() if created_at is not None else None,
         }
 
         return {
@@ -84,16 +81,13 @@ def create_room(db_session: AsyncSession):
 
         room_in = RoomCreate(name=name)
         db_room = await room_crud.create_room(db_session, room_in, user_id)
+        room_created_at = db_room.created_at
 
         return {
             "id": db_room.id,
             "name": db_room.name,
             "created_by": db_room.created_by,
-            "created_at": (
-                db_room.created_at.isoformat()
-                if getattr(db_room, "created_at", None)
-                else None
-            ),
+            "created_at": room_created_at.isoformat() if room_created_at is not None else None,
         }
 
     return _create_room
@@ -118,6 +112,7 @@ def create_message(db_session: AsyncSession):
 
         msg_in = MessageCreate(room_id=room_id, content=content)
         db_message = await message_crud.create_message(db_session, msg_in, user_id)
+        message_created_at = db_message.created_at
 
         return {
             "id": db_message.id,
@@ -125,9 +120,7 @@ def create_message(db_session: AsyncSession):
             "user_id": db_message.user_id,
             "content": db_message.content,
             "created_at": (
-                db_message.created_at.isoformat()
-                if getattr(db_message, "created_at", None)
-                else None
+                message_created_at.isoformat() if message_created_at is not None else None
             ),
         }
 

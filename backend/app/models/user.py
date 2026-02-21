@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import BigInteger, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -10,7 +10,7 @@ class User(Base):
     __tablename__ = "users"
 
     # Columns with proper type hints for mypy
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
     username: Mapped[str] = mapped_column(
         String, unique=True, index=True, nullable=False
     )

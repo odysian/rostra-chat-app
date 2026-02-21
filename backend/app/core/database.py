@@ -1,7 +1,7 @@
 from sqlalchemy import MetaData
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-from sqlalchemy.orm import declarative_base
+from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
@@ -39,7 +39,10 @@ meta = MetaData(
     schema="rostra",
     naming_convention={"ix": "ix_%(table_name)s_%(column_0_name)s"},
 )
-Base = declarative_base(metadata=meta)
+
+
+class Base(DeclarativeBase):
+    metadata = meta
 
 
 async def get_db():

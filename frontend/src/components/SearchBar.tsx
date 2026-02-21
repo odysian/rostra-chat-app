@@ -79,10 +79,12 @@ export default function SearchBar({ onSearch, onClose }: SearchBarProps) {
         />
 
         <button
+          type="button"
           onClick={onClose}
           className="transition-colors shrink-0 p-1"
           style={{ color: "var(--color-meta)" }}
           title="Close search (Esc)"
+          aria-label="Close search"
         >
           <svg
             className="w-4 h-4"

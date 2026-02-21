@@ -255,7 +255,11 @@ async def join_room(
     await db.commit()
 
     logger.info(
-        f"User {current_user.username} (ID: {current_user.id}) joined room {room_id} '{room.name}'",
+        "User %s (ID: %s) joined room %s '%s'",
+        current_user.username,
+        current_user.id,
+        room_id,
+        room.name,
         extra={
             "user_id": current_user.id,
             "room_id": room_id,
@@ -305,7 +309,11 @@ async def leave_room(
     await db.commit()
 
     logger.info(
-        f"User {current_user.username} (ID: {current_user.id}) left room {room_id} '{room.name}'",
+        "User %s (ID: %s) left room %s '%s'",
+        current_user.username,
+        current_user.id,
+        room_id,
+        room.name,
         extra={
             "user_id": current_user.id,
             "room_id": room_id,

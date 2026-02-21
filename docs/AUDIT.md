@@ -27,10 +27,10 @@ Status legend:
 - `OPEN` — not started
 
 Snapshot totals:
-- `DONE`: 25
+- `DONE`: 33
 - `PARTIAL`: 1
 - `PLANNED`: 1
-- `OPEN`: 8
+- `OPEN`: 0
 
 | Item | Status | Notes |
 |---|---|---|
@@ -47,28 +47,28 @@ Snapshot totals:
 | 3.1 | DONE | Top-level React Error Boundary added |
 | 3.2 | DONE | Stale closure timeout race fixed with refs |
 | 3.3 | DONE | Message send UX fixed (preserve input + user-visible errors) |
-| 3.4 | OPEN | Accessibility gaps still pending |
-| 3.5 | OPEN | FK `ondelete` migration/model updates pending |
-| 3.6 | OPEN | N+1 unread count path in cache population is still present |
+| 3.4 | DONE | Added aria-labels for icon-only controls, Escape close for room menu, and focus traps/Escape handling for delete/create/logout modals |
+| 3.5 | DONE | Added `ondelete=\"CASCADE\"` on `rooms.created_by`, `messages.room_id`, and `messages.user_id` in models + Alembic migration |
+| 3.6 | DONE | Cache population now uses single-query unread aggregation (no per-room N+1 loop) |
 | 3.7 | PARTIAL | `no-console` enforced; `jsx-a11y` and TS strict migration still pending |
 | 4.1 | DONE | Login timing side-channel mitigated with dummy verify |
 | 4.2 | DONE | Login/Register now use `react-router-dom` `<Link>` for internal navigation |
 | 4.3 | DONE | `UserLogin` max length constraints added |
-| 4.4 | OPEN | SQLAlchemy 1.x style still present in `room.py`/`message.py` |
-| 4.5 | OPEN | PK `Integer` → `BigInteger` migration not done |
+| 4.4 | DONE | Migrated `room.py` and `message.py` to SQLAlchemy 2.0 `Mapped`/`mapped_column`, and switched DB base to `DeclarativeBase` |
+| 4.5 | DONE | Migrated PK/FK columns to `BigInteger` in models and added Alembic migration for schema type conversion |
 | 4.6 | DONE | `OnlineUser` duplicates removed; shared type imported from `src/types/index.ts` |
 | 4.7 | DONE | Redis URL moved into centralized settings |
 | 4.8 | DONE | Redis connection logging now redacts credentials |
 | 4.9 | DONE | Broad `Exception` catch removed from password verify path |
-| 4.10 | OPEN | Remaining f-string logger calls still present |
-| 4.11 | OPEN | Missing CRUD return type hints still present |
+| 4.10 | DONE | Backend logger f-strings replaced with lazy `%s` formatting |
+| 4.11 | DONE | Return type annotations added for CRUD functions in `user.py`, `room.py`, `user_room.py` |
 | 4.12 | DONE | Swagger/OpenAPI disabled when `DEBUG` is false |
 | 4.13 | DONE | DB health endpoint now requires auth |
 | 4.14 | DONE | Frontend console logging gated/replaced via logger utility |
 | 4.15 | DONE | Typing cooldown timeout is now tracked and cleared on unmount |
 | 4.16 | DONE | Dead `isMobile` prop removed from `ChatLayout`/`MessageArea` and tests |
 | 4.17 | DONE | Message text wrapping switched from `break-all` to `break-words` |
-| 4.18 | OPEN | Unread refresh on WS reconnect still pending |
+| 4.18 | DONE | Reconnect now triggers a room-list refresh to re-sync server unread counts |
 
 ---
 

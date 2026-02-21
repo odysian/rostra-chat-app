@@ -58,6 +58,8 @@ export default function RoomList({
   const [showDiscovery, setShowDiscovery] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const prevSidebarOpenRef = useRef(sidebarOpen);
+  const createModalRef = useRef<HTMLDivElement>(null);
+  const logoutModalRef = useRef<HTMLDivElement>(null);
 
   // When sidebar transitions from open to closed (e.g. user taps message area on mobile), close discovery modal to avoid stray content. Do not close when sidebar is already collapsed and user opens discovery from the compass.
   useEffect(() => {
@@ -66,6 +68,78 @@ export default function RoomList({
     }
     prevSidebarOpenRef.current = sidebarOpen;
   }, [sidebarOpen, showDiscovery]);
+
+  // Trap keyboard focus in the create room modal and allow Escape to close.
+  useEffect(() => {
+    if (!showCreateModal) return;
+
+    const modal = createModalRef.current;
+    if (!modal) return;
+
+    const focusable = modal.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    first?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowCreateModal(false);
+        setNewRoomName("");
+        setCreateError("");
+        return;
+      }
+
+      if (event.key !== "Tab" || !first || !last) return;
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    modal.addEventListener("keydown", handleKeyDown);
+    return () => modal.removeEventListener("keydown", handleKeyDown);
+  }, [showCreateModal]);
+
+  // Trap keyboard focus in the logout modal and allow Escape to close.
+  useEffect(() => {
+    if (!showLogoutModal) return;
+
+    const modal = logoutModalRef.current;
+    if (!modal) return;
+
+    const focusable = modal.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    first?.focus();
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setShowLogoutModal(false);
+        return;
+      }
+
+      if (event.key !== "Tab" || !first || !last) return;
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    modal.addEventListener("keydown", handleKeyDown);
+    return () => modal.removeEventListener("keydown", handleKeyDown);
+  }, [showLogoutModal]);
 
   useEffect(() => {
     let timeoutId: number;
@@ -388,10 +462,12 @@ export default function RoomList({
         ) : (
           <div className="px-3 py-2 space-y-1">
             <button
+              type="button"
               onClick={() => setShowCreateModal(true)}
               className="w-full flex justify-center py-2 transition-all duration-150"
               style={{ color: "var(--color-primary)", boxShadow: "none" }}
               title="Create new room"
+              aria-label="Create new room"
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = primaryButtonHoverBackground;
                 e.currentTarget.style.boxShadow = "var(--glow-primary)";
@@ -406,10 +482,12 @@ export default function RoomList({
               </svg>
             </button>
             <button
+              type="button"
               onClick={() => setShowDiscovery(true)}
               className="w-full flex justify-center py-2 transition-all duration-150"
               style={{ color: "var(--color-secondary)", boxShadow: "none" }}
               title="Discover rooms"
+              aria-label="Discover rooms"
               onMouseEnter={(e) => {
                 e.currentTarget.style.background = secondaryButtonHoverBackground;
                 e.currentTarget.style.boxShadow = "var(--glow-secondary)";
@@ -459,6 +537,7 @@ export default function RoomList({
                 className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 text-sm transition-colors"
                 style={{ color: "#ff4444" }}
                 title="Logout"
+                aria-label="Logout"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -497,6 +576,10 @@ export default function RoomList({
         createPortal(
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div
+              ref={createModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="create-room-title"
               className="p-6 max-w-md w-full mx-4"
               style={{
                 background: "var(--bg-panel)",
@@ -504,6 +587,7 @@ export default function RoomList({
               }}
             >
               <h3
+                id="create-room-title"
                 className="font-bebas text-[22px] tracking-[0.08em] mb-4"
                 style={{ color: "var(--color-primary)" }}
               >
@@ -597,6 +681,10 @@ export default function RoomList({
         createPortal(
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div
+              ref={logoutModalRef}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="logout-title"
               className="p-6 max-w-md w-full mx-4"
               style={{
                 background: "var(--bg-panel)",
@@ -604,6 +692,7 @@ export default function RoomList({
               }}
             >
               <h3
+                id="logout-title"
                 className="font-bebas text-[22px] tracking-[0.08em] mb-2"
                 style={{ color: "var(--color-primary)" }}
               >

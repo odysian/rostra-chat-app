@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import TIMESTAMP, ForeignKey, Index, Integer, UniqueConstraint
+from sqlalchemy import TIMESTAMP, BigInteger, ForeignKey, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -10,12 +10,12 @@ class UserRoom(Base):
     __tablename__ = "user_room"
 
     # Columns with proper type hints for mypy
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     room_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False
+        BigInteger, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False
     )
     last_read_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True), nullable=True)
     joined_at: Mapped[datetime] = mapped_column(

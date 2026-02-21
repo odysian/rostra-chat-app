@@ -1,8 +1,8 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Column, Computed, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import BigInteger, Computed, DateTime, ForeignKey, Index, String
 from sqlalchemy.dialects.postgresql import TSVECTOR
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
 
@@ -11,16 +11,22 @@ class Message(Base):
     __tablename__ = "messages"
 
     # Columns
-    id = Column(Integer, primary_key=True, index=True)
-    room_id = Column(Integer, ForeignKey("rooms.id"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    content = Column(String, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(UTC))
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
+    room_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("rooms.id", ondelete="CASCADE"), nullable=False
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
 
     # Postgres generated column: auto-maintained tsvector for full-text search.
     # Computed(..., persisted=True) tells SQLAlchemy this is a STORED generated column,
     # so it won't try to set it on INSERT/UPDATE — Postgres handles that.
-    search_vector = Column(
+    search_vector: Mapped[str | None] = mapped_column(
         TSVECTOR,
         Computed("to_tsvector('english', content)", persisted=True),
         nullable=True,
