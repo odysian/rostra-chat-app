@@ -69,6 +69,9 @@ export default function Sidebar({
 
   const actionButtonBaseClass =
     "font-pixel text-[8px] tracking-[0.15em] px-2.5 py-1.5 transition-colors duration-150";
+  const crtAccentColor = theme === "neon" ? "#9069E2" : "var(--color-secondary)";
+  const densityButtonBackground = "var(--color-secondary)";
+  const densityButtonBorder = "1px solid var(--border-secondary)";
 
   return (
     <>
@@ -181,15 +184,14 @@ export default function Sidebar({
                     className={actionButtonBaseClass}
                     style={{
                       border: "1px solid var(--border-primary)",
-                      color: "var(--color-primary)",
+                      color: "#000",
+                      background: "var(--color-primary)",
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--color-primary)";
-                      e.currentTarget.style.color = "#000";
+                      e.currentTarget.style.filter = "brightness(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "var(--color-primary)";
+                      e.currentTarget.style.filter = "brightness(1)";
                     }}
                   >
                     {theme === "neon" ? "NEON" : "AMBER"}
@@ -199,8 +201,8 @@ export default function Sidebar({
                     className={actionButtonBaseClass}
                     style={{
                       border: "1px solid var(--border-secondary)",
-                      color: crtEnabled ? "#000" : "var(--color-secondary)",
-                      background: crtEnabled ? "var(--color-secondary)" : "transparent",
+                      color: crtEnabled ? "#000" : crtAccentColor,
+                      background: crtEnabled ? crtAccentColor : "transparent",
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.filter = "brightness(1.1)";
@@ -217,16 +219,15 @@ export default function Sidebar({
                     onClick={onToggleDensity}
                     className={actionButtonBaseClass}
                     style={{
-                      border: "1px solid var(--border-dim)",
-                      color: "var(--color-meta)",
+                      border: densityButtonBorder,
+                      color: "#000",
+                      background: densityButtonBackground,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.background = "var(--bg-bubble)";
-                      e.currentTarget.style.color = "var(--color-text)";
+                      e.currentTarget.style.filter = "brightness(1.1)";
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "transparent";
-                      e.currentTarget.style.color = "var(--color-meta)";
+                      e.currentTarget.style.filter = "brightness(1)";
                     }}
                     title={
                       density === "compact"
@@ -254,15 +255,14 @@ export default function Sidebar({
                   className={actionButtonBaseClass}
                   style={{
                     border: "1px solid var(--border-primary)",
-                    color: "var(--color-primary)",
+                    color: "#000",
+                    background: "var(--color-primary)",
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--color-primary)";
-                    e.currentTarget.style.color = "#000";
+                    e.currentTarget.style.filter = "brightness(1.1)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = "var(--color-primary)";
+                    e.currentTarget.style.filter = "brightness(1)";
                   }}
                 >
                   {theme === "neon" ? "NEON" : "AMBER"}
@@ -272,8 +272,8 @@ export default function Sidebar({
                   className={actionButtonBaseClass}
                   style={{
                     border: "1px solid var(--border-secondary)",
-                    color: crtEnabled ? "#000" : "var(--color-secondary)",
-                    background: crtEnabled ? "var(--color-secondary)" : "transparent",
+                    color: crtEnabled ? "#000" : crtAccentColor,
+                    background: crtEnabled ? crtAccentColor : "transparent",
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.filter = "brightness(1.1)";
@@ -290,16 +290,15 @@ export default function Sidebar({
                   onClick={onToggleDensity}
                   className={actionButtonBaseClass}
                   style={{
-                    border: "1px solid var(--border-dim)",
-                    color: "var(--color-meta)",
+                    border: densityButtonBorder,
+                    color: "#000",
+                    background: densityButtonBackground,
                   }}
                   onMouseEnter={(e) => {
-                    e.currentTarget.style.background = "var(--bg-bubble)";
-                    e.currentTarget.style.color = "var(--color-text)";
+                    e.currentTarget.style.filter = "brightness(1.1)";
                   }}
                   onMouseLeave={(e) => {
-                    e.currentTarget.style.background = "transparent";
-                    e.currentTarget.style.color = "var(--color-meta)";
+                    e.currentTarget.style.filter = "brightness(1)";
                   }}
                   title={
                     density === "compact"

@@ -125,3 +125,8 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Frontend types:** Centralized in `types/index.ts` (User, Room, Message, WS* types). No Zod in the repo; validation is backend Pydantic and frontend manual (e.g. room name length in RoomList).
 - **Styling:** Tailwind only. No CSS modules. Custom font via `@theme { --font-cinzel: 'Cinzel', serif }` and class `font-cinzel`. Scrollbar styling in `index.css`.
 - **Branding:** App name “Rostra”; accent color amber (e.g. `amber-500`, `text-amber-500`); dark theme (zinc-950, zinc-900, zinc-800).
+
+## Design Notes
+
+- **Neon gradient midpoint accent:** Use `#9069E2` as the blue->magenta midpoint accent reference (currently used for CRT toggle accent styling in `Sidebar`).
+- **Keyboard tab flow follow-up:** Current tab order behavior is acceptable, but should be revisited if/when sidebar back-arrow/expand affordance is redesigned.

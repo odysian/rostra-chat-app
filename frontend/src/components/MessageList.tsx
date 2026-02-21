@@ -114,6 +114,16 @@ export default function MessageList({
     pendingScrollAdjustmentRef.current = null;
   }, [messages]);
 
+  // Density changes alter message heights; pin to latest so on-screen context
+  // does not drift upward when switching between tight and comfy modes.
+  useLayoutEffect(() => {
+    if (!isInitialPositioned) return;
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    container.scrollTop = container.scrollHeight;
+    setShowJumpToLatest(false);
+  }, [density, isInitialPositioned]);
+
   // Fetch history when room changes. Defer fetch to next tick so React Strict Mode's
   // double-invoke runs cleanup before the first fetch starts (avoids duplicate OPTIONS + GET).
   useEffect(() => {

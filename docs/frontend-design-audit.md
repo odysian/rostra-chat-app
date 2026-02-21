@@ -158,6 +158,7 @@ Ship high-value micro-features with no backend changes.
 - Compact uses Phase 1 density defaults.
 - Comfortable restores larger spacing/typography values.
 - Apply via deterministic class/token branches (no new dependency).
+- Keep latest-message context anchored on density toggle (snap to bottom to avoid upward drift).
 
 ### 2.2 Dynamic Browser Title ✅ Completed 2026-02-21
 - Selected room: `#room-name - Rostra`.
@@ -251,6 +252,9 @@ Ship high-value micro-features with no backend changes.
   - Collapsed: `R` + right chevron icon.
   - Expanded: `ROSTRA` + left chevron icon as a clear collapse control.
 - Fallback (only if visual result is poor): revert to text-glyph variant (`R>` / `ROSTRA<`).
+
+**Color reference (for future reuse):**
+- Neon blue->magenta gradient midpoint accent: `#9069E2` (used for CRT toggle accent styling).
 
 ### Acceptance Criteria
 - No backend/API changes.
