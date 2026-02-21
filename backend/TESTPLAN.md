@@ -71,7 +71,7 @@ When implementing these tests:
 - `test_register_with_valid_data_returns_201_and_tokens`
   - Valid registration returns 201
   - Response includes user object (id, email, username)
-  - Response includes access_token and refresh_token
+  - Response includes access_token
   - Password is hashed in database (not plaintext)
   - Email is normalized to lowercase
 
@@ -137,7 +137,7 @@ When implementing these tests:
 **Happy Path:**
 - `test_login_with_valid_credentials_returns_200_and_tokens`
   - Login returns 200
-  - Response includes access_token and refresh_token
+  - Response includes access_token
   - Response includes user object
 
 - `test_login_is_case_insensitive_for_email`
@@ -185,18 +185,9 @@ When implementing these tests:
 
 ---
 
-### POST /api/auth/refresh (if implemented)
+### POST /api/auth/refresh (future, not currently implemented)
 
-**Happy Path:**
-- `test_refresh_with_valid_token_returns_new_access_token`
-  - Login to get refresh token
-  - Use refresh token to get new access token
-  - New access token works for authenticated requests
-
-**Error Cases:**
-- `test_refresh_with_invalid_token_returns_401`
-- `test_refresh_with_expired_token_returns_401`
-- `test_refresh_with_missing_token_returns_401`
+If refresh-token auth is added later, define this section in a dedicated PRD and expand tests at that time.
 
 ---
 

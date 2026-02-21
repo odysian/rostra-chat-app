@@ -29,17 +29,23 @@ Every project follows this layout. Create it at project initialization before wr
 ```
 project-root/
 ├── AGENTS.md                  # Agent behavior rules (root level — auto-read by Cursor)
-├── TASKS.md                   # Current sprint tasks (GITIGNORED)
-├── TESTPLAN.md                # Test case definitions (GITIGNORED)
+├── TASKS.md                   # Optional local scratchpad (not source of truth)
+├── backend/
+│   └── TESTPLAN.md            # Test case definitions (committed in this repo)
 ├── docs/
 │   ├── ARCHITECTURE.md        # System design, schemas, API contracts
+│   ├── ISSUES_WORKFLOW.md     # PRD -> Task -> PR control plane + DoR/DoD
 │   ├── PATTERNS.md            # Code conventions and reusable patterns
 │   └── REVIEW_CHECKLIST.md    # Post-implementation verification checklist
+├── .github/
+│   ├── ISSUE_TEMPLATE/        # PRD/Task/Decision issue templates
+│   └── PULL_REQUEST_TEMPLATE.md
+├── skills/                    # Portable issue workflow playbooks
 ├── tests/
 │   ├── conftest.py            # Shared fixtures, test DB setup, factories
 │   ├── test_auth.py           # Tests organized by domain
 │   └── ...
-├── .gitignore                 # Must include TASKS.md, TESTPLAN.md
+├── .gitignore                 # Must include local scratch artifacts and secrets
 ├── README.md                  # Includes AI Review Log section
 └── src/ or app/               # Application code
 ```
@@ -48,8 +54,6 @@ project-root/
 
 Always include these entries:
 ```
-TASKS.md
-TESTPLAN.md
 .env
 .env.local
 .env.production
@@ -77,9 +81,9 @@ When starting a new project, create all workspace files immediately with placeho
 
 **docs/REVIEW_CHECKLIST.md** — Starts with the generic checklist. Updated with project-specific checks after the first feature is reviewed.
 
-**TASKS.md** — Populated with the first sprint of agent-sized tasks after the design phase.
+**TASKS.md** — Optional scratchpad only. Keep it out of the execution critical path.
 
-**TESTPLAN.md** — Populated feature-by-feature during the design phase, before implementation.
+**backend/TESTPLAN.md** — Populated feature-by-feature during the design phase, before implementation.
 
 **README.md** — Created at project start with project overview. Includes an "AI Review Log" section that is updated throughout development (see Section 6).
 
@@ -192,7 +196,7 @@ Document architectural decisions with context on what was considered and why the
 ```markdown
 | Decision                    | Choice            | Alternatives Considered  | Why                                    |
 |----------------------------|-------------------|-------------------------|----------------------------------------|
-| Auth token storage          | httpOnly cookie   | localStorage             | XSS protection                          |
+| Auth token storage          | localStorage (current implementation) | httpOnly cookie | Current repo reality; production hardening may prefer httpOnly cookie-based sessions |
 | Message loading             | Pagination (cursor)| Load all                | Performance with large message history  |
 | Real-time updates           | WebSocket         | Polling, SSE             | Bidirectional, low latency              |
 ```
@@ -213,13 +217,13 @@ An agent may be asked to scan the codebase and update ARCHITECTURE.md to reflect
 
 **No feature is implemented until its test cases are defined.** The sequence is always:
 
-1. Developer defines test cases in TESTPLAN.md (during whiteboard with Claude)
+1. Developer defines test cases in backend/TESTPLAN.md (during whiteboard with Claude)
 2. Agent implements test code from the test plan
 3. Agent implements feature code to pass the tests
 4. Agent runs tests to self-verify
 5. Developer reviews both tests and implementation
 
-### Writing Test Cases (TESTPLAN.md)
+### Writing Test Cases (backend/TESTPLAN.md)
 
 Test cases are defined by the developer, not the agent. Each feature section includes five categories:
 
@@ -252,7 +256,7 @@ Test cases are defined by the developer, not the agent. Each feature section inc
 
 ### Implementing Tests
 
-When an agent implements tests from TESTPLAN.md, it must follow these rules:
+When an agent implements tests from backend/TESTPLAN.md, it must follow these rules:
 
 **Test Structure:** Every test uses Arrange-Act-Assert (AAA) pattern.
 ```python
@@ -342,22 +346,19 @@ tests/
 After implementing tests AND feature code, the agent must run verification before considering the task complete:
 
 ```bash
-# 1. Run the tests
-pytest -v --tb=short
+# Canonical verification commands live in AGENTS.md -> Verification.
+# Use that command set as the source of truth.
 
-# 2. Check that tests actually fail without the feature
-#    (Agent should note if all tests passed before implementation —
-#    that means the tests are testing nothing)
+# Backend (preferred)
+make backend-verify
 
-# 3. Lint
-ruff check .
+# Backend (if DB bootstrap is unavailable)
+make backend-verify SKIP_DB_BOOTSTRAP=1
 
-# 4. Type check
-mypy . --ignore-missing-imports
-
-# 5. If frontend changes were made
-npx tsc --noEmit
-npx next lint
+# Frontend
+cd frontend && npx tsc --noEmit
+cd frontend && npx eslint src/
+cd frontend && npm run build
 ```
 
 If any step fails, fix the issue before reporting completion. Do not leave broken tests, lint errors, or type errors for the developer to clean up.
@@ -368,7 +369,7 @@ If any step fails, fix the issue before reporting completion. Do not leave broke
 
 ### Feature Implementation Flow
 
-1. Read TESTPLAN.md for the current feature's test cases
+1. Read backend/TESTPLAN.md for the current feature's test cases
 2. Read docs/ARCHITECTURE.md for the schema, API contract, and design decisions
 3. Read docs/PATTERNS.md for established conventions in this codebase
 4. Implement tests first (they should fail — no feature code yet)
@@ -378,7 +379,7 @@ If any step fails, fix the issue before reporting completion. Do not leave broke
 
 ### One Task at a Time
 
-Never implement multiple features in a single session. Each task from TASKS.md is one unit of work:
+Never implement multiple features in a single session. Each Task issue is one unit of work:
 - One endpoint
 - One component
 - One database migration
@@ -519,11 +520,11 @@ This is harness engineering. Over time, the AGENTS.md becomes increasingly speci
 
 | Event                          | Files to Update                                    |
 |-------------------------------|---------------------------------------------------|
-| New feature designed           | ARCHITECTURE.md, TESTPLAN.md, TASKS.md             |
-| Feature implemented            | PATTERNS.md (if new convention), TASKS.md           |
+| New feature designed           | ARCHITECTURE.md, backend/TESTPLAN.md, PRD + Task issues |
+| Feature implemented            | PATTERNS.md (if new convention), Task issue + linked PR |
 | Agent made a mistake           | AGENTS.md (new rule), README.md (Review Log)        |
 | Code review completed          | REVIEW_CHECKLIST.md (if new check type discovered)  |
-| Session completed              | TASKS.md (check off done items)                     |
+| Session completed              | Task issue state and PR links updated               |
 | Schema changed                 | ARCHITECTURE.md (database section)                  |
 | New endpoint added             | ARCHITECTURE.md (API contracts section)             |
 | Implementation diverged from design | ARCHITECTURE.md (update to match reality)       |
@@ -772,9 +773,9 @@ Security is non-negotiable. Every feature must satisfy these requirements before
 - Never trust client-side validation alone — backend always validates independently
 
 ### Authentication
-- JWT tokens with expiration (access token: 30 min, refresh token: 7 days)
+- JWT tokens with expiration (token model must match docs/ARCHITECTURE.md for the current repo)
 - Passwords hashed with bcrypt (minimum 12 rounds)
-- Auth tokens stored in httpOnly cookies (not localStorage — XSS vulnerability)
+- Token storage strategy must match docs/ARCHITECTURE.md and docs/PATTERNS.md (current repo uses localStorage; production hardening may prefer httpOnly cookies or equivalent)
 - Every endpoint is authenticated by default. Public endpoints must be explicitly marked and documented.
 
 ### Authorization
@@ -811,8 +812,19 @@ These rules govern agent behavior across all tasks. They supplement project-spec
 1. Read AGENTS.md for project-specific rules
 2. Read docs/ARCHITECTURE.md for system design context
 3. Read docs/PATTERNS.md for code conventions
-4. Read TESTPLAN.md if the task involves implementing tests or features with test coverage
-5. Check TASKS.md to understand the current task scope
+4. Read backend/TESTPLAN.md if the task involves implementing tests or features with test coverage
+5. Read docs/ISSUES_WORKFLOW.md to confirm Definition of Ready/Done and issue-state gates
+6. Use a ready Task issue by default (quick-fix fast lane is allowed when it meets docs/ISSUES_WORKFLOW.md criteria)
+
+### Issues Workflow (Control Plane)
+
+Canonical execution rules live in `docs/ISSUES_WORKFLOW.md`.
+
+- PRD -> Task -> PR is the model.
+- GitHub issues are source of truth for execution (`TASKS.md` is scratchpad only).
+- PRs close Task issues, and PRDs close after all child Tasks are done.
+- Backend-coupled work requires Decision Locks before implementation.
+- Tiny low-risk fixes may use the fast lane defined in `docs/ISSUES_WORKFLOW.md`.
 
 ### During Implementation
 - **One task at a time.** Never implement multiple features or fix multiple unrelated issues in one session.
@@ -873,10 +885,8 @@ For multi-step tasks, state a brief plan with checks:
 ### Self-Verification Checklist
 
 Before reporting any task as complete:
-- [ ] Tests pass (`pytest -v`)
-- [ ] Lint passes (`ruff check .`)
-- [ ] Type check passes (`mypy . --ignore-missing-imports`)
-- [ ] Frontend builds (`npx tsc --noEmit && npx next lint`)
+- [ ] Backend verification passes (`make backend-verify`, or fallback with `SKIP_DB_BOOTSTRAP=1`)
+- [ ] Frontend builds (`cd frontend && npx tsc --noEmit && npx eslint src/ && npm run build`)
 - [ ] No hardcoded secrets, URLs, or credentials
 - [ ] New endpoints are documented in ARCHITECTURE.md or flagged for update
 - [ ] New patterns are consistent with PATTERNS.md
@@ -889,10 +899,10 @@ Before reporting any task as complete:
 ┌─────────────────────────────────────────────────────────┐
 │  1. DESIGN (Developer + Claude)                         │
 │     Whiteboard architecture → Update ARCHITECTURE.md    │
-│     Define test cases → Update TESTPLAN.md              │
-│     Break into tasks → Update TASKS.md                  │
+│     Define test cases → Update backend/TESTPLAN.md      │
+│     Break into Task issues from PRD                     │
 ├─────────────────────────────────────────────────────────┤
-│  2. TEST (Agent implements from TESTPLAN.md)             │
+│  2. TEST (Agent implements from backend/TESTPLAN.md)     │
 │     Write test code → Tests should FAIL (no feature yet)│
 │     Verify tests are meaningful (specific assertions)    │
 ├─────────────────────────────────────────────────────────┤
@@ -911,7 +921,7 @@ Before reporting any task as complete:
 │     Update ARCHITECTURE.md if design changed             │
 │     Update PATTERNS.md if new convention established     │
 │     Update AGENTS.md if agent made a mistake             │
-│     Check off TASKS.md                                   │
+│     Update Task issue and PR links                       │
 │     Write LEARNINGS.md entry                             │
 └─────────────────────────────────────────────────────────┘
 ```

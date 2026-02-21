@@ -26,7 +26,7 @@ Rostra is a real-time chat application. Users register and log in with username/
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
 │  Browser (React SPA – Vite dev or static build)                          │
-│  - Auth: token in localStorage; 401 → redirect to /login               │
+│  - Auth: token in localStorage (current implementation); 401 → redirect to /login │
 │  - REST: fetch to VITE_API_URL (e.g. http://localhost:8000)             │
 │  - WS:   WebSocket to /ws/connect?token=<jwt> (from VITE_WS_URL or API base) │
 └───────────────────────────────┬─────────────────────────────────────────┘
@@ -167,7 +167,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
 | WS rate limiting | In-memory fixed-window in ConnectionManager | `check_message_rate(user_id, max_per_minute=30)` — per-user 60s window tracked in `_message_counts` dict. Checked before DB session is opened for `send_message`. Cleaned up on disconnect. |
 | API docs exposure | OpenAPI/Swagger/ReDoc enabled only in debug mode | `main.py` gates `openapi_url`, `docs_url`, and `redoc_url` behind `settings.DEBUG`; production defaults to disabled to reduce endpoint discovery exposure. |
-| Frontend auth persistence | Token in localStorage | AuthContext stores token in localStorage; 401 from API triggers redirect to /login via `setUnauthorizedHandler`. |
+| Frontend auth persistence | Token in localStorage (current implementation) | AuthContext stores token in localStorage; 401 from API triggers redirect to /login via `setUnauthorizedHandler`. Production hardening may prefer httpOnly cookie-based sessions or equivalent. |
 | DB schema | All tables in `rostra` | `MetaData(schema="rostra")` in database.py; migrations create tables in that schema. |
 | Message search | Postgres FTS with GIN-indexed tsvector | Stored generated column `to_tsvector('english', content)` on messages. `plainto_tsquery` for safe user input parsing. GIN index for fast lookups. Results ordered by recency (not relevance) — matches chat UX where users want recent matches. Scales to millions of rows; would graduate to Elasticsearch only for fuzzy/typo tolerance. |
 

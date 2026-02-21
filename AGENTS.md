@@ -1,8 +1,46 @@
 # AGENTS.md — Rostra
 
+## Start Here (Canonical Entrypoint)
+
+`AGENTS.md` is the canonical entrypoint for agents and contributors in this repository.
+
+Read in this order:
+1. `AGENTS.md` (this file)
+2. `WORKFLOW.md`
+3. `docs/ISSUES_WORKFLOW.md`
+4. `docs/ARCHITECTURE.md`
+5. `docs/PATTERNS.md`
+6. `docs/REVIEW_CHECKLIST.md`
+7. `skills/write-prd.md`
+8. `skills/prd-to-issues.md`
+9. `skills/issue-to-pr.md`
+
+## Unit of Work Rule
+
+- **Unit of work is a GitHub Issue.**
+- Convert freeform requests into (default path):
+  - PRD issue (new features or multi-step work)
+  - Task issue (PR-sized implementation work)
+- Work one Task issue at a time.
+- PRs close Task issues (`Closes #123`), not PRDs.
+- PRDs close only when all child Tasks are done.
+- Quick-fix fast lane is allowed for tiny low-risk changes; use the criteria in `docs/ISSUES_WORKFLOW.md`.
+- Detailed control-plane rules are canonical in `docs/ISSUES_WORKFLOW.md`.
+
+## Agent Operating Loop
+
+1. Choose execution path: default issue flow or quick-fix fast lane.
+2. Restate goal and acceptance criteria.
+3. Plan minimal files and scope.
+4. Implement with tight, surgical changes.
+5. Run verification commands.
+6. Update tests/docs if required.
+7. If using issue flow, open PR that closes the Task issue.
+8. Move status forward (Ready -> In Progress -> Review -> Done) when using issue flow.
+
 ## Process
 
-Read and follow `WORKFLOW.md` for the full development process — it defines the Design → Test → Implement → Review → Document loop, TDD workflow, technical constraints (SQLAlchemy 2.0, Pydantic v2, async patterns), security requirements, and documentation maintenance rules.
+Read and follow `WORKFLOW.md` for the full development process and `docs/ISSUES_WORKFLOW.md` for the PRD -> Task -> PR control plane. Together they define the Design → Test → Implement → Review → Document loop, TDD workflow, technical constraints (SQLAlchemy 2.0, Pydantic v2, async patterns), security requirements, and documentation maintenance rules.
 
 This file contains **project-specific rules** that supplement WORKFLOW.md. If they conflict, this file wins.
 
@@ -91,12 +129,13 @@ If any of these fail, fix the issue before moving on.
 
 ### Documentation (after every feature)
 
-The files in `docs/` are auto-loaded into every conversation via CLAUDE.md. Keeping them accurate eliminates the repeated file reads a fresh session otherwise needs. **Treat doc updates like failing tests.**
+The files in `docs/` are canonical project guidance. Keep them accurate and aligned with implementation. **Treat doc updates like failing tests.**
 
 - [ ] **ARCHITECTURE.md** — Update if you changed: DB schema, API endpoints, WebSocket events, or system-level concerns (new services, middleware, infrastructure).
 - [ ] **PATTERNS.md** — Update if you introduced a new code pattern or changed an existing convention. If you followed an existing pattern unchanged, no update needed.
 - [ ] **REVIEW_CHECKLIST.md** — Update if the feature introduced a new category of checks or you discovered a missing check.
-- [ ] **TESTPLAN.md** — Update before writing any new tests.
+- [ ] **backend/TESTPLAN.md** — Update before writing any new tests.
+- [ ] **docs/ISSUES_WORKFLOW.md** — Update if issue workflow rules (DoR/DoD, labels, gates) changed.
 - [ ] **docs/adr/** — Create a new numbered ADR if you chose between competing approaches, resolved a non-obvious production issue, or made a decision with lasting security/performance consequences. See **ADR Format** below.
 
 **How to update:** Edit the specific section that changed — add new rows to tables, new items to lists, new sections where appropriate. Do not rewrite entire files.
@@ -147,6 +186,14 @@ Don't assume. Don't hide confusion. Surface tradeoffs.
 ### When a task is clear and scoped
 
 Just do it. No plan needed. Execute, verify, done.
+
+### Issues Workflow (Control Plane)
+
+- PRD defines scope and locks; Tasks are PR-sized; PRs close Tasks.
+- GitHub issues are the execution source of truth. `TASKS.md` is scratchpad-only.
+- Follow canonical rules in `docs/ISSUES_WORKFLOW.md` for DoR/DoD and Phase 3 gates.
+- Decision Locks default to PRD checkboxes; use Decision issues only for non-trivial/reused discussion.
+- If a decision has lasting architecture/security/performance impact, create and link an ADR (`docs/adr/NNN-kebab-case-title.md`).
 
 ### Goal-driven execution
 

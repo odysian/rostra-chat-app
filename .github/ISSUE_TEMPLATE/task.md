@@ -1,0 +1,32 @@
+---
+name: "Task"
+about: "Small implementable unit that becomes a PR"
+title: "Task: "
+labels: ["type:task"]
+---
+
+## Goal
+What should exist when this is done?
+
+## Scope
+**In:**
+-
+
+**Out:**
+-
+
+## Implementation notes
+-
+
+## Acceptance criteria
+- [ ] ...
+
+## Verification
+```bash
+# Copy the canonical command set from AGENTS.md -> Verification.
+```
+
+## PR checklist
+- [ ] PR references this issue (`Closes #...`)
+- [ ] Docs updated if needed (`docs/ARCHITECTURE.md`, `docs/PATTERNS.md`, `docs/REVIEW_CHECKLIST.md`, `backend/TESTPLAN.md`, `docs/adr/`)
+- [ ] Tests added/updated where needed

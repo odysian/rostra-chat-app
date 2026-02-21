@@ -29,11 +29,12 @@ Reusable code patterns and conventions in this project. All of the following are
 
 ### Frontend
 
-- Token is stored in **localStorage** under key `"token"` (not httpOnly cookie). AuthContext reads it on init and passes it to API/WebSocket.
+- Token is stored in **localStorage** under key `"token"` (current repository implementation, not a universal recommendation). AuthContext reads it on init and passes it to API/WebSocket.
 - Login/Register call `auth.login(response.access_token)` which sets localStorage and state; then navigate to `/chat` or `/login`.
 - Protected route: `ProtectedRoute` renders children only when `isAuthenticated` (token + user loaded); otherwise `<Navigate to="/login" />`.
 - On app load, if token exists, `getCurrentUser(token)` is called; on failure token is cleared and not redirected (user sees auth flow when hitting protected route).
 - 401 from any API call triggers `onUnauthorized()` → clear token/user and `window.location.href = "/login"`.
+- Security hardening note: production deployments may prefer httpOnly cookie-based session/token handling (or equivalent) depending on threat model.
 
 ## API Client Pattern
 
