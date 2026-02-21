@@ -209,8 +209,8 @@ export default function RoomList({
       {/* Section label */}
       {sidebarOpen && (
         <div
-          className="font-pixel text-[7px] tracking-[0.15em]"
-          style={{ color: "var(--color-meta)", padding: "8px 14px 4px" }}
+          className="font-pixel text-[8px] tracking-[0.15em]"
+          style={{ color: "var(--color-text)", opacity: 0.78, padding: "10px 14px 6px" }}
         >
           ROOMS
         </div>
@@ -265,7 +265,7 @@ export default function RoomList({
                 onClick={() => onSelectRoom(room)}
                 className="w-full text-left flex items-center justify-between gap-2 transition-all duration-150"
                 style={{
-                  padding: "10px 12px 10px 14px",
+                  padding: "11px 12px 11px 14px",
                   borderBottom: "1px solid var(--border-dim)",
                   borderLeft: isSelected
                     ? "2px solid var(--color-primary)"
@@ -312,11 +312,11 @@ export default function RoomList({
                     </div>
                     {hasUnread && (
                       <span
-                        className="shrink-0 font-mono text-[10px] px-1.5 py-px"
+                        className="shrink-0 font-mono text-[11px] font-semibold px-2 py-0.5 leading-none"
                         style={{
                           background: "var(--color-secondary)",
                           color: "#000",
-                          borderRadius: "2px",
+                          borderRadius: "999px",
                           boxShadow: "var(--glow-secondary)",
                         }}
                       >
@@ -338,7 +338,7 @@ export default function RoomList({
                     </span>
                     {hasUnread && (
                       <span
-                        className="absolute top-0 right-0 w-2 h-2 rounded-full"
+                        className="absolute top-0 right-0 w-2.5 h-2.5 rounded-full"
                         style={{
                           background: "var(--color-secondary)",
                           boxShadow: "var(--glow-secondary)",
@@ -404,7 +404,7 @@ export default function RoomList({
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
-              className="w-full flex justify-center py-2 transition-all duration-150"
+              className="w-full flex justify-center py-2 transition-all duration-150 icon-button-focus"
               style={{ color: "var(--color-primary)", boxShadow: "none" }}
               title="Create new room"
               aria-label="Create new room"
@@ -424,7 +424,7 @@ export default function RoomList({
             <button
               type="button"
               onClick={() => setShowDiscovery(true)}
-              className="w-full flex justify-center py-2 transition-all duration-150"
+              className="w-full flex justify-center py-2 transition-all duration-150 icon-button-focus"
               style={{ color: "var(--color-secondary)", boxShadow: "none" }}
               title="Discover rooms"
               aria-label="Discover rooms"
@@ -474,7 +474,7 @@ export default function RoomList({
               <button
                 type="button"
                 onClick={() => setShowLogoutModal(true)}
-                className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 text-sm transition-colors"
+                className="shrink-0 flex items-center gap-1.5 px-2 py-1.5 text-sm transition-colors icon-button-focus"
                 style={{ color: "#ff4444" }}
                 title="Logout"
                 aria-label="Logout"
@@ -489,7 +489,7 @@ export default function RoomList({
               <button
                 type="button"
                 onClick={onExpandSidebar}
-                className="hover:scale-110 transition-transform"
+                className="hover:scale-110 transition-transform icon-button-focus"
                 title="Expand sidebar"
                 aria-label="Expand sidebar"
               >
@@ -538,7 +538,7 @@ export default function RoomList({
                 <div className="mb-4">
                   <label
                     htmlFor="roomName"
-                    className="block font-pixel text-[7px] tracking-[0.2em] mb-2"
+                    className="block font-pixel text-[8px] tracking-[0.2em] mb-2"
                     style={{ color: "var(--color-meta)" }}
                   >
                     ROOM NAME

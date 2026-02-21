@@ -121,9 +121,31 @@ body::before {
 
 /* ── Scrollbar ─────────────────────────────────────────────── */
 
-::-webkit-scrollbar       { width: 3px; }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-meta) transparent;
+}
+
+::-webkit-scrollbar       { width: 7px; height: 7px; }
 ::-webkit-scrollbar-track  { background: transparent; }
-::-webkit-scrollbar-thumb  { background: var(--border-dim); border-radius: 2px; }
+::-webkit-scrollbar-thumb  { background: var(--color-meta); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-primary); }
+::-webkit-scrollbar-corner { background: transparent; }
+
+/* Visible keyboard focus for icon-only controls. */
+.icon-button-focus:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+
+.room-menu-item {
+  transition: background-color 0.15s ease;
+}
+
+.room-menu-item:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
 
 /* ── Gradient text utility ─────────────────────────────────── */
 

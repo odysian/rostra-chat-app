@@ -73,7 +73,13 @@ export default function MessageArea({
         className="flex-1 flex items-center justify-center"
         style={{ background: "var(--bg-app)" }}
       >
-        <div className="text-center">
+        <div
+          className="text-center px-8 py-7 mx-4 max-w-xl"
+          style={{
+            border: "1px solid var(--border-dim)",
+            background: "var(--bg-panel)",
+          }}
+        >
           {theme === "neon" ? (
             <h2
               className="font-bebas text-[36px] tracking-[0.06em] mb-2 gradient-text"
@@ -95,7 +101,7 @@ export default function MessageArea({
               Welcome to Rostra
             </h2>
           )}
-          <p className="font-mono text-[14px]" style={{ color: "var(--color-meta)" }}>
+          <p className="font-mono text-[15px]" style={{ color: "var(--color-meta)" }}>
             Select a room from the sidebar to start chatting
           </p>
         </div>
@@ -157,7 +163,7 @@ export default function MessageArea({
           <button
             type="button"
             onClick={onBackToRooms}
-            className="shrink-0 transition-colors md:hidden"
+            className="shrink-0 transition-colors md:hidden p-1 icon-button-focus"
             style={{ color: "var(--color-meta)" }}
             title="Back to rooms"
             aria-label="Back to rooms"
@@ -210,7 +216,7 @@ export default function MessageArea({
             <button
               type="button"
               onClick={() => setShowRoomMenu(!showRoomMenu)}
-              className="transition-colors p-1"
+              className="transition-colors p-1.5 icon-button-focus"
               style={{ color: "var(--color-meta)" }}
               title="Room options"
               aria-label="Room options"
@@ -239,7 +245,7 @@ export default function MessageArea({
                       setShowRoomMenu(false);
                       onLeaveRoom();
                     }}
-                    className="w-full px-4 py-2 text-left font-mono text-[12px] transition-colors"
+                    className="w-full px-4 py-2 text-left font-mono text-[12px] room-menu-item"
                     style={{ color: "var(--color-text)" }}
                   >
                     Leave Room
@@ -254,7 +260,7 @@ export default function MessageArea({
                           setDeleteError("");
                           setShowDeleteModal(true);
                         }}
-                        className="w-full px-4 py-2 text-left font-mono text-[12px] transition-colors"
+                        className="w-full px-4 py-2 text-left font-mono text-[12px] room-menu-item"
                         style={{ color: "#ff4444" }}
                       >
                         Delete Room
@@ -271,7 +277,7 @@ export default function MessageArea({
         <button
           type="button"
           onClick={onToggleSearch}
-          className="shrink-0 transition-colors"
+          className="shrink-0 transition-colors p-1 icon-button-focus"
           style={{ color: "var(--color-meta)" }}
           title="Search messages"
           aria-label="Search messages"
@@ -294,7 +300,7 @@ export default function MessageArea({
         <button
           type="button"
           onClick={onToggleUsers}
-          className="shrink-0 transition-colors"
+          className="shrink-0 transition-colors p-1 icon-button-focus"
           style={{ color: "var(--color-meta)" }}
           title="Toggle users panel"
           aria-label="Toggle users panel"
@@ -430,6 +436,7 @@ export default function MessageArea({
           <button
             type="button"
             onClick={onDismissWsError}
+            className="icon-button-focus"
             style={{ color: "#ff4444" }}
             aria-label="Dismiss"
           >

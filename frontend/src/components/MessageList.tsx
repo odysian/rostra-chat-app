@@ -447,7 +447,7 @@ export default function MessageList({
       <div
         ref={scrollContainerRef}
         className="h-full overflow-y-auto overflow-x-hidden flex flex-col"
-        style={{ padding: "20px 20px 12px 10px" }}
+        style={{ padding: "16px 16px 10px 8px" }}
       >
         {/* Sentinel for IntersectionObserver */}
         <div ref={sentinelRef} className="h-px" />
@@ -463,8 +463,12 @@ export default function MessageList({
         {!isLoadingMore && nextCursor == null && (
           <div className="flex justify-center py-4">
             <span
-              className="font-pixel text-[7px] tracking-[0.20em] px-3 py-1"
-              style={{ color: "var(--color-meta)", border: "1px solid var(--border-dim)" }}
+              className="font-pixel text-[8px] tracking-[0.16em] px-3 py-1.5"
+              style={{
+                color: "var(--color-text)",
+                border: "1px solid var(--border-dim)",
+                background: "var(--bg-bubble)",
+              }}
             >
               BEGINNING OF CONVERSATION
             </span>
@@ -482,8 +486,11 @@ export default function MessageList({
                 className="flex justify-center my-4 opacity-75 px-4"
               >
                 <span
-                  className="font-pixel text-[7px] tracking-[0.15em] px-3 py-1"
-                  style={{ color: "var(--color-meta)", border: "1px solid var(--border-dim)" }}
+                  className="font-pixel text-[8px] tracking-[0.14em] px-3 py-1"
+                  style={{
+                    color: "var(--color-meta)",
+                    border: "1px solid var(--border-dim)",
+                  }}
                 >
                   {item.content}
                 </span>
@@ -512,11 +519,11 @@ export default function MessageList({
             <div key={message.id}>
               {/* Date divider */}
               {showDateDivider && (
-                <div className="flex items-center gap-3 my-6">
+                <div className="flex items-center gap-2.5 my-5">
                   <div className="flex-1 h-px" style={{ background: "linear-gradient(90deg, transparent, var(--border-dim))" }} />
                   <span
-                    className="font-pixel text-[7px] tracking-[0.20em]"
-                    style={{ color: "var(--color-meta)" }}
+                    className="font-pixel text-[8px] tracking-[0.16em]"
+                    style={{ color: "var(--color-text)" }}
                   >
                     {getDateLabel(isoDate)}
                   </span>
@@ -527,16 +534,16 @@ export default function MessageList({
               {/* Flush-left message row (Discord-style) */}
               <div
                 data-chat-message="true"
-                className={`group flex items-start gap-3 px-2 hover:bg-white/[0.02] transition-colors ${
-                  isGrouped ? "mt-0.5 py-0.5" : "mt-3.5 py-0.5"
+                className={`group flex items-start gap-2.5 px-1.5 hover:bg-white/[0.02] transition-colors ${
+                  isGrouped ? "mt-0 py-0.5" : "mt-2.5 py-0.5"
                 }`}
                 style={{ animation: "slide-in 0.2s ease-out" }}
               >
                 {/* Left: avatar or hover timestamp */}
-                <div className="w-11 shrink-0 select-none flex justify-center">
+                <div className="w-9 shrink-0 select-none flex justify-center">
                   {!isGrouped ? (
                     <div
-                      className="w-11 h-11 rounded-full flex items-center justify-center font-bebas text-[16px]"
+                      className="w-9 h-9 rounded-full flex items-center justify-center font-bebas text-[14px]"
                       style={{
                         background: userColors?.backgroundColor ?? "var(--bg-app)",
                         border: `1px solid ${userColors?.borderColor ?? "var(--border-primary)"}`,
@@ -548,7 +555,7 @@ export default function MessageList({
                     </div>
                   ) : (
                     <span
-                      className="block font-mono text-[12px] pt-1 text-center w-full whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150"
+                      className="block font-mono text-[11px] pt-1 text-center w-full whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity duration-150"
                       style={{ color: "var(--color-meta)" }}
                       title={fullDateTime}
                     >
@@ -568,7 +575,7 @@ export default function MessageList({
                         {message.username}
                       </span>
                       <span
-                        className="font-mono text-[12px] tracking-[0.08em]"
+                        className="font-mono text-[11px] tracking-[0.08em]"
                         style={{ color: "var(--color-meta)" }}
                         title={fullDateTime}
                       >
@@ -578,8 +585,8 @@ export default function MessageList({
                   )}
 
                   <div
-                    className={`font-mono text-[18px] leading-relaxed break-words ${
-                      isGrouped ? "" : "mt-1"
+                    className={`font-mono text-[15px] leading-normal break-words ${
+                      isGrouped ? "" : "mt-0.5"
                     }`}
                     style={{ color: "var(--color-msg-text)" }}
                   >

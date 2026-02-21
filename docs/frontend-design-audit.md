@@ -1,7 +1,7 @@
 # Frontend Design Audit and Phased Roadmap — Rostra
 
 **Date:** 2026-02-21
-**Status:** Planning phase (no implementation started)
+**Status:** Phase 1 completed on 2026-02-21. Phase 2 and Phase 3 pending.
 **Canonical file:** `docs/frontend-design-audit.md`
 
 ---
@@ -91,43 +91,43 @@ Improve scanning, legibility, and control discoverability with no functional cha
 - `frontend/src/components/MessageArea.tsx`
 
 ### Planned Changes
-1. Message density tuning in `MessageList`:
+- [x] Message density tuning in `MessageList`:
 - Reduce content size/leading (`18px relaxed` -> `15px normal`).
 - Tighten ungrouped/grouped spacing.
 - Reduce avatar footprint and container padding.
 - Improve date divider and "BEGINNING OF CONVERSATION" visibility.
 
-2. Sidebar and users panel legibility:
+- [x] Sidebar and users panel legibility:
 - Increase tiny pixel label/button text size to readable minimum.
 - Increase control hit area and spacing for theme/CRT buttons.
 - Increase users panel width and username readability.
 - Increase online dot/crown visibility.
 
-3. Room list readability:
+- [x] Room list readability:
 - Increase unread badge size/shape/weight.
 - Keep dark text on bright unread background.
 - Slightly relax room row vertical spacing.
 - Improve ROOMS section label visibility.
 
-4. Search panel consistency:
+- [x] Search panel consistency:
 - Increase tiny metadata text where needed.
 - Keep preview readable without matching full chat density.
 
-5. Scrollbar visibility in `index.css`:
+- [x] Scrollbar visibility in `index.css`:
 - Wider thumb, stronger color contrast.
 - Add Firefox scrollbar styles (`scrollbar-width`, `scrollbar-color`) in addition to WebKit rules.
 
-6. Focus affordance polish:
+- [x] Focus affordance polish:
 - Ensure icon-only controls show a visible `:focus-visible` outline.
 
-7. Dropdown and modal micro-polish:
+- [x] Dropdown and modal micro-polish:
 - Add hover background to room options menu items in `MessageArea` (currently no visible hover state).
 - Bump create-room modal "ROOM NAME" label from `text-[7px]` to `text-[8px]` (consistent with other pixel label bumps).
 
-8. Empty state polish in `MessageArea`:
+- [x] Empty state polish in `MessageArea`:
 - "Welcome to Rostra" / "Select a room" screen: slightly larger guidance text and subtle border container for more visual presence.
 
-9. Accepted tradeoff:
+- [x] Accepted tradeoff:
 - Keep fixed typing indicator height (`h-7`) to prevent layout shift.
 
 ### Acceptance Criteria

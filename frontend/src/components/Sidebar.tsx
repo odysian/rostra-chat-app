@@ -122,10 +122,10 @@ export default function Sidebar({
                   )}
                 </button>
 
-                <div className="flex flex-col items-end gap-1 mt-1">
+                <div className="flex flex-col items-end gap-1.5 mt-1">
                   <button
                     onClick={toggleTheme}
-                    className="font-pixel text-[7px] tracking-[0.15em] px-2 py-1 transition-colors duration-150"
+                    className="font-pixel text-[8px] tracking-[0.15em] px-2.5 py-1.5 transition-colors duration-150"
                     style={{
                       border: "1px solid var(--border-primary)",
                       color: "var(--color-primary)",
@@ -143,7 +143,7 @@ export default function Sidebar({
                   </button>
                   <button
                     onClick={() => setCrtEnabled((prev) => !prev)}
-                    className="font-pixel text-[7px] tracking-[0.15em] px-2 py-1 transition-colors duration-150"
+                    className="font-pixel text-[8px] tracking-[0.15em] px-2.5 py-1.5 transition-colors duration-150"
                     style={{
                       border: "1px solid var(--border-secondary)",
                       color: crtEnabled ? "#000" : "var(--color-secondary)",
@@ -165,7 +165,7 @@ export default function Sidebar({
 
               {/* Tagline */}
               <span
-                className="font-pixel text-[7px] tracking-[0.25em] mt-1"
+                className="font-pixel text-[8px] tracking-[0.23em] mt-1"
                 style={{ color: "var(--color-meta)" }}
               >
                 REAL·TIME·CHAT
