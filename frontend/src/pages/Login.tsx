@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Info, Loader2 } from "lucide-react";
 import { login } from "../services/api";
 import { useAuth } from "../context/AuthContext";
@@ -267,13 +267,13 @@ export default function Login() {
             </button>
 
             <div className="text-center">
-              <a
-                href="/register"
+              <Link
+                to="/register"
                 className="font-mono text-[12px] transition-colors hover:underline"
                 style={{ color: "var(--color-primary)" }}
               >
                 Don't have an account? Register
-              </a>
+              </Link>
             </div>
           </form>
         </div>

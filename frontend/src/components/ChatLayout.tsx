@@ -7,15 +7,10 @@ import { useWebSocketContext } from "../context/useWebSocketContext";
 import { type WebSocketMessage } from "../context/WebSocketContext";
 import { useAuth } from "../context/AuthContext";
 import { markRoomRead, leaveRoom } from "../services/api";
-import type { Message, Room } from "../types";
+import type { Message, OnlineUser, Room } from "../types";
 
 const MAX_SUBSCRIPTIONS = 10;
 const INITIAL_AUTO_SUBSCRIBE_COUNT = 5;
-
-interface OnlineUser {
-  id: number;
-  username: string;
-}
 
 /**
  * ChatLayout Component
@@ -410,7 +405,6 @@ export default function ChatLayout() {
           onRoomDeleted={handleRoomDeleted}
           onLeaveRoom={handleLeaveRoom}
           onBackToRooms={handleBackToRooms}
-          isMobile={true}
           typingUsernames={typingUsernames}
           wsError={wsError}
           onDismissWsError={() => setWsError(null)}

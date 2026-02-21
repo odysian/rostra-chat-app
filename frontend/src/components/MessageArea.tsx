@@ -17,7 +17,6 @@ interface MessageAreaProps {
   onRoomDeleted: () => void;
   onLeaveRoom: () => void;
   onBackToRooms: () => void;
-  isMobile: boolean;
   typingUsernames: string[];
   wsError?: string | null;
   onDismissWsError?: () => void;

@@ -3,7 +3,7 @@
 **Date:** 2026-02-19
 **Scope:** Full codebase — security, code quality, UX, technical debt
 **Findings:** 35 issues (3 high, 14 medium, 18 low)
-**Last Progress Update:** 2026-02-20
+**Last Progress Update:** 2026-02-21
 
 ---
 
@@ -27,10 +27,10 @@ Status legend:
 - `OPEN` — not started
 
 Snapshot totals:
-- `DONE`: 20
+- `DONE`: 25
 - `PARTIAL`: 1
 - `PLANNED`: 1
-- `OPEN`: 13
+- `OPEN`: 8
 
 | Item | Status | Notes |
 |---|---|---|
@@ -52,11 +52,11 @@ Snapshot totals:
 | 3.6 | OPEN | N+1 unread count path in cache population is still present |
 | 3.7 | PARTIAL | `no-console` enforced; `jsx-a11y` and TS strict migration still pending |
 | 4.1 | DONE | Login timing side-channel mitigated with dummy verify |
-| 4.2 | OPEN | Login/Register still use `<a href>` for internal nav |
+| 4.2 | DONE | Login/Register now use `react-router-dom` `<Link>` for internal navigation |
 | 4.3 | DONE | `UserLogin` max length constraints added |
 | 4.4 | OPEN | SQLAlchemy 1.x style still present in `room.py`/`message.py` |
 | 4.5 | OPEN | PK `Integer` → `BigInteger` migration not done |
-| 4.6 | OPEN | Duplicate `OnlineUser` interfaces still present |
+| 4.6 | DONE | `OnlineUser` duplicates removed; shared type imported from `src/types/index.ts` |
 | 4.7 | DONE | Redis URL moved into centralized settings |
 | 4.8 | DONE | Redis connection logging now redacts credentials |
 | 4.9 | DONE | Broad `Exception` catch removed from password verify path |
@@ -65,9 +65,9 @@ Snapshot totals:
 | 4.12 | DONE | Swagger/OpenAPI disabled when `DEBUG` is false |
 | 4.13 | DONE | DB health endpoint now requires auth |
 | 4.14 | DONE | Frontend console logging gated/replaced via logger utility |
-| 4.15 | OPEN | Typing cooldown timeout cleanup on unmount still pending |
-| 4.16 | OPEN | Dead `isMobile` prop still present |
-| 4.17 | OPEN | `break-all` still used for message text |
+| 4.15 | DONE | Typing cooldown timeout is now tracked and cleared on unmount |
+| 4.16 | DONE | Dead `isMobile` prop removed from `ChatLayout`/`MessageArea` and tests |
+| 4.17 | DONE | Message text wrapping switched from `break-all` to `break-words` |
 | 4.18 | OPEN | Unread refresh on WS reconnect still pending |
 
 ---

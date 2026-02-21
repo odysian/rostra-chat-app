@@ -578,7 +578,7 @@ export default function MessageList({
                   )}
 
                   <div
-                    className={`font-mono text-[18px] leading-relaxed break-all ${
+                    className={`font-mono text-[18px] leading-relaxed break-words ${
                       isGrouped ? "" : "mt-1"
                     }`}
                     style={{ color: "var(--color-msg-text)" }}

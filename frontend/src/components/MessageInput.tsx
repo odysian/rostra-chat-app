@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useWebSocketContext } from "../context/useWebSocketContext";
 import { logError } from "../utils/logger";
@@ -24,7 +24,17 @@ export default function MessageInput({
   const [isFocused, setIsFocused] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const typingCooldownRef = useRef(false);
+  const typingCooldownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Clear pending cooldown timeout on unmount to avoid stale timer callbacks.
+  useEffect(() => {
+    return () => {
+      if (typingCooldownTimeoutRef.current) {
+        clearTimeout(typingCooldownTimeoutRef.current);
+      }
+    };
+  }, []);
 
   const syncTextareaHeight = (element: HTMLTextAreaElement) => {
     element.style.height = "0px";
@@ -42,8 +52,14 @@ export default function MessageInput({
     if (e.target.value.length > 0 && !typingCooldownRef.current) {
       sendTypingIndicator(roomId);
       typingCooldownRef.current = true;
-      setTimeout(() => {
+
+      if (typingCooldownTimeoutRef.current) {
+        clearTimeout(typingCooldownTimeoutRef.current);
+      }
+
+      typingCooldownTimeoutRef.current = setTimeout(() => {
         typingCooldownRef.current = false;
+        typingCooldownTimeoutRef.current = null;
       }, 2000);
     }
   };

@@ -1,14 +1,9 @@
 import { useState } from "react";
 import { Crown } from "lucide-react";
-import type { User } from "../types";
+import type { OnlineUser, User } from "../types";
 import { useWebSocketContext } from "../context/useWebSocketContext";
 import { useTheme } from "../context/ThemeContext";
 import { getUserColorPalette } from "../utils/userColors";
-
-interface OnlineUser {
-  id: number;
-  username: string;
-}
 
 interface UsersPanelProps {
   // Panel visibility
