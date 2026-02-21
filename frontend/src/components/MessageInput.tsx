@@ -10,12 +10,18 @@ interface MessageInputProps {
   onMessageSent?: () => void;
 }
 
+const MAX_PLACEHOLDER_ROOM_NAME_LENGTH = 18;
+
 export default function MessageInput({
   roomId,
   roomName,
   onMessageSent,
 }: MessageInputProps) {
   const displayRoomName = formatRoomNameForDisplay(roomName);
+  // Keep placeholder length bounded so very long room names do not cause horizontal scrolling.
+  const placeholderRoomName = displayRoomName.length > MAX_PLACEHOLDER_ROOM_NAME_LENGTH
+    ? `${displayRoomName.slice(0, MAX_PLACEHOLDER_ROOM_NAME_LENGTH - 3)}...`
+    : displayRoomName;
   const { token } = useAuth();
   const { connected, sendMessage: wsSendMessage, sendTypingIndicator } = useWebSocketContext();
   const [content, setContent] = useState("");
@@ -130,7 +136,7 @@ export default function MessageInput({
               e.currentTarget.form?.requestSubmit();
             }
           }}
-          placeholder={`Message #${displayRoomName}`}
+          placeholder={`Message #${placeholderRoomName}`}
           disabled={sending}
           rows={1}
           className="min-w-0 flex-1 px-3 py-2 bg-transparent focus:outline-none disabled:opacity-50 font-mono text-[14px] placeholder:text-[var(--color-meta)] resize-none max-h-[120px]"

@@ -1,7 +1,7 @@
 # Frontend Design Audit and Phased Roadmap — Rostra
 
 **Date:** 2026-02-21
-**Status:** Phase 2 completed on 2026-02-21 (2.1-2.7 and 2.9 complete, 2.8 deferred). Phase 3 pending.
+**Status:** Phase 2 completed on 2026-02-21 (2.1-2.7 and 2.9-2.11 complete, 2.8 deferred). Phase 3 pending.
 **Canonical file:** `docs/frontend-design-audit.md`
 
 ---
@@ -196,6 +196,15 @@ Ship high-value micro-features with no backend changes.
 - First Tab from a focused room row jumps to composer input.
 - Chat area tab order: input -> send -> back -> room menu -> search -> users.
 - Shift+Tab follows reverse order where applicable.
+- Follow-up note: current behavior is acceptable for now; revisit after possible sidebar/back-arrow redesign to refine desktop flow.
+
+### 2.10 Room Header Alignment Polish (Addendum) ✅ Completed 2026-02-21
+- Increase room-title size slightly.
+- Improve vertical alignment against back/control icons in the header.
+
+### 2.11 Message Input Placeholder Truncation (Addendum) ✅ Completed 2026-02-21
+- Truncate very long room names in composer placeholder to prevent horizontal scrollbar behavior.
+- Tighten truncation threshold so room-aware placeholder text still fits around 375px widths.
 
 ### Acceptance Criteria
 - No backend/API changes.
