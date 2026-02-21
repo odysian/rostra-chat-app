@@ -17,7 +17,7 @@ router = APIRouter()
 
 
 @router.get("/rooms/{room_id}/messages/search", response_model=PaginatedMessages)
-@limiter.limit("10/minute")
+@limiter.limit("120/minute")
 async def search_room_messages(
     request: Request,
     room_id: int,

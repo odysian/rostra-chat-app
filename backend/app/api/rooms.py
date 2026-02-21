@@ -133,7 +133,7 @@ async def get_room(
 
 
 @router.patch("/{room_id}/read", status_code=status.HTTP_200_OK)
-@limiter.limit("30/minute")
+@limiter.limit("300/minute")
 async def mark_room_read(
     request: Request,
     room_id: int,
