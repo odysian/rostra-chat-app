@@ -11,7 +11,7 @@ from app.core.rate_limit import limiter
 from app.crud import room as room_crud
 from app.crud import user_room as user_room_crud
 from app.models.user import User
-from app.schemas.room import RoomCreate, RoomResponse
+from app.schemas.room import RoomCreate, RoomReadResponse, RoomResponse
 from app.services.cache_service import UnreadCountCache
 
 router = APIRouter()
@@ -67,9 +67,10 @@ async def get_rooms(
                 name=cast(str, room.name),
                 created_by=cast(int, room.created_by),
                 created_at=cast(datetime, room.created_at),
+                last_read_at=cast(datetime | None, last_read_at),
                 unread_count=unread_counts.get(cast(int, room.id), 0),
             )
-            for room in rooms
+            for room, last_read_at in rooms
         ]
 
     rooms = await room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
@@ -79,8 +80,9 @@ async def get_rooms(
             name=cast(str, room.name),
             created_by=cast(int, room.created_by),
             created_at=cast(datetime, room.created_at),
+            last_read_at=cast(datetime | None, last_read_at),
         )
-        for room in rooms
+        for room, last_read_at in rooms
     ]
 
 
@@ -132,7 +134,11 @@ async def get_room(
     return room
 
 
-@router.patch("/{room_id}/read", status_code=status.HTTP_200_OK)
+@router.patch(
+    "/{room_id}/read",
+    response_model=RoomReadResponse,
+    status_code=status.HTTP_200_OK,
+)
 @limiter.limit("300/minute")
 async def mark_room_read(
     request: Request,
@@ -178,7 +184,7 @@ async def mark_room_read(
     return {
         "status": "read",
         "room_id": room_id,
-        "last_read_at": last_read_at.isoformat() if last_read_at else None,  # type: ignore
+        "last_read_at": last_read_at,
     }
 
 

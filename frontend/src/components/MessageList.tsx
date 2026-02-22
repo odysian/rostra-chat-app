@@ -26,19 +26,56 @@ const JUMP_TO_LATEST_MIN_HIDDEN_MESSAGES = 250;
 interface MessageListProps {
   roomId: number;
   density: "compact" | "comfortable";
+  lastReadAtSnapshot?: string | null;
   incomingMessages?: Message[];
   onIncomingMessagesProcessed?: () => void;
   scrollToLatestSignal?: number;
 }
 
+function normalizeToUtcIso(isoString: string): string {
+  const hasTimezoneSuffix = /(?:Z|[+-]\d{2}:\d{2})$/i.test(isoString);
+  return hasTimezoneSuffix ? isoString : `${isoString}Z`;
+}
+
+function parseTimestamp(isoString: string | null | undefined): number | null {
+  if (!isoString) return null;
+  const timestamp = Date.parse(normalizeToUtcIso(isoString));
+  return Number.isNaN(timestamp) ? null : timestamp;
+}
+
+function findFirstUnreadMessageId(
+  items: ChatItem[],
+  snapshot: string | null | undefined,
+  currentUserId: number | null | undefined,
+): number | null {
+  const snapshotTimestamp = parseTimestamp(snapshot);
+  if (snapshotTimestamp == null) return null;
+
+  const unreadMessage = items.find((item) => {
+    if ("type" in item && item.type === "system") return false;
+    if (currentUserId != null && (item as Message).user_id === currentUserId) {
+      return false;
+    }
+    const messageTimestamp = parseTimestamp((item as Message).created_at);
+    return messageTimestamp != null && messageTimestamp > snapshotTimestamp;
+  });
+
+  if (!unreadMessage || ("type" in unreadMessage && unreadMessage.type === "system")) {
+    return null;
+  }
+
+  return (unreadMessage as Message).id;
+}
+
 export default function MessageList({
   roomId,
   density,
+  lastReadAtSnapshot = null,
   incomingMessages = [],
   onIncomingMessagesProcessed,
   scrollToLatestSignal = 0,
 }: MessageListProps) {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const { theme } = useTheme();
   const [messages, setMessages] = useState<ChatItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +88,11 @@ export default function MessageList({
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isInitialPositioned, setIsInitialPositioned] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  /**
+   * Divider anchor is resolved once per room-entry so the "NEW MESSAGES"
+   * marker does not reposition while the user keeps viewing this room.
+   */
+  const [newMessagesAnchorId, setNewMessagesAnchorId] = useState<number | null>(null);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -136,6 +178,7 @@ export default function MessageList({
       setNextCursor(null);
       setIsInitialPositioned(false);
       setShowJumpToLatest(false);
+      setNewMessagesAnchorId(null);
       pendingScrollAdjustmentRef.current = null;
     }
 
@@ -159,6 +202,12 @@ export default function MessageList({
         );
         const history = fetchedMessages.reverse();
         clearTimeout(timeoutId);
+
+        // Resolve divider anchor from entry-time history only, so live messages
+        // that arrive while loading cannot retroactively create/move the marker.
+        setNewMessagesAnchorId(
+          findFirstUnreadMessageId(history, lastReadAtSnapshot, user?.id),
+        );
 
         pendingScrollAdjustmentRef.current = { type: "initial" };
         setMessages((prev) => {
@@ -193,13 +242,14 @@ export default function MessageList({
         clearTimeout(timeoutId);
       }
     };
-  }, [roomId, token, retryCount]);
+  }, [roomId, token, retryCount, lastReadAtSnapshot, user?.id]);
 
   const handleRetry = () => {
     setLoading(true);
     setError("");
     setIsInitialPositioned(false);
     setShowJumpToLatest(false);
+    setNewMessagesAnchorId(null);
     pendingScrollAdjustmentRef.current = null;
     // Bump local retry counter so the effect above refetches messages
     setRetryCount((prev) => prev + 1);
@@ -372,8 +422,7 @@ export default function MessageList({
 
   // Get date string for date dividers
   const getDateLabel = (isoString: string) => {
-    const dateStr = isoString.endsWith("Z") ? isoString : isoString + "Z";
-    const date = new Date(dateStr);
+    const date = new Date(normalizeToUtcIso(isoString));
     const now = new Date();
 
     if (date.toDateString() === now.toDateString()) return "TODAY";
@@ -395,8 +444,8 @@ export default function MessageList({
 
     const currMsg = current as Message;
     const prevMsg = prev as Message;
-    const currDate = new Date(currMsg.created_at.endsWith("Z") ? currMsg.created_at : currMsg.created_at + "Z");
-    const prevDate = new Date(prevMsg.created_at.endsWith("Z") ? prevMsg.created_at : prevMsg.created_at + "Z");
+    const currDate = new Date(normalizeToUtcIso(currMsg.created_at));
+    const prevDate = new Date(normalizeToUtcIso(prevMsg.created_at));
 
     return currDate.toDateString() !== prevDate.toDateString();
   };
@@ -515,9 +564,7 @@ export default function MessageList({
           }
 
           const message = item as Message;
-          const isoDate = message.created_at.endsWith("Z")
-            ? message.created_at
-            : message.created_at + "Z";
+          const isoDate = normalizeToUtcIso(message.created_at);
           const isGrouped = shouldGroupMessage(item, messages[index - 1]);
           const showDateDivider = shouldShowDateDivider(item, messages[index - 1]);
           // Keep amber visuals cohesive by using per-user hues only in neon mode.
@@ -533,6 +580,36 @@ export default function MessageList({
 
           return (
             <div key={message.id}>
+              {newMessagesAnchorId === message.id && (
+                <div
+                  className={`flex items-center ${isComfortableDensity ? "gap-3 my-6" : "gap-2.5 my-5"}`}
+                >
+                  <div
+                    className="flex-1 h-px"
+                    style={{
+                      background:
+                        "linear-gradient(90deg, transparent, var(--color-secondary))",
+                    }}
+                  />
+                  <span
+                    className="font-pixel text-[8px] tracking-[0.16em] px-2 py-1"
+                    style={{
+                      color: "var(--color-secondary)",
+                      border: "1px solid var(--color-secondary)",
+                    }}
+                  >
+                    NEW MESSAGES
+                  </span>
+                  <div
+                    className="flex-1 h-px"
+                    style={{
+                      background:
+                        "linear-gradient(270deg, transparent, var(--color-secondary))",
+                    }}
+                  />
+                </div>
+              )}
+
               {/* Date divider */}
               {showDateDivider && (
                 <div

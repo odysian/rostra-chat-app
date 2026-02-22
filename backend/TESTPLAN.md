@@ -265,11 +265,19 @@ If refresh-token auth is added later, define this section in a dedicated PRD and
 - `test_get_rooms_returns_all_user_rooms`
   - User is member of 3 rooms
   - GET /api/rooms returns all 3
-  - Each room includes id, name, created_at
+  - Each room includes id, name, created_at, and membership `last_read_at`
 
 - `test_get_rooms_returns_empty_array_if_no_rooms`
   - User has joined no rooms
   - Returns 200 with empty array (not 404)
+
+- `test_get_rooms_includes_last_read_at_after_mark_read`
+  - User marks a joined room as read via `PATCH /api/rooms/{room_id}/read`
+  - GET `/api/rooms` returns that room with non-null `last_read_at`
+
+- `test_get_rooms_include_unread_includes_last_read_at`
+  - GET `/api/rooms?include_unread=true` includes both `last_read_at` and `unread_count`
+  - `last_read_at` matches membership read marker for that room
 
 **Error Cases:**
 - `test_get_rooms_without_auth_returns_401`

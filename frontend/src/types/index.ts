@@ -33,6 +33,8 @@ export interface Room {
   name: string;
   created_by: number;
   created_at: string;
+  /** Membership read marker used for unread boundary placement in message view. */
+  last_read_at?: string | null;
   /** Present when fetched with include_unread=true */
   unread_count?: number;
 }

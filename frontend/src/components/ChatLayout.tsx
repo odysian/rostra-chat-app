@@ -21,6 +21,27 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
+function parseIsoTimestamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getFreshestReadMarker(
+  cachedMarker: string | null | undefined,
+  serverMarker: string | null | undefined,
+): string | null {
+  const cachedTs = parseIsoTimestamp(cachedMarker);
+  const serverTs = parseIsoTimestamp(serverMarker);
+
+  if (cachedTs == null && serverTs == null) return null;
+  if (cachedTs == null) return serverMarker ?? null;
+  if (serverTs == null) return cachedMarker ?? null;
+
+  // Prefer server marker on ties so multi-tab/device updates win over stale local cache.
+  return serverTs >= cachedTs ? (serverMarker ?? null) : (cachedMarker ?? null);
+}
+
 /**
  * ChatLayout Component
  *
@@ -47,8 +68,12 @@ export default function ChatLayout() {
   const [subscribedRoomIds, setSubscribedRoomIds] = useState<number[]>([]);
   /** Unread count per room (updated from API + WebSocket) */
   const [unreadCounts, setUnreadCounts] = useState<Record<number, number>>({});
+  /** Latest known read marker per room from successful mark-read responses. */
+  const [lastReadAtByRoomId, setLastReadAtByRoomId] = useState<Record<number, string | null>>({});
   /** New messages for the selected room delivered via WebSocket (each processed then cleared so none are dropped) */
   const [incomingMessagesForRoom, setIncomingMessagesForRoom] = useState<Message[]>([]);
+  /** Snapshot of selected room's last_read_at at room-open time (used for stable new-message divider placement). */
+  const [roomOpenLastReadSnapshot, setRoomOpenLastReadSnapshot] = useState<string | null>(null);
   /** Error message when leave room fails (e.g. creator cannot leave) */
   const [leaveError, setLeaveError] = useState<string | null>(null);
   /** Ephemeral WS error message (e.g. rate limit), auto-clears after a few seconds */
@@ -168,7 +193,14 @@ export default function ChatLayout() {
           setIncomingMessagesForRoom((prev) => [...prev, msg.message]);
           const t = tokenRef.current;
           if (t) {
-            markRoomRead(msgRoomId, t).catch(() => {});
+            markRoomRead(msgRoomId, t)
+              .then((response) => {
+                setLastReadAtByRoomId((prev) => ({
+                  ...prev,
+                  [msgRoomId]: response.last_read_at,
+                }));
+              })
+              .catch(() => {});
           }
         } else if (subscribedRoomIdsRef.current.includes(msgRoomId)) {
           setUnreadCounts((prev) => ({
@@ -261,12 +293,23 @@ export default function ChatLayout() {
   const handleSelectRoom = async (room: Room) => {
     setLeaveError(null);
     setSelectedRoom(room);
+    const hasCachedReadMarker = Object.prototype.hasOwnProperty.call(lastReadAtByRoomId, room.id);
+    const cachedReadMarker = hasCachedReadMarker
+      ? lastReadAtByRoomId[room.id]
+      : undefined;
+    setRoomOpenLastReadSnapshot(
+      getFreshestReadMarker(cachedReadMarker, room.last_read_at ?? null),
+    );
     setIncomingMessagesForRoom([]);
     setSidebarOpen(false);
 
     if (token) {
       try {
-        await markRoomRead(room.id, token);
+        const response = await markRoomRead(room.id, token);
+        setLastReadAtByRoomId((prev) => ({
+          ...prev,
+          [room.id]: response.last_read_at,
+        }));
       } catch {
         // Non-blocking; unread will sync on next load
       }
@@ -295,8 +338,14 @@ export default function ChatLayout() {
     setSubscribedRoomIds((prev) => prev.filter((id) => id !== deletedRoomId));
     unsubscribe(deletedRoomId);
     setSelectedRoom(null);
+    setRoomOpenLastReadSnapshot(null);
     setIncomingMessagesForRoom([]);
     setOnlineUsersByRoom((prev) => {
+      const next = { ...prev };
+      delete next[deletedRoomId];
+      return next;
+    });
+    setLastReadAtByRoomId((prev) => {
       const next = { ...prev };
       delete next[deletedRoomId];
       return next;
@@ -312,6 +361,7 @@ export default function ChatLayout() {
   const handleLeaveRoom = async () => {
     if (!selectedRoom || !token) {
       setSelectedRoom(null);
+      setRoomOpenLastReadSnapshot(null);
       setIncomingMessagesForRoom([]);
       return;
     }
@@ -336,8 +386,14 @@ export default function ChatLayout() {
     unsubscribe(roomId);
     setSubscribedRoomIds((prev) => prev.filter((id) => id !== roomId));
     setSelectedRoom(null);
+    setRoomOpenLastReadSnapshot(null);
     setIncomingMessagesForRoom([]);
     setOnlineUsersByRoom((prev) => {
+      const next = { ...prev };
+      delete next[roomId];
+      return next;
+    });
+    setLastReadAtByRoomId((prev) => {
       const next = { ...prev };
       delete next[roomId];
       return next;
@@ -356,7 +412,9 @@ export default function ChatLayout() {
     subscribedSentRef.current.clear();
     setSubscribedRoomIds([]);
     setSelectedRoom(null);
+    setRoomOpenLastReadSnapshot(null);
     setOnlineUsersByRoom({});
+    setLastReadAtByRoomId({});
     setUnreadCounts({});
     logout(true);
   };
@@ -493,6 +551,7 @@ export default function ChatLayout() {
         )}
         <MessageArea
           selectedRoom={selectedRoom}
+          roomOpenLastReadSnapshot={roomOpenLastReadSnapshot}
           density={density}
           hasOtherUnreadRooms={hasOtherUnreadRooms}
           incomingMessages={incomingMessagesForRoom}

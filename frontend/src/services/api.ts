@@ -219,8 +219,19 @@ export async function getRooms(
   });
 }
 
-export async function markRoomRead(roomId: number, token: string): Promise<void> {
-  return apiCall<void>(`/rooms/${roomId}/read`, {
+export async function markRoomRead(
+  roomId: number,
+  token: string,
+): Promise<{
+  status: string;
+  room_id: number;
+  last_read_at: string | null;
+}> {
+  return apiCall<{
+    status: string;
+    room_id: number;
+    last_read_at: string | null;
+  }>(`/rooms/${roomId}/read`, {
     method: "PATCH",
     headers: {
       Authorization: `Bearer ${token}`,
