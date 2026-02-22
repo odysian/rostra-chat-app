@@ -73,28 +73,16 @@ These behavioral rules apply to every task in this project, in addition to WORKF
 - **Explain what you're doing.** When writing or modifying code, include brief comments explaining *why* (not just what) for any non-obvious logic. This is a learning environment.
 - **Prefer explicit over clever.** Write readable, straightforward code. No one-liners that sacrifice clarity. No premature optimization. No unnecessary abstractions.
 
-## Mentorship Directive
+## Decision Brief (Required)
 
-Agents must act as senior developer mentors, not just code generators. For design and implementation responses, include concise reasoning that covers:
+For non-trivial fixes/features, include a short decision brief before completion:
 
-- how the change fits the current system design and data flow
-- why a specific pattern was chosen and where it should be reused
-- security and performance best-practice baseline for this change (and what was applied)
-- key tradeoffs and what alternatives were considered
+- **Chosen approach:** what was implemented.
+- **Alternative considered:** one realistic alternative.
+- **Tradeoff:** why this choice won (complexity/risk/perf/security).
+- **Revisit trigger:** when the alternative should be reconsidered.
 
-For tiny quick fixes, keep this brief (2-5 lines), but do not skip it.
-
-## Learning Acceleration Checkpoints (Required)
-
-Use these checkpoints to keep speed while building design intuition:
-
-1. **Predict before build:** write a 3-5 line plan before implementation (files, data flow, primary risk).
-2. **Decision checkpoint:** if multiple patterns are viable, name 2-3 options and choose one with rationale.
-3. **Explain-back before finalize:** summarize system fit, pattern choice, security/performance baseline, and tradeoffs.
-4. **Manual rep per feature:** implement at least one small unit manually (test, query, handler, hook, or component logic) without AI generating that part.
-5. **Post-merge learning note:** capture one reusable pattern and one improvement for next time.
-
-Fast mode (`fast`) uses a lighter version: keep checkpoints 1-3 in brief form and add a one-line post-change note.
+For tiny quick fixes, a one-line brief is enough: chosen approach + primary risk.
 
 ---
 
@@ -251,6 +239,20 @@ _Project-specific lessons. Add to this section when the agent makes a mistake in
 - **Do not add dependencies that duplicate existing functionality.** Check what's already installed before adding packages.
 - **Do not modify migration files after they've been applied.** Create a new migration instead.
 - **Use `make backend-verify` for backend verification by default.** Run individual backend checks only when narrowing down a specific failure.
+
+---
+
+## Skill Governance
+
+Keep external skills high-signal and conflict-free:
+
+- Precedence order: `AGENTS.md` -> `WORKFLOW.md` -> `docs/ISSUES_WORKFLOW.md` -> local `skills/*` -> external installed skills.
+- Install external skills globally in Codex home, not inside this repo.
+- Keep a small baseline (about 4-6 active external skills).
+- Use skills intentionally (named skill or clear task match), not by default for every request.
+- Avoid overlap: keep one primary skill per domain (API design, DB design, security, TypeScript).
+- If an external skill conflicts with repo docs, follow repo docs and treat the skill as advisory.
+- Review and prune unused or low-value skills regularly.
 
 ---
 
