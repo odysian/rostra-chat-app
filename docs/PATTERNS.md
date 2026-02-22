@@ -70,6 +70,7 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Layout:** ChatLayout orchestrates shared state (selected room, online users, unread counts, subscriptions) and passes callbacks and data to Sidebar, MessageArea, UsersPanel. MessageArea composes MessageList and MessageInput. RoomList and Sidebar are separate; Sidebar contains RoomList.
 - **Portals:** Modals (create room, delete room) use `createPortal(..., document.body)` to render outside the sidebar DOM hierarchy.
 - **One WebSocket provider:** WebSocketProvider wraps ChatLayout; only chat page uses WebSocket. Auth state is above so token is available when mounting WebSocketProvider.
+- **Decomposition baseline for large frontend components:** Keep the top-level component as a composition container and extract state orchestration into `src/hooks/useXxx.ts` plus feature-scoped presentational components under `src/components/<feature-kebab>/` (for example: `RoomList` + `useRoomsData` + `components/room-list/*`).
 
 ### Frontend Anti-Bloat Baseline
 
