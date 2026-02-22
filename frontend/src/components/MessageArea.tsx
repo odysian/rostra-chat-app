@@ -11,6 +11,7 @@ import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
+  roomOpenLastReadSnapshot?: string | null;
   density: "compact" | "comfortable";
   messageViewMode?: "normal" | "context";
   messageContext?: MessageContextResponse | null;
@@ -30,6 +31,7 @@ interface MessageAreaProps {
 
 export default function MessageArea({
   selectedRoom,
+  roomOpenLastReadSnapshot = null,
   density,
   messageViewMode = "normal",
   messageContext = null,
@@ -457,6 +459,7 @@ export default function MessageArea({
         density={density}
         messageViewMode={messageViewMode}
         messageContext={messageContext}
+        lastReadAtSnapshot={roomOpenLastReadSnapshot}
         incomingMessages={incomingMessages}
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
         scrollToLatestSignal={scrollToLatestSignal}

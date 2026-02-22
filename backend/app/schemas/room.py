@@ -26,4 +26,13 @@ class RoomResponse(BaseModel):
     name: str
     created_by: int
     created_at: datetime
+    last_read_at: datetime | None = None
     unread_count: int | None = None  # Optional field for unread count
+
+
+class RoomReadResponse(BaseModel):
+    """Schema for room read-marker update response."""
+
+    status: str
+    room_id: int
+    last_read_at: datetime | None
