@@ -159,6 +159,26 @@ describe("MessageList", () => {
     expect(screen.getByText("BEGINNING OF CONVERSATION")).toBeInTheDocument();
   });
 
+  it("keeps message row data attributes for scroll anchors", async () => {
+    const oldest = makeMessage({
+      id: 41,
+      username: "alice",
+      content: "Anchor message",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [oldest],
+      next_cursor: null,
+    });
+    const { container } = renderMessageList();
+
+    await screen.findByText("Anchor message");
+    const row = container.querySelector<HTMLElement>("[data-chat-message='true']");
+    expect(row).not.toBeNull();
+    expect(row?.getAttribute("data-message-id")).toBe("41");
+  });
+
   it("shows TODAY and older date divider labels", async () => {
     const now = new Date();
     const todayIso = now.toISOString();
@@ -252,6 +272,54 @@ describe("MessageList", () => {
 
     await screen.findByText("Incoming");
     expect(screen.getAllByText("Initial")).toHaveLength(1);
+    expect(mockOnIncomingMessagesProcessed).toHaveBeenCalledTimes(1);
+  });
+
+  it("buffers context incoming messages without duplicating already-rendered rows", async () => {
+    const contextBase = makeMessage({
+      id: 5,
+      username: "alice",
+      content: "Context base",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+    const incomingNew = makeMessage({
+      id: 6,
+      username: "bob",
+      content: "Context incoming",
+      createdAt: "2024-01-01T10:01:00Z",
+    });
+
+    const { rerender } = renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: [contextBase],
+        target_message_id: contextBase.id,
+        older_cursor: null,
+        newer_cursor: "newer-1",
+      },
+    });
+
+    await screen.findByText("Context base");
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        messageViewMode="context"
+        messageContext={{
+          messages: [contextBase],
+          target_message_id: contextBase.id,
+          older_cursor: null,
+          newer_cursor: "newer-1",
+        }}
+        incomingMessages={[contextBase, incomingNew]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    expect(await screen.findByRole("button", { name: "New messages available" })).toBeInTheDocument();
+    expect(screen.getAllByText("Context base")).toHaveLength(1);
     expect(mockOnIncomingMessagesProcessed).toHaveBeenCalledTimes(1);
   });
 
