@@ -1,4 +1,4 @@
-from datetime import UTC
+from datetime import UTC, datetime
 
 from sqlalchemy import case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,7 +27,9 @@ async def get_all_rooms(db: AsyncSession) -> list[Room]:
     return list(result.scalars().all())
 
 
-async def get_rooms_for_user(db: AsyncSession, user_id: int) -> list[Room]:
+async def get_rooms_for_user(
+    db: AsyncSession, user_id: int
+) -> list[tuple[Room, datetime | None]]:
     """
     Get rooms the user is a member of (without unread counts).
 
@@ -35,11 +37,11 @@ async def get_rooms_for_user(db: AsyncSession, user_id: int) -> list[Room]:
     This is used by GET /api/rooms when include_unread=false.
     """
     result = await db.execute(
-        select(Room)
+        select(Room, UserRoom.last_read_at)
         .join(UserRoom, Room.id == UserRoom.room_id)
         .where(UserRoom.user_id == user_id)
     )
-    return list(result.scalars().all())
+    return [(room, last_read_at) for room, last_read_at in result.all()]
 
 
 async def get_all_rooms_with_unread(

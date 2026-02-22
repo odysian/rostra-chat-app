@@ -26,4 +26,5 @@ class RoomResponse(BaseModel):
     name: str
     created_by: int
     created_at: datetime
+    last_read_at: datetime | None = None
     unread_count: int | None = None  # Optional field for unread count

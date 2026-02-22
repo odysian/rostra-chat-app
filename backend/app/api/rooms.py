@@ -67,9 +67,10 @@ async def get_rooms(
                 name=cast(str, room.name),
                 created_by=cast(int, room.created_by),
                 created_at=cast(datetime, room.created_at),
+                last_read_at=cast(datetime | None, last_read_at),
                 unread_count=unread_counts.get(cast(int, room.id), 0),
             )
-            for room in rooms
+            for room, last_read_at in rooms
         ]
 
     rooms = await room_crud.get_rooms_for_user(db, current_user.id)  # type: ignore
@@ -79,8 +80,9 @@ async def get_rooms(
             name=cast(str, room.name),
             created_by=cast(int, room.created_by),
             created_at=cast(datetime, room.created_at),
+            last_read_at=cast(datetime | None, last_read_at),
         )
-        for room in rooms
+        for room, last_read_at in rooms
     ]
 
 

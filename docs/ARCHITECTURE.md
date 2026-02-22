@@ -111,7 +111,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 
 | Method | Path              | Auth | Description |
 |--------|-------------------|------|-------------|
-| GET    | /rooms            | Yes  | List rooms the current user is a member of. Query: `include_unread=true` to include `unread_count` per room (Redis cache with PG fallback). |
+| GET    | /rooms            | Yes  | List rooms the current user is a member of. Each room includes membership `last_read_at` (nullable ISO timestamp). Query: `include_unread=true` also includes `unread_count` per room (Redis cache with PG fallback). |
 | GET    | /rooms/discover   | Yes  | List all public rooms for discovery (includes rooms user has not joined). **Rate limited: 30/min.** |
 | POST   | /rooms            | Yes  | Body: `RoomCreate` (name, 3–50 chars). Creates room; creator is automatically added as first member. 400 if name exists. |
 | GET    | /rooms/{room_id}  | Yes  | Get one room. 403 if not a member. 404 if not found. |

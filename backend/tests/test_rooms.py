@@ -325,6 +325,67 @@ async def test_get_rooms_returns_all_user_rooms(client: AsyncClient, create_user
         assert "created_at" in room
 
 
+async def test_get_rooms_includes_last_read_at_after_mark_read(
+    client: AsyncClient, create_user, create_room
+):
+    """GET /api/rooms includes membership last_read_at when room was marked read."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Read Marker Room")
+    room_id = room["id"]
+
+    mark_read_response = await client.patch(
+        f"/api/rooms/{room_id}/read",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert mark_read_response.status_code == 200
+    marked_last_read_at = mark_read_response.json()["last_read_at"]
+    assert marked_last_read_at is not None
+
+    response = await client.get(
+        "/api/rooms",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+
+    rooms = response.json()
+    room_data = next((room for room in rooms if room["id"] == room_id), None)
+    assert room_data is not None
+    assert room_data["last_read_at"] == marked_last_read_at
+
+
+async def test_get_rooms_include_unread_includes_last_read_at(
+    client: AsyncClient, create_user, create_room
+):
+    """GET /api/rooms?include_unread=true includes last_read_at and unread_count fields."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Unread Query Room")
+    room_id = room["id"]
+
+    mark_read_response = await client.patch(
+        f"/api/rooms/{room_id}/read",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert mark_read_response.status_code == 200
+    marked_last_read_at = mark_read_response.json()["last_read_at"]
+    assert marked_last_read_at is not None
+
+    response = await client.get(
+        "/api/rooms?include_unread=true",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 200
+
+    rooms = response.json()
+    room_data = next((room for room in rooms if room["id"] == room_id), None)
+    assert room_data is not None
+    assert room_data["last_read_at"] == marked_last_read_at
+    assert isinstance(room_data["unread_count"], int)
+
+
 async def test_get_rooms_returns_empty_array_if_no_rooms(client: AsyncClient, create_user):
     """GET /api/rooms returns empty array if user has no rooms."""
     user_data = await create_user()
