@@ -59,19 +59,23 @@ vi.mock("../RoomDiscoveryModal", () => ({
 }));
 
 function renderRoomList(overrides?: Partial<ComponentProps<typeof RoomList>>) {
-  return render(
-    <RoomList
-      selectedRoom={null}
-      sidebarOpen={true}
-      unreadCounts={{}}
-      onSelectRoom={mockOnSelectRoom}
-      onUnreadCountsLoaded={mockOnUnreadCountsLoaded}
-      onInitialRoomsLoaded={mockOnInitialRoomsLoaded}
-      onLogout={mockOnLogout}
-      onExpandSidebar={mockOnExpandSidebar}
-      {...overrides}
-    />,
-  );
+  return render(<RoomList {...getRoomListProps(overrides)} />);
+}
+
+function getRoomListProps(
+  overrides?: Partial<ComponentProps<typeof RoomList>>,
+): ComponentProps<typeof RoomList> {
+  return {
+    selectedRoom: null,
+    sidebarOpen: true,
+    unreadCounts: {},
+    onSelectRoom: mockOnSelectRoom,
+    onUnreadCountsLoaded: mockOnUnreadCountsLoaded,
+    onInitialRoomsLoaded: mockOnInitialRoomsLoaded,
+    onLogout: mockOnLogout,
+    onExpandSidebar: mockOnExpandSidebar,
+    ...overrides,
+  };
 }
 
 describe("RoomList", () => {
@@ -306,5 +310,90 @@ describe("RoomList", () => {
     expect(document.activeElement).toBe(composer);
 
     composer.remove();
+  });
+
+  it("opens command palette when open signal increments", async () => {
+    mockGetRooms.mockResolvedValueOnce(roomsFixture);
+    const { rerender } = renderRoomList({ openCommandPaletteSignal: 0 });
+
+    await screen.findByText("General-Discussion");
+    expect(
+      screen.queryByRole("heading", { name: "Command Palette" }),
+    ).not.toBeInTheDocument();
+
+    rerender(<RoomList {...getRoomListProps({ openCommandPaletteSignal: 1 })} />);
+    expect(
+      await screen.findByRole("heading", { name: "Command Palette" }),
+    ).toBeInTheDocument();
+  });
+
+  it("closes command palette when close signal increments", async () => {
+    mockGetRooms.mockResolvedValueOnce(roomsFixture);
+    const { rerender } = renderRoomList({
+      openCommandPaletteSignal: 0,
+      closeCommandPaletteSignal: 0,
+    });
+
+    await screen.findByText("General-Discussion");
+    rerender(
+      <RoomList
+        {...getRoomListProps({
+          openCommandPaletteSignal: 1,
+          closeCommandPaletteSignal: 0,
+        })}
+      />,
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Command Palette" }),
+    ).toBeInTheDocument();
+
+    rerender(
+      <RoomList
+        {...getRoomListProps({
+          openCommandPaletteSignal: 1,
+          closeCommandPaletteSignal: 1,
+        })}
+      />,
+    );
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Command Palette" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("selects the first visible room from palette on Enter when actions do not match", async () => {
+    const user = userEvent.setup();
+    mockGetRooms.mockResolvedValueOnce(roomsFixture);
+    const { rerender } = renderRoomList({ openCommandPaletteSignal: 0 });
+
+    await screen.findByText("General-Discussion");
+    rerender(<RoomList {...getRoomListProps({ openCommandPaletteSignal: 1 })} />);
+    await screen.findByRole("heading", { name: "Command Palette" });
+
+    const input = screen.getByPlaceholderText("Filter actions and rooms...");
+    await user.type(input, "engineering");
+    await user.keyboard("{Enter}");
+
+    expect(mockOnSelectRoom).toHaveBeenCalledWith(roomsFixture[1]);
+  });
+
+  it("opens create-room modal from command palette action and closes palette", async () => {
+    const user = userEvent.setup();
+    mockGetRooms.mockResolvedValueOnce(roomsFixture);
+    const { rerender } = renderRoomList({ openCommandPaletteSignal: 0 });
+
+    await screen.findByText("General-Discussion");
+    rerender(<RoomList {...getRoomListProps({ openCommandPaletteSignal: 1 })} />);
+    await screen.findByRole("heading", { name: "Command Palette" });
+
+    await user.click(screen.getByRole("button", { name: "Create room" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Create New Room" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "Command Palette" }),
+    ).not.toBeInTheDocument();
   });
 });
