@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
 import MessageList from "../MessageList";
 import type { Message } from "../../types";
 
 const mockGetRoomMessages = vi.fn();
+const mockGetRoomMessagesNewer = vi.fn();
 const mockOnIncomingMessagesProcessed = vi.fn();
 
 vi.mock("../../context/AuthContext", () => ({
@@ -28,6 +29,7 @@ vi.mock("../../context/ThemeContext", () => ({
 
 vi.mock("../../services/api", () => ({
   getRoomMessages: (...args: unknown[]) => mockGetRoomMessages(...args),
+  getRoomMessagesNewer: (...args: unknown[]) => mockGetRoomMessagesNewer(...args),
 }));
 
 function makeMessage(params: {
@@ -60,6 +62,18 @@ function renderMessageList(overrides?: Partial<ComponentProps<typeof MessageList
   );
 }
 
+function makeHistory(total: number, startId = 1): Message[] {
+  const base = new Date("2024-01-01T10:00:00Z").getTime();
+  return Array.from({ length: total }, (_, index) =>
+    makeMessage({
+      id: startId + index,
+      username: index % 2 === 0 ? "alice" : "bob",
+      content: `Message ${startId + index}`,
+      createdAt: new Date(base + index * 60 * 1000).toISOString(),
+    }),
+  );
+}
+
 function getUppercaseDateLabel(isoString: string): string {
   const date = new Date(isoString);
   return date
@@ -70,6 +84,7 @@ function getUppercaseDateLabel(isoString: string): string {
 describe("MessageList", () => {
   beforeEach(() => {
     mockGetRoomMessages.mockReset();
+    mockGetRoomMessagesNewer.mockReset();
     mockOnIncomingMessagesProcessed.mockReset();
   });
 
@@ -450,5 +465,653 @@ describe("MessageList", () => {
     } finally {
       window.IntersectionObserver = OriginalIntersectionObserver;
     }
+  });
+
+  it("does not flash jump action during smooth jump-to-latest scroll", async () => {
+    const chronological = makeHistory(60);
+    const newestFirst = [...chronological].reverse();
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: newestFirst,
+      next_cursor: null,
+    });
+
+    const { container } = renderMessageList();
+    await screen.findByText("Message 60");
+
+    const scroller = container.querySelector<HTMLDivElement>(".h-full.overflow-y-auto");
+    expect(scroller).not.toBeNull();
+    if (!scroller) return;
+
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      value: 4000,
+    });
+    Object.defineProperty(scroller, "clientHeight", {
+      configurable: true,
+      value: 500,
+    });
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+    Object.defineProperty(scroller, "scrollTo", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    const rows = container.querySelectorAll<HTMLElement>("[data-chat-message='true']");
+    rows.forEach((row, index) => {
+      Object.defineProperty(row, "offsetTop", {
+        configurable: true,
+        value: index * 60,
+      });
+    });
+
+    fireEvent.scroll(scroller);
+    const jumpButton = await screen.findByRole("button", {
+      name: "JUMP TO LATEST",
+    });
+
+    await userEvent.click(jumpButton);
+    fireEvent.scroll(scroller);
+
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("button", { name: "JUMP TO LATEST" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("renders context payload and highlights the jump target", async () => {
+    const older = makeMessage({
+      id: 1,
+      username: "alice",
+      content: "Older context",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+    const target = makeMessage({
+      id: 2,
+      username: "bob",
+      content: "Target context",
+      createdAt: "2024-01-01T10:01:00Z",
+    });
+    const newer = makeMessage({
+      id: 3,
+      username: "carol",
+      content: "Newer context",
+      createdAt: "2024-01-01T10:02:00Z",
+    });
+
+    const { container } = renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: [older, target, newer],
+        target_message_id: 2,
+        older_cursor: null,
+        newer_cursor: null,
+      },
+    });
+
+    await screen.findByText("Target context");
+    const targetRow = container.querySelector("[data-message-id='2']");
+    expect(targetRow).toHaveStyle("border-left: 2px solid var(--color-primary)");
+  });
+
+  it("drops stale context-only messages when returning to normal mode", async () => {
+    const contextOlder = makeMessage({
+      id: 11,
+      username: "alice",
+      content: "Context older",
+      createdAt: "2024-01-01T09:40:00Z",
+    });
+    const contextTarget = makeMessage({
+      id: 12,
+      username: "bob",
+      content: "Context target",
+      createdAt: "2024-01-01T09:45:00Z",
+    });
+    const newestRecent = makeMessage({
+      id: 102,
+      username: "carol",
+      content: "Recent newest",
+      createdAt: "2024-01-01T10:05:00Z",
+    });
+    const olderRecent = makeMessage({
+      id: 101,
+      username: "dave",
+      content: "Recent older",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      // API contract is newest-first
+      messages: [newestRecent, olderRecent],
+      next_cursor: null,
+    });
+
+    const { rerender } = renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: [contextOlder, contextTarget],
+        target_message_id: 12,
+        older_cursor: null,
+        newer_cursor: null,
+      },
+    });
+
+    await screen.findByText("Context target");
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        messageViewMode="normal"
+        messageContext={null}
+        incomingMessages={[]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    await screen.findByText("Recent newest");
+    expect(screen.getByText("Recent older")).toBeInTheDocument();
+    expect(screen.queryByText("Context older")).not.toBeInTheDocument();
+    expect(screen.queryByText("Context target")).not.toBeInTheDocument();
+  });
+
+  it("preserves buffered context live messages when exiting to normal mode", async () => {
+    const contextTarget = makeMessage({
+      id: 12,
+      username: "bob",
+      content: "Context target",
+      createdAt: "2024-01-01T09:45:00Z",
+    });
+    const bufferedLive = makeMessage({
+      id: 300,
+      username: "eve",
+      content: "Buffered live",
+      createdAt: "2024-01-01T10:06:00Z",
+    });
+    const recentNewest = makeMessage({
+      id: 102,
+      username: "carol",
+      content: "Recent newest",
+      createdAt: "2024-01-01T10:05:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      // Simulate a stale/limited fetch that does not yet include buffered live row
+      messages: [recentNewest],
+      next_cursor: null,
+    });
+
+    const { rerender } = renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: [contextTarget],
+        target_message_id: 12,
+        older_cursor: null,
+        newer_cursor: "newer-1",
+      },
+    });
+
+    await screen.findByText("Context target");
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        messageViewMode="context"
+        messageContext={{
+          messages: [contextTarget],
+          target_message_id: 12,
+          older_cursor: null,
+          newer_cursor: "newer-1",
+        }}
+        incomingMessages={[bufferedLive]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    await screen.findByRole("button", { name: "New messages available" });
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        messageViewMode="normal"
+        messageContext={null}
+        incomingMessages={[]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    await screen.findByText("Recent newest");
+    expect(screen.getByText("Buffered live")).toBeInTheDocument();
+  });
+
+  it("preserves buffered context live messages with offset timestamps when exiting to normal mode", async () => {
+    const contextTarget = makeMessage({
+      id: 12,
+      username: "bob",
+      content: "Context target",
+      createdAt: "2024-01-01T09:45:00+00:00",
+    });
+    const bufferedLive = makeMessage({
+      id: 301,
+      username: "eve",
+      content: "Buffered live offset",
+      createdAt: "2024-01-01T10:06:00+00:00",
+    });
+    const recentNewest = makeMessage({
+      id: 103,
+      username: "carol",
+      content: "Recent newest offset",
+      createdAt: "2024-01-01T10:05:00+00:00",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [recentNewest],
+      next_cursor: null,
+    });
+
+    const { rerender } = renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: [contextTarget],
+        target_message_id: 12,
+        older_cursor: null,
+        newer_cursor: "newer-1",
+      },
+    });
+
+    await screen.findByText("Context target");
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        messageViewMode="context"
+        messageContext={{
+          messages: [contextTarget],
+          target_message_id: 12,
+          older_cursor: null,
+          newer_cursor: "newer-1",
+        }}
+        incomingMessages={[bufferedLive]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    await screen.findByRole("button", { name: "New messages available" });
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        messageViewMode="normal"
+        messageContext={null}
+        incomingMessages={[]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    await screen.findByText("Recent newest offset");
+    expect(screen.getByText("Buffered live offset")).toBeInTheDocument();
+  });
+
+  it("ignores stale older-page responses after switching into context mode", async () => {
+    const OriginalIntersectionObserver = window.IntersectionObserver;
+    let observerCallback: IntersectionObserverCallback | null = null;
+
+    class MockObserver implements IntersectionObserver {
+      readonly root: Element | Document | null = null;
+      readonly rootMargin = "";
+      readonly thresholds: ReadonlyArray<number> = [];
+
+      constructor(callback: IntersectionObserverCallback) {
+        observerCallback = callback;
+      }
+
+      disconnect() {}
+      observe() {}
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+      unobserve() {}
+    }
+
+    window.IntersectionObserver = MockObserver as unknown as typeof IntersectionObserver;
+
+    try {
+      const newestRecent = makeMessage({
+        id: 200,
+        username: "alice",
+        content: "Recent newest",
+        createdAt: "2024-01-01T10:10:00Z",
+      });
+      const olderRecent = makeMessage({
+        id: 199,
+        username: "bob",
+        content: "Recent older",
+        createdAt: "2024-01-01T10:09:00Z",
+      });
+      const staleOlder = makeMessage({
+        id: 150,
+        username: "carol",
+        content: "Stale older page",
+        createdAt: "2024-01-01T09:00:00Z",
+      });
+      const contextTarget = makeMessage({
+        id: 300,
+        username: "dave",
+        content: "Context target",
+        createdAt: "2024-01-01T08:00:00Z",
+      });
+
+      let resolveOlderPage:
+        | ((value: { messages: Message[]; next_cursor: string | null }) => void)
+        | null = null;
+      const olderPagePromise = new Promise<{
+        messages: Message[];
+        next_cursor: string | null;
+      }>((resolve) => {
+        resolveOlderPage = resolve;
+      });
+
+      mockGetRoomMessages
+        .mockResolvedValueOnce({
+          // Initial history fetch (newest-first from API)
+          messages: [newestRecent, olderRecent],
+          next_cursor: "older-cursor",
+        })
+        .mockReturnValueOnce(olderPagePromise);
+
+      const { rerender } = renderMessageList();
+      await screen.findByText("Recent newest");
+
+      await act(async () => {
+        observerCallback?.(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          {} as IntersectionObserver,
+        );
+      });
+
+      rerender(
+        <MessageList
+          roomId={1}
+          density="compact"
+          messageViewMode="context"
+          messageContext={{
+            messages: [contextTarget],
+            target_message_id: contextTarget.id,
+            older_cursor: null,
+            newer_cursor: null,
+          }}
+          incomingMessages={[]}
+          onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+          scrollToLatestSignal={0}
+        />,
+      );
+
+      await screen.findByText("Context target");
+
+      resolveOlderPage?.({
+        // Older API responses are newest-first; single row is fine.
+        messages: [staleOlder],
+        next_cursor: null,
+      });
+
+      await act(async () => {
+        await olderPagePromise;
+      });
+
+      await waitFor(() => {
+        expect(screen.queryByText("Stale older page")).not.toBeInTheDocument();
+      });
+      expect(screen.getByText("Context target")).toBeInTheDocument();
+    } finally {
+      window.IntersectionObserver = OriginalIntersectionObserver;
+    }
+  });
+
+  it("shows anchored live indicator and exits context on jump-to-latest action", async () => {
+    const base = makeMessage({
+      id: 1,
+      username: "alice",
+      content: "Anchor",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+    const incoming = makeMessage({
+      id: 2,
+      username: "bob",
+      content: "Incoming while anchored",
+      createdAt: "2024-01-01T10:01:00Z",
+    });
+    const onExitContextMode = vi.fn();
+    const { rerender } = renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: [base],
+        target_message_id: 1,
+        older_cursor: null,
+        newer_cursor: "newer-1",
+      },
+      onExitContextMode,
+    });
+
+    await screen.findByText("Anchor");
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        messageViewMode="context"
+        messageContext={{
+          messages: [base],
+          target_message_id: 1,
+          older_cursor: null,
+          newer_cursor: "newer-1",
+        }}
+        incomingMessages={[incoming]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        scrollToLatestSignal={0}
+        onExitContextMode={onExitContextMode}
+      />,
+    );
+
+    const jumpButton = await screen.findByRole("button", {
+      name: "New messages available",
+    });
+    await userEvent.click(jumpButton);
+    expect(onExitContextMode).toHaveBeenCalledTimes(1);
+    expect(mockOnIncomingMessagesProcessed).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows jump-to-latest immediately when context has newer pages", async () => {
+    const base = makeMessage({
+      id: 1,
+      username: "alice",
+      content: "Context anchor",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: [base],
+        target_message_id: 1,
+        older_cursor: null,
+        newer_cursor: "newer-1",
+      },
+    });
+
+    await screen.findByText("Context anchor");
+    expect(
+      await screen.findByRole("button", { name: "JUMP TO LATEST" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows jump-to-latest action in context mode when far from bottom", async () => {
+    const contextMessages = makeHistory(60, 500);
+    const { container } = renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: contextMessages,
+        target_message_id: contextMessages[20].id,
+        older_cursor: null,
+        newer_cursor: null,
+      },
+    });
+
+    await screen.findByText("Message 559");
+
+    const scroller = container.querySelector<HTMLDivElement>(".h-full.overflow-y-auto");
+    expect(scroller).not.toBeNull();
+    if (!scroller) return;
+
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      value: 4000,
+    });
+    Object.defineProperty(scroller, "clientHeight", {
+      configurable: true,
+      value: 500,
+    });
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 0,
+    });
+
+    const rows = container.querySelectorAll<HTMLElement>("[data-chat-message='true']");
+    rows.forEach((row, index) => {
+      Object.defineProperty(row, "offsetTop", {
+        configurable: true,
+        value: index * 60,
+      });
+    });
+
+    fireEvent.scroll(scroller);
+    expect(
+      await screen.findByRole("button", { name: "JUMP TO LATEST" }),
+    ).toBeInTheDocument();
+  });
+
+  it("loads newer messages at context bottom sentinel", async () => {
+    const originalObserver = window.IntersectionObserver;
+    class TriggerObserver implements IntersectionObserver {
+      readonly root: Element | Document | null = null;
+      readonly rootMargin = "";
+      readonly thresholds: ReadonlyArray<number> = [];
+      private readonly callback: IntersectionObserverCallback;
+
+      constructor(callback: IntersectionObserverCallback) {
+        this.callback = callback;
+      }
+
+      disconnect() {}
+      observe() {
+        this.callback(
+          [{ isIntersecting: true } as IntersectionObserverEntry],
+          this,
+        );
+      }
+      takeRecords(): IntersectionObserverEntry[] {
+        return [];
+      }
+      unobserve() {}
+    }
+
+    window.IntersectionObserver = TriggerObserver as unknown as typeof IntersectionObserver;
+
+    try {
+      const base = makeMessage({
+        id: 1,
+        username: "alice",
+        content: "Context base",
+        createdAt: "2024-01-01T10:00:00Z",
+      });
+      const newer = makeMessage({
+        id: 2,
+        username: "bob",
+        content: "Loaded newer",
+        createdAt: "2024-01-01T10:01:00Z",
+      });
+      mockGetRoomMessagesNewer.mockResolvedValueOnce({
+        messages: [newer],
+        next_cursor: null,
+      });
+
+      renderMessageList({
+        messageViewMode: "context",
+        messageContext: {
+          messages: [base],
+          target_message_id: 1,
+          older_cursor: null,
+          newer_cursor: "newer-1",
+        },
+      });
+
+      await waitFor(() => {
+        expect(mockGetRoomMessagesNewer).toHaveBeenCalledWith(
+          1,
+          "test-token",
+          "newer-1",
+        );
+      });
+      expect(await screen.findByText("Loaded newer")).toBeInTheDocument();
+    } finally {
+      window.IntersectionObserver = originalObserver;
+    }
+  });
+
+  it("does not auto-exit context mode when reaching the bottom edge", async () => {
+    const onExitContextMode = vi.fn();
+    const base = makeMessage({
+      id: 1,
+      username: "alice",
+      content: "Anchor",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    const { container } = renderMessageList({
+      messageViewMode: "context",
+      messageContext: {
+        messages: [base],
+        target_message_id: 1,
+        older_cursor: null,
+        newer_cursor: null,
+      },
+      onExitContextMode,
+    });
+
+    await screen.findByText("Anchor");
+
+    const scroller = container.querySelector<HTMLDivElement>(".h-full.overflow-y-auto");
+    expect(scroller).not.toBeNull();
+    if (!scroller) return;
+
+    Object.defineProperty(scroller, "scrollHeight", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(scroller, "clientHeight", {
+      configurable: true,
+      value: 500,
+    });
+    Object.defineProperty(scroller, "scrollTop", {
+      configurable: true,
+      writable: true,
+      value: 520,
+    });
+
+    fireEvent.scroll(scroller);
+    expect(onExitContextMode).not.toHaveBeenCalled();
   });
 });

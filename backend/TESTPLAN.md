@@ -583,6 +583,40 @@ If refresh-token auth is added later, define this section in a dedicated PRD and
 
 ---
 
+### GET /api/rooms/:id/messages/:message_id/context
+
+**Happy Path:**
+- `test_get_message_context_returns_ordered_window_and_cursors`
+  - Returns oldest->newest context window around target message
+  - Includes `target_message_id`, `older_cursor`, and `newer_cursor`
+  - Cursor boundaries are strict keyset boundaries using `(created_at, id)`
+
+**Error Cases:**
+- `test_get_message_context_not_room_member_returns_403`
+  - Non-member cannot fetch message context for a room
+
+- `test_get_message_context_message_not_in_room_returns_404`
+  - Message ID from another room is rejected (room/message scope enforced)
+
+---
+
+### GET /api/rooms/:id/messages/newer
+
+**Happy Path:**
+- `test_get_messages_newer_returns_strictly_newer_messages_in_order`
+  - Returns only messages strictly newer than cursor
+  - Results are ascending (oldest->newest) for context-mode appends
+  - Supports pagination with `next_cursor`
+
+**Error Cases:**
+- `test_get_messages_newer_invalid_cursor_returns_400`
+  - Malformed cursor is rejected
+
+- `test_get_messages_newer_not_room_member_returns_403`
+  - Non-member cannot fetch newer messages
+
+---
+
 ### GET /api/health/db
 
 **Happy Path:**

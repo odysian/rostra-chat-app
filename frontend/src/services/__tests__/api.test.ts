@@ -3,8 +3,10 @@ import { delay, http, HttpResponse } from "msw";
 import { server } from "../../test/mocks/server";
 import {
   deleteRoom,
+  getMessageContext,
   getCurrentUser,
   getRoomMessages,
+  getRoomMessagesNewer,
   login,
   setUnauthorizedHandler,
 } from "../api";
@@ -153,6 +155,51 @@ describe("api service", () => {
     controller.abort();
 
     await expect(request).rejects.toThrow(/AbortError/i);
+  });
+
+  it("fetches jump-to-message context with default 25/25 window", async () => {
+    server.use(
+      http.get("*/api/rooms/:roomId/messages/:messageId/context", ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get("before")).toBe("25");
+        expect(url.searchParams.get("after")).toBe("25");
+        return HttpResponse.json({
+          messages: [],
+          target_message_id: 22,
+          older_cursor: "older-token",
+          newer_cursor: "newer-token",
+        });
+      }),
+    );
+
+    await expect(
+      getMessageContext(1, 22, "test-token"),
+    ).resolves.toEqual({
+      messages: [],
+      target_message_id: 22,
+      older_cursor: "older-token",
+      newer_cursor: "newer-token",
+    });
+  });
+
+  it("fetches newer messages from cursor", async () => {
+    server.use(
+      http.get("*/api/rooms/:roomId/messages/newer", ({ request }) => {
+        const url = new URL(request.url);
+        expect(url.searchParams.get("cursor")).toBe("abc123");
+        return HttpResponse.json({
+          messages: [],
+          next_cursor: null,
+        });
+      }),
+    );
+
+    await expect(
+      getRoomMessagesNewer(1, "test-token", "abc123"),
+    ).resolves.toEqual({
+      messages: [],
+      next_cursor: null,
+    });
   });
 
   it("handles 204 no-content responses without throwing", async () => {

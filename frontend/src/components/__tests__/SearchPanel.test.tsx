@@ -5,10 +5,12 @@ import SearchPanel from "../SearchPanel";
 import type { Message } from "../../types";
 
 const mockSearchMessages = vi.fn();
+const mockGetMessageContext = vi.fn();
 const mockOnClose = vi.fn();
 
 vi.mock("../../services/api", () => ({
   searchMessages: (...args: unknown[]) => mockSearchMessages(...args),
+  getMessageContext: (...args: unknown[]) => mockGetMessageContext(...args),
 }));
 
 // SearchBar debounce behavior is covered in SearchBar.test.tsx.
@@ -62,6 +64,7 @@ function renderSearchPanel(overrides?: Partial<ComponentProps<typeof SearchPanel
 describe("SearchPanel", () => {
   beforeEach(() => {
     mockSearchMessages.mockReset();
+    mockGetMessageContext.mockReset();
     mockOnClose.mockReset();
   });
 
@@ -173,5 +176,39 @@ describe("SearchPanel", () => {
     );
 
     expect(screen.getByText("Type to search messages")).toBeInTheDocument();
+  });
+
+  it("loads message context when a result is clicked", async () => {
+    const onOpenMessageContext = vi.fn();
+    mockSearchMessages.mockResolvedValueOnce({
+      messages: [makeMessage(42, "jump target")],
+      next_cursor: null,
+    });
+    mockGetMessageContext.mockResolvedValueOnce({
+      messages: [makeMessage(42, "jump target")],
+      target_message_id: 42,
+      older_cursor: null,
+      newer_cursor: null,
+    });
+
+    renderSearchPanel({ onOpenMessageContext });
+    fireEvent.change(screen.getByLabelText("search-input"), {
+      target: { value: "jump" },
+    });
+
+    expect(await screen.findByText("jump target")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Jump to message by alice" }),
+    );
+
+    await waitFor(() => {
+      expect(mockGetMessageContext).toHaveBeenCalledWith(
+        1,
+        42,
+        "test-token",
+        expect.any(AbortSignal),
+      );
+    });
+    expect(onOpenMessageContext).toHaveBeenCalledTimes(1);
   });
 });

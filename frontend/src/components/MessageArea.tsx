@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
-import type { Message, Room } from "../types";
+import type { Message, MessageContextResponse, Room } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { deleteRoom } from "../services/api";
@@ -13,6 +13,8 @@ interface MessageAreaProps {
   selectedRoom: Room | null;
   roomOpenLastReadSnapshot?: string | null;
   density: "compact" | "comfortable";
+  messageViewMode?: "normal" | "context";
+  messageContext?: MessageContextResponse | null;
   hasOtherUnreadRooms?: boolean;
   incomingMessages: Message[];
   onIncomingMessagesProcessed: () => void;
@@ -24,12 +26,15 @@ interface MessageAreaProps {
   typingUsernames: string[];
   wsError?: string | null;
   onDismissWsError?: () => void;
+  onExitContextMode?: () => void;
 }
 
 export default function MessageArea({
   selectedRoom,
   roomOpenLastReadSnapshot = null,
   density,
+  messageViewMode = "normal",
+  messageContext = null,
   hasOtherUnreadRooms = false,
   incomingMessages,
   onIncomingMessagesProcessed,
@@ -41,6 +46,7 @@ export default function MessageArea({
   typingUsernames,
   wsError,
   onDismissWsError,
+  onExitContextMode = () => {},
 }: MessageAreaProps) {
   const { user, token } = useAuth();
   const { theme } = useTheme();
@@ -451,10 +457,13 @@ export default function MessageArea({
         key={selectedRoom.id}
         roomId={selectedRoom.id}
         density={density}
+        messageViewMode={messageViewMode}
+        messageContext={messageContext}
         lastReadAtSnapshot={roomOpenLastReadSnapshot}
         incomingMessages={incomingMessages}
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
         scrollToLatestSignal={scrollToLatestSignal}
+        onExitContextMode={onExitContextMode}
       />
 
       {/* Typing indicator — always rendered to reserve space and avoid layout shift */}

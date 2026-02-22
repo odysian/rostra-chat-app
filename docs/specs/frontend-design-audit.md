@@ -397,8 +397,10 @@ Implementation Ready Checklist (3.2):
 - `Locked`: Live updates while anchored show non-blocking indicator text `New messages available` + explicit jump-to-latest action; no forced auto-jump.
 - `Locked`: Exit conditions from context mode are:
   - user triggers jump-to-latest,
-  - room switch,
-  - `newer_cursor` exhausted and user reaches bottom edge (now at latest).
+  - room switch.
+- `Locked`: Continuous context UX rule:
+  - do **not** auto-exit context mode at bottom edge when `newer_cursor` is exhausted,
+  - if context is already at latest (`newer_cursor = null`) and viewer is near bottom, append incoming live messages directly in-place.
 - `Locked`: Failure handling is:
   - context `403/404`: keep current buffer, show non-blocking inline error in search panel,
   - stale cursor `400`: one automatic context refetch around current target, then inline error if refetch fails,
@@ -686,7 +688,7 @@ Use this section as the implementation gate. Detailed lock rationale and accepta
 | Feature | Status | Locked on | Scope snapshot |
 | --- | --- | --- | --- |
 | `3.1` New Messages Divider | `Locked` | `2026-02-21` | `NEW MESSAGES`; do not render when `last_read_at` is null. |
-| `3.2` Global Jump-to-Message | `Locked` | `2026-02-21` | Internal-only context jump; default `25/25` window; required bidirectional context pagination; non-blocking live indicator + jump-to-latest; `3.2A` before `3.2B`. |
+| `3.2` Global Jump-to-Message | `Locked` | `2026-02-22` | Internal-only context jump; default `25/25` window; required bidirectional context pagination; non-blocking live indicator + jump-to-latest; **continuous context UX** (no bottom-edge auto-exit; at-latest context appends live in-place); `3.2A` before `3.2B`. |
 | `3.3` Message Editing | `Locked` | `2026-02-21` | Owner-only; no time limit; keep original timestamp + `(edited)` marker with separate hovers; no deleted edits; no-op rejected; server-authoritative LWW; rate limit `20/minute`. |
 | `3.4` Message Deletion | `Locked` | `2026-02-21` | Owner + room creator; soft delete + content scrub; `(deleted)` muted tombstone in place; excluded from search; idempotent `204`; server event sync; rate limit `20/minute`. |
 | `3.5` Message Reactions | `Locked` | `2026-02-22` | Allowlist `👍 👎 ❤️ 😂 🔥 👀 🎉`; multi-emoji per user (one per emoji); member-only; no deleted-message reactions; max 5 pills + `+N`; server-authoritative; rate limit `40/minute`. |

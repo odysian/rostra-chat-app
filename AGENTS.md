@@ -29,6 +29,9 @@ Read in this order:
 - PRDs close only when all child Tasks are done or explicitly deferred.
 - Detailed control-plane rules are canonical in `docs/ISSUES_WORKFLOW.md`.
 - For one-shot issue body + `gh` command generation, use `skills/prd-workflow-gh.md`.
+- Default shorthand command:
+  - `Create an issue workflow for feature <feature-id> in <filename>.`
+  - Interpreted as `mode=single` automation using `skills/prd-workflow-gh.md` with minimal chatter and direct `gh issue create`.
 
 ## Agent Operating Loop
 
