@@ -3,6 +3,16 @@
 **Date:** 2026-02-22  
 **Owner:** Frontend  
 **Execution mode:** `gated` (one PRD + child Task issues)
+**Status:** Draft (issue scaffolding pending)
+
+## Tracking
+- PRD issue: `TBD`
+- Child Task issues:
+  - [ ] Task 1 (`RoomList` decomposition): `TBD`
+  - [ ] Task 2 (`MessageList` decomposition): `TBD`
+  - [ ] Task 3 (`ChatLayout` orchestration cleanup): `TBD`
+  - [ ] Task 4 (`MessageArea` decomposition): `TBD`
+- Finalizing PR: `TBD`
 
 ## Summary
 Refactor oversized frontend components to reduce maintenance risk while preserving existing chat behavior and UI. This work targets the current hotspots: `RoomList`, `MessageList`, `ChatLayout`, and `MessageArea`.
@@ -89,6 +99,20 @@ No backend changes.
 - Extract destructive confirmation modal into dedicated component.
 - Keep `MessageArea` focused on composition of header, list, typing row, error row, and input.
 
+## Child Task Map (Gated Execution)
+| Task | Scope | Primary Files | Verify Focus |
+| --- | --- | --- | --- |
+| Task 1 | `RoomList` extraction (data + modal + palette composition cleanup) | `frontend/src/components/RoomList.tsx`, new `room-list/*`, optional `hooks/*` | room switching, unread badges, command palette shortcuts |
+| Task 2 | `MessageList` extraction (feed lifecycle + rendering split) | `frontend/src/components/MessageList.tsx`, new `message-list/*`, optional `hooks/*` | pagination smoothness, divider behavior, jump-to-latest, context mode |
+| Task 3 | `ChatLayout` orchestration cleanup (subscriptions + reset flow) | `frontend/src/components/ChatLayout.tsx`, new `hooks/useChatSubscriptions.ts` | room join/leave/delete, unread sync, WS reconnect/error handling |
+| Task 4 | `MessageArea` composition split (header/actions/modal extraction) | `frontend/src/components/MessageArea.tsx`, new `message-area/*` | header actions, mobile back behavior, destructive action confirmation |
+
+## Dependencies and Order
+1. Execute Task 1 first to establish component extraction pattern.
+2. Execute Task 2 second because it has the highest regression risk and largest component.
+3. Execute Task 3 after Task 2 to keep subscription wiring changes isolated from message list churn.
+4. Execute Task 4 last for low-risk composition cleanup.
+
 ## Files Expected
 Existing files to refactor:
 - `frontend/src/components/RoomList.tsx`
@@ -138,6 +162,20 @@ Test updates likely in:
 5. No backend code changes and no dependency changes are introduced.
 6. Child Task issues are created and executed one at a time under this PRD (`gated` flow).
 
+## Definition of Ready / Definition of Done
+### Definition of Ready (for each child Task)
+- [ ] Task issue has clear summary, scope in/out, and acceptance criteria.
+- [ ] Verification commands are listed in the issue body.
+- [ ] Required decision locks are copied from this PRD where applicable.
+- [ ] Target file list and regression risks are explicit.
+
+### Definition of Done (for each child Task)
+- [ ] PR merged with `Closes #<task-id>`.
+- [ ] Frontend verification commands pass.
+- [ ] Relevant tests updated/added and passing.
+- [ ] Required docs updated when behavior/patterns changed.
+- [ ] Follow-up issues created for deferred work.
+
 ## Verification Commands
 Run from `frontend/`:
 
@@ -147,6 +185,11 @@ npx eslint src/
 npm run build
 npm test
 ```
+
+## Rollout / Backout
+- Rollout: ship child Tasks incrementally; each Task must be behavior-preserving and mergeable independently.
+- Backout: revert individual Task PR if regressions appear, without blocking remaining Tasks.
+- Guardrail: avoid cross-Task mixed refactors in a single PR; keep rollback blast radius small.
 
 ## Risks and Mitigations
 - Risk: scroll behavior regressions in message list.
@@ -169,3 +212,8 @@ Per child Task, implement at least one focused unit manually (for example, one h
 After merge, record:
 - one reusable refactor pattern in `docs/PATTERNS.md`
 - one improvement to apply in the next structural refactor
+
+## Open Questions (Lock Before First Task PR)
+- [ ] Confirm final LOC target per hotspot file (currently `<500 LOC`).
+- [ ] Confirm if `MessageArea` extraction should include typing/error rows in this pass or defer to a follow-up.
+- [ ] Confirm preferred naming convention for new subcomponent folders (`kebab-case` directories with PascalCase files).
