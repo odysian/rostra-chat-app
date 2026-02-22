@@ -43,7 +43,7 @@ Reusable code patterns and conventions in this project. All of the following are
 - Retry: exponential backoff for network/5xx/timeout (max retries 4, no retry on 401). Timeout 10s per request.
 - 401: if `onUnauthorized` is set (by AuthContext), it is called before throwing; no retry.
 - Errors: message comes from `response.json().detail` when possible, else status text; thrown as `Error(message)`.
-- Named functions per resource: `login`, `register`, `getCurrentUser`, `getRooms`, `discoverRooms`, `markRoomRead`, `createRoom`, `deleteRoom`, `joinRoom`, `leaveRoom`, `getRoomMessages` (with optional `cursor`), `sendMessage`. Each takes required params and `token` where auth is needed.
+- Named functions per resource: `login`, `register`, `getCurrentUser`, `getRooms`, `discoverRooms`, `markRoomRead`, `createRoom`, `deleteRoom`, `joinRoom`, `leaveRoom`, `getRoomMessages` (older pagination), `getRoomMessagesNewer` (context-mode forward pagination), `searchMessages`, `getMessageContext`, `sendMessage`. Each takes required params and `token` where auth is needed.
 
 ## Database Query Patterns
 
@@ -111,6 +111,7 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Backend:** Full-text search via Postgres `tsvector` generated column + GIN index. CRUD function uses `plainto_tsquery` (safe for raw user input) and `@@` match operator. Results ordered by recency (`created_at DESC, id DESC`), reusing the existing composite index. Same cursor pagination pattern as message history.
 - **Frontend debounce + abort:** SearchBar debounces input by 300ms (via `setTimeout` in a `useEffect`). Each new search aborts the previous in-flight request via `AbortController` to prevent stale results from overwriting newer ones. The `AbortController` ref is stored in `SearchPanel`, which owns all search state.
 - **UI toggle:** Search opens as a right sidebar (`SearchPanel`), competing with `UsersPanel` — only one can be open at a time. ChatLayout manages panel visibility via `rightPanel: "none" | "users" | "search"` state; MessageArea fires `onToggleSearch`/`onToggleUsers` callbacks. Messages remain visible while searching. SearchPanel follows the same layout pattern as UsersPanel (w-60, fixed overlay on mobile, static on desktop). ESC key or close button closes the panel. "Load more" button (not infinite scroll) for paginated results.
+- **Jump-to-message flow:** Search result click triggers `getMessageContext(roomId, messageId)` and hands the payload to ChatLayout. ChatLayout owns explicit `messageViewMode: "normal" | "context"` state and passes context payload into MessageList. MessageList then uses top-sentinel older pagination (`getRoomMessages` with `older_cursor`) plus bottom-sentinel newer pagination (`getRoomMessagesNewer` with `newer_cursor`) without changing normal mode behavior.
 
 ## Frontend Testing Pattern
 

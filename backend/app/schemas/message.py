@@ -36,3 +36,12 @@ class PaginatedMessages(BaseModel):
 
     messages: list[MessageResponse]
     next_cursor: str | None = None  # null when no more messages exist
+
+
+class MessageContextResponse(BaseModel):
+    """Schema for jump-to-message context payload."""
+
+    messages: list[MessageResponse]
+    target_message_id: int
+    older_cursor: str | None = None
+    newer_cursor: str | None = None

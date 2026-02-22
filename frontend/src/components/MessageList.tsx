@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { getRoomMessages } from "../services/api";
+import { getRoomMessages, getRoomMessagesNewer } from "../services/api";
 import { logError } from "../utils/logger";
 import { getUserColorPalette } from "../utils/userColors";
-import type { Message } from "../types";
+import type { Message, MessageContextResponse } from "../types";
 
 // Local types
 interface SystemMessage {
@@ -18,25 +18,57 @@ type ChatItem = Message | SystemMessage;
 
 type PendingScrollAdjustment =
   | { type: "initial" }
-  | { type: "prepend"; previousScrollTop: number; previousScrollHeight: number }
+  | { type: "context-target"; targetMessageId: number }
+  | {
+      type: "prepend";
+      previousScrollTop: number;
+      previousScrollHeight: number;
+      anchorMessageId: number | null;
+      anchorTop: number | null;
+    }
   | { type: "append"; behavior: ScrollBehavior };
 
-const JUMP_TO_LATEST_MIN_HIDDEN_MESSAGES = 250;
+const JUMP_TO_LATEST_MIN_HIDDEN_MESSAGES = 50;
+const INITIAL_HISTORY_PAGE_SIZE = 75;
+const OLDER_HISTORY_PAGE_SIZE = 100;
+const TOP_PREFETCH_ROOT_MARGIN = "900px";
+
+function ensureUtcIso(isoString: string): string {
+  return isoString.endsWith("Z") ? isoString : `${isoString}Z`;
+}
+
+function isStrictlyNewerThan(
+  candidate: Message,
+  reference: Message,
+): boolean {
+  const candidateTime = new Date(ensureUtcIso(candidate.created_at)).getTime();
+  const referenceTime = new Date(ensureUtcIso(reference.created_at)).getTime();
+  if (candidateTime !== referenceTime) {
+    return candidateTime > referenceTime;
+  }
+  return candidate.id > reference.id;
+}
 
 interface MessageListProps {
   roomId: number;
   density: "compact" | "comfortable";
+  messageViewMode?: "normal" | "context";
+  messageContext?: MessageContextResponse | null;
   incomingMessages?: Message[];
   onIncomingMessagesProcessed?: () => void;
   scrollToLatestSignal?: number;
+  onExitContextMode?: () => void;
 }
 
 export default function MessageList({
   roomId,
   density,
+  messageViewMode = "normal",
+  messageContext = null,
   incomingMessages = [],
   onIncomingMessagesProcessed,
   scrollToLatestSignal = 0,
+  onExitContextMode,
 }: MessageListProps) {
   const { token } = useAuth();
   const { theme } = useTheme();
@@ -48,17 +80,29 @@ export default function MessageList({
 
   // Pagination state
   const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [newerCursor, setNewerCursor] = useState<string | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [isLoadingNewer, setIsLoadingNewer] = useState(false);
   const [isInitialPositioned, setIsInitialPositioned] = useState(false);
   const [showJumpToLatest, setShowJumpToLatest] = useState(false);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<number | null>(null);
+  const [contextLiveMessages, setContextLiveMessages] = useState<Message[]>([]);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const sentinelRef = useRef<HTMLDivElement>(null);
+  const bottomSentinelRef = useRef<HTMLDivElement>(null);
   const pendingScrollAdjustmentRef = useRef<PendingScrollAdjustment | null>(null);
   /** Ref avoids stale state reads in async finally blocks. */
   const timeoutFiredRef = useRef(false);
+  const previousScrollToLatestSignalRef = useRef(scrollToLatestSignal);
+  const contextLiveMessagesRef = useRef<Message[]>([]);
+  const jumpVisibilitySuppressedRef = useRef(false);
+
+  useEffect(() => {
+    contextLiveMessagesRef.current = contextLiveMessages;
+  }, [contextLiveMessages]);
 
   const isNearBottom = useCallback((container: HTMLDivElement): boolean => {
     const distanceFromBottom =
@@ -66,10 +110,67 @@ export default function MessageList({
     return distanceFromBottom < 100;
   }, []);
 
+  const capturePrependAnchor = useCallback(
+    (container: HTMLDivElement): { anchorMessageId: number | null; anchorTop: number | null } => {
+      const containerTop = container.getBoundingClientRect().top;
+      const messageElements = Array.from(
+        container.querySelectorAll<HTMLElement>("[data-chat-message='true'][data-message-id]"),
+      );
+
+      const anchorElement =
+        messageElements.find(
+          (el) => el.getBoundingClientRect().bottom >= containerTop,
+        ) ?? messageElements[0];
+
+      if (!anchorElement) {
+        return { anchorMessageId: null, anchorTop: null };
+      }
+
+      const rawId = anchorElement.dataset.messageId;
+      const parsedId = rawId ? Number(rawId) : Number.NaN;
+      if (!Number.isFinite(parsedId)) {
+        return { anchorMessageId: null, anchorTop: null };
+      }
+
+      return {
+        anchorMessageId: parsedId,
+        anchorTop: anchorElement.getBoundingClientRect().top,
+      };
+    },
+    [],
+  );
+
   const updateJumpToLatestVisibility = useCallback(() => {
     const container = scrollContainerRef.current;
+    const shouldShowJumpActionForMode =
+      messageViewMode === "normal" || messageViewMode === "context";
 
-    if (!container || !isInitialPositioned || isNearBottom(container)) {
+    if (
+      !shouldShowJumpActionForMode ||
+      !container ||
+      jumpVisibilitySuppressedRef.current ||
+      !isInitialPositioned
+    ) {
+      setShowJumpToLatest(false);
+      return;
+    }
+
+    if (messageViewMode === "context") {
+      // Context mode should offer a direct exit path to latest chat as soon as
+      // we know there are newer pages outside the loaded context slice.
+      if (newerCursor !== null) {
+        setShowJumpToLatest(true);
+        return;
+      }
+      if (isNearBottom(container)) {
+        setShowJumpToLatest(false);
+        return;
+      }
+      setShowJumpToLatest(true);
+      return;
+    }
+
+    if (isNearBottom(container)) {
       setShowJumpToLatest(false);
       return;
     }
@@ -91,7 +192,7 @@ export default function MessageList({
     setShowJumpToLatest(
       hiddenMessageCount >= JUMP_TO_LATEST_MIN_HIDDEN_MESSAGES,
     );
-  }, [isInitialPositioned, isNearBottom]);
+  }, [isInitialPositioned, isNearBottom, messageViewMode, newerCursor]);
 
   // Apply scroll corrections after each message mutation so initial load, prepends,
   // and real-time appends do not fight each other.
@@ -103,10 +204,38 @@ export default function MessageList({
     if (adjustment.type === "initial") {
       container.scrollTop = container.scrollHeight;
       setIsInitialPositioned(true);
+    } else if (adjustment.type === "context-target") {
+      const targetElement = container.querySelector<HTMLElement>(
+        `[data-message-id='${adjustment.targetMessageId}']`,
+      );
+      if (targetElement) {
+        targetElement.scrollIntoView({ block: "center", behavior: "auto" });
+      } else {
+        container.scrollTop = container.scrollHeight;
+      }
+      setIsInitialPositioned(true);
     } else if (adjustment.type === "prepend") {
-      const newScrollHeight = container.scrollHeight;
-      const heightDelta = newScrollHeight - adjustment.previousScrollHeight;
-      container.scrollTop = adjustment.previousScrollTop + heightDelta;
+      if (
+        adjustment.anchorMessageId !== null &&
+        adjustment.anchorTop !== null
+      ) {
+        const anchorElement = container.querySelector<HTMLElement>(
+          `[data-message-id='${adjustment.anchorMessageId}']`,
+        );
+        if (anchorElement) {
+          const newAnchorTop = anchorElement.getBoundingClientRect().top;
+          // Keep the same message "pinned" in viewport after prepending variable-height rows.
+          container.scrollTop += newAnchorTop - adjustment.anchorTop;
+        } else {
+          const newScrollHeight = container.scrollHeight;
+          const heightDelta = newScrollHeight - adjustment.previousScrollHeight;
+          container.scrollTop = adjustment.previousScrollTop + heightDelta;
+        }
+      } else {
+        const newScrollHeight = container.scrollHeight;
+        const heightDelta = newScrollHeight - adjustment.previousScrollHeight;
+        container.scrollTop = adjustment.previousScrollTop + heightDelta;
+      }
     } else {
       messagesEndRef.current?.scrollIntoView({ behavior: adjustment.behavior });
     }
@@ -124,16 +253,40 @@ export default function MessageList({
     setShowJumpToLatest(false);
   }, [density, isInitialPositioned]);
 
-  // Fetch history when room changes. Defer fetch to next tick so React Strict Mode's
-  // double-invoke runs cleanup before the first fetch starts (avoids duplicate OPTIONS + GET).
   useEffect(() => {
+    if (messageViewMode !== "context" || !messageContext) return;
+
+    setError("");
+    setLoading(false);
+    setIsInitialPositioned(false);
+    setShowJumpToLatest(false);
+    setContextLiveMessages([]);
+    setNextCursor(messageContext.older_cursor);
+    setNewerCursor(messageContext.newer_cursor);
+    setHighlightedMessageId(messageContext.target_message_id);
+    pendingScrollAdjustmentRef.current = {
+      type: "context-target",
+      targetMessageId: messageContext.target_message_id,
+    };
+    setMessages(messageContext.messages);
+  }, [messageContext, messageViewMode]);
+
+  // Fetch history when room changes in normal mode. Defer fetch to next tick so
+  // React Strict Mode cleanup runs before the first fetch starts.
+  useEffect(() => {
+    if (messageViewMode !== "normal") return;
+
     const abortController = new AbortController();
     let timeoutId: number | undefined;
+    const bufferedContextTail = contextLiveMessagesRef.current;
 
     if (token) {
       setError("");
       setLoading(true);
       setNextCursor(null);
+      setNewerCursor(null);
+      setContextLiveMessages([]);
+      setHighlightedMessageId(null);
       setIsInitialPositioned(false);
       setShowJumpToLatest(false);
       pendingScrollAdjustmentRef.current = null;
@@ -151,11 +304,12 @@ export default function MessageList({
       }, 5000);
 
       try {
-        // Fetch initial messages (no cursor)
         const { messages: fetchedMessages, next_cursor } = await getRoomMessages(
           roomId,
           token,
-          abortController.signal
+          abortController.signal,
+          undefined,
+          INITIAL_HISTORY_PAGE_SIZE,
         );
         const history = fetchedMessages.reverse();
         clearTimeout(timeoutId);
@@ -163,11 +317,32 @@ export default function MessageList({
         pendingScrollAdjustmentRef.current = { type: "initial" };
         setMessages((prev) => {
           const historyIds = new Set<string | number>(history.map((msg) => msg.id));
-          const liveMessages = prev.filter((msg) => !historyIds.has(msg.id));
-          return [...history, ...liveMessages];
+
+          if (history.length === 0) {
+            return history;
+          }
+
+          const newestHistoryMessage = history[history.length - 1];
+          const trueLiveTail = prev.filter((item) => {
+            if ("type" in item) return false;
+            const liveMessage = item as Message;
+            if (historyIds.has(liveMessage.id)) return false;
+            return isStrictlyNewerThan(liveMessage, newestHistoryMessage);
+          }) as Message[];
+
+          const bufferedTail = bufferedContextTail.filter((message) => {
+            if (historyIds.has(message.id)) return false;
+            return isStrictlyNewerThan(message, newestHistoryMessage);
+          });
+
+          const uniqueTailById = new Map<number, Message>();
+          [...trueLiveTail, ...bufferedTail].forEach((message) => {
+            uniqueTailById.set(message.id, message);
+          });
+
+          return [...history, ...Array.from(uniqueTailById.values())];
         });
 
-        // Store cursor for pagination
         setNextCursor(next_cursor);
       } catch (err) {
         clearTimeout(timeoutId);
@@ -193,7 +368,7 @@ export default function MessageList({
         clearTimeout(timeoutId);
       }
     };
-  }, [roomId, token, retryCount]);
+  }, [roomId, token, retryCount, messageViewMode]);
 
   const handleRetry = () => {
     setLoading(true);
@@ -205,6 +380,16 @@ export default function MessageList({
     setRetryCount((prev) => prev + 1);
   };
 
+  useEffect(() => {
+    if (highlightedMessageId == null) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setHighlightedMessageId(null);
+    }, 2200);
+
+    return () => clearTimeout(timeoutId);
+  }, [highlightedMessageId]);
+
   // Load older messages when scrolling to top
   const loadOlderMessages = useCallback(async () => {
     if (!token || !nextCursor || isLoadingMore || !isInitialPositioned) return;
@@ -215,6 +400,7 @@ export default function MessageList({
     // Record current scroll position before fetching
     const previousScrollHeight = scrollContainer.scrollHeight;
     const previousScrollTop = scrollContainer.scrollTop;
+    const { anchorMessageId, anchorTop } = capturePrependAnchor(scrollContainer);
 
     setIsLoadingMore(true);
 
@@ -223,7 +409,8 @@ export default function MessageList({
         roomId,
         token,
         undefined,
-        nextCursor
+        nextCursor,
+        OLDER_HISTORY_PAGE_SIZE,
       );
 
       // Reverse to get oldest-first order (API returns newest-first)
@@ -233,6 +420,8 @@ export default function MessageList({
         type: "prepend",
         previousScrollHeight,
         previousScrollTop,
+        anchorMessageId,
+        anchorTop,
       };
       setMessages((prev) => {
         const existingIds = new Set(prev.map((msg) => msg.id));
@@ -256,13 +445,89 @@ export default function MessageList({
     } finally {
       setIsLoadingMore(false);
     }
-  }, [token, roomId, nextCursor, isLoadingMore, isInitialPositioned]);
+  }, [
+    token,
+    roomId,
+    nextCursor,
+    isLoadingMore,
+    isInitialPositioned,
+    capturePrependAnchor,
+  ]);
+
+  const loadNewerMessages = useCallback(async () => {
+    if (
+      messageViewMode !== "context" ||
+      !token ||
+      !newerCursor ||
+      isLoadingNewer ||
+      !isInitialPositioned
+    ) {
+      return;
+    }
+
+    setIsLoadingNewer(true);
+
+    try {
+      const { messages: newerMessages, next_cursor } = await getRoomMessagesNewer(
+        roomId,
+        token,
+        newerCursor,
+      );
+
+      setMessages((prev) => {
+        const existingIds = new Set(prev.map((msg) => msg.id));
+        const uniqueNewerMessages = newerMessages.filter(
+          (msg) => !existingIds.has(msg.id),
+        );
+
+        if (uniqueNewerMessages.length === 0) {
+          return prev;
+        }
+
+        return [...prev, ...uniqueNewerMessages];
+      });
+      setNewerCursor(next_cursor);
+    } catch (err) {
+      logError("Failed to load newer messages:", err);
+    } finally {
+      setIsLoadingNewer(false);
+    }
+  }, [isInitialPositioned, isLoadingNewer, messageViewMode, newerCursor, roomId, token]);
 
 
 
   // Append incoming messages (delivered per-message so none are dropped when many arrive quickly)
   useEffect(() => {
     if (incomingMessages.length === 0) return;
+
+    if (messageViewMode === "context") {
+      const scrollContainer = scrollContainerRef.current;
+      const contextIsAtLatest =
+        newerCursor === null &&
+        scrollContainer !== null &&
+        isNearBottom(scrollContainer);
+
+      if (contextIsAtLatest) {
+        setMessages((prev) => {
+          const ids = new Set(prev.map((item) => item.id));
+          const toAdd = incomingMessages.filter((m) => !ids.has(m.id));
+          if (toAdd.length === 0) return prev;
+
+          pendingScrollAdjustmentRef.current = { type: "append", behavior: "smooth" };
+          return [...prev, ...toAdd];
+        });
+      } else {
+        setContextLiveMessages((prev) => {
+          const ids = new Set(prev.map((msg) => msg.id));
+          const toAdd = incomingMessages.filter((msg) => !ids.has(msg.id));
+          if (toAdd.length === 0) return prev;
+          return [...prev, ...toAdd];
+        });
+      }
+      onIncomingMessagesProcessed?.();
+      return;
+    }
+
     const scrollContainer = scrollContainerRef.current;
     const shouldStickToBottom = scrollContainer ? isNearBottom(scrollContainer) : false;
 
@@ -278,27 +543,51 @@ export default function MessageList({
       return [...prev, ...toAdd];
     });
     onIncomingMessagesProcessed?.();
-  }, [incomingMessages, onIncomingMessagesProcessed, isNearBottom]);
+  }, [
+    incomingMessages,
+    isNearBottom,
+    messageViewMode,
+    newerCursor,
+    onIncomingMessagesProcessed,
+  ]);
 
   // Sending a local message should always bring the user back to latest chat context.
   useEffect(() => {
+    if (previousScrollToLatestSignalRef.current === scrollToLatestSignal) return;
+    previousScrollToLatestSignalRef.current = scrollToLatestSignal;
     if (!isInitialPositioned) return;
+
+    if (messageViewMode === "context") {
+      onExitContextMode?.();
+      return;
+    }
+
     const container = scrollContainerRef.current;
     if (!container) return;
 
     container.scrollTop = container.scrollHeight;
     setShowJumpToLatest(false);
-  }, [scrollToLatestSignal, isInitialPositioned]);
+  }, [scrollToLatestSignal, isInitialPositioned, messageViewMode, onExitContextMode]);
 
   useEffect(() => {
     updateJumpToLatestVisibility();
-  }, [messages, updateJumpToLatestVisibility]);
+  }, [messages, updateJumpToLatestVisibility, messageViewMode]);
 
   useEffect(() => {
+    if (messageViewMode !== "normal" && messageViewMode !== "context") return;
+
     const container = scrollContainerRef.current;
     if (!container || !isInitialPositioned) return;
 
     const handleScroll = () => {
+      if (jumpVisibilitySuppressedRef.current) {
+        if (isNearBottom(container)) {
+          jumpVisibilitySuppressedRef.current = false;
+        } else {
+          setShowJumpToLatest(false);
+          return;
+        }
+      }
       updateJumpToLatestVisibility();
     };
 
@@ -308,12 +597,20 @@ export default function MessageList({
     return () => {
       container.removeEventListener("scroll", handleScroll);
     };
-  }, [isInitialPositioned, updateJumpToLatestVisibility]);
+  }, [isInitialPositioned, isNearBottom, messageViewMode, updateJumpToLatestVisibility]);
 
   const handleJumpToLatest = () => {
+    if (messageViewMode === "context") {
+      onExitContextMode?.();
+      return;
+    }
+
     const container = scrollContainerRef.current;
     if (!container) return;
 
+    // Keep jump affordance hidden until animated programmatic scroll actually
+    // reaches latest, so long-distance jumps do not flash the button mid-flight.
+    jumpVisibilitySuppressedRef.current = true;
     container.scrollTo({ top: container.scrollHeight, behavior: "smooth" });
     setShowJumpToLatest(false);
   };
@@ -333,7 +630,8 @@ export default function MessageList({
       },
       {
         root: scrollContainerRef.current,
-        rootMargin: "100px",
+        // Start loading older history well before hard-top so users keep scrolling smoothly.
+        rootMargin: TOP_PREFETCH_ROOT_MARGIN,
         threshold: 0,
       }
     );
@@ -344,6 +642,38 @@ export default function MessageList({
       observer.disconnect();
     };
   }, [nextCursor, isLoadingMore, loadOlderMessages, isInitialPositioned]);
+
+  useEffect(() => {
+    if (!isInitialPositioned || messageViewMode !== "context") return;
+
+    const sentinel = bottomSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && newerCursor && !isLoadingNewer) {
+          loadNewerMessages();
+        }
+      },
+      {
+        root: scrollContainerRef.current,
+        rootMargin: "100px",
+        threshold: 0,
+      }
+    );
+
+    observer.observe(sentinel);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [
+    isInitialPositioned,
+    isLoadingNewer,
+    loadNewerMessages,
+    messageViewMode,
+    newerCursor,
+  ]);
 
   // Message header timestamp: keep compact and time-only.
   const getMessageTime = (isoString: string) => {
@@ -455,6 +785,12 @@ export default function MessageList({
   }
 
   const isComfortableDensity = density === "comfortable";
+  const showContextLiveIndicator =
+    messageViewMode === "context" && contextLiveMessages.length > 0;
+  const shouldShowJumpAction = showJumpToLatest || showContextLiveIndicator;
+  const jumpActionLabel = showContextLiveIndicator
+    ? "New messages available"
+    : "JUMP TO LATEST";
 
   return (
     <div className="relative flex-1 min-h-0">
@@ -463,19 +799,15 @@ export default function MessageList({
         className="h-full overflow-y-auto overflow-x-hidden flex flex-col"
         style={{
           padding: isComfortableDensity ? "20px 20px 12px 10px" : "16px 16px 10px 8px",
+          // We manually preserve scroll position during prepends; disable native anchoring
+          // to avoid double-adjustments that cause visible stutter.
+          overflowAnchor: "none",
         }}
       >
         {/* Sentinel for IntersectionObserver */}
         <div ref={sentinelRef} className="h-px" />
 
-        {/* Loading indicator or "beginning of conversation" message */}
-        {isLoadingMore && (
-          <div className="flex justify-center py-4">
-            <span className="font-mono text-[11px]" style={{ color: "var(--color-meta)" }}>
-              Loading older messages...
-            </span>
-          </div>
-        )}
+        {/* "Beginning of conversation" marker */}
         {!isLoadingMore && nextCursor == null && (
           <div className="flex justify-center py-4">
             <span
@@ -552,6 +884,7 @@ export default function MessageList({
               {/* Flush-left message row (Discord-style) */}
               <div
                 data-chat-message="true"
+                data-message-id={message.id}
                 className={`group flex items-start hover:bg-white/[0.02] transition-colors ${
                   isComfortableDensity ? "gap-3 px-2" : "gap-2.5 px-1.5"
                 } ${
@@ -563,7 +896,17 @@ export default function MessageList({
                       ? "mt-3.5 py-0.5"
                       : "mt-2.5 py-0.5"
                 }`}
-                style={{ animation: "slide-in 0.2s ease-out" }}
+                style={{
+                  animation: "slide-in 0.2s ease-out",
+                  background:
+                    highlightedMessageId === message.id
+                      ? "rgba(0, 240, 255, 0.10)"
+                      : undefined,
+                  borderLeft:
+                    highlightedMessageId === message.id
+                      ? "2px solid var(--color-primary)"
+                      : "2px solid transparent",
+                }}
               >
                 {/* Left: avatar or hover timestamp */}
                 <div
@@ -635,10 +978,33 @@ export default function MessageList({
             </div>
           );
         })}
+        {isLoadingNewer && (
+          <div className="flex justify-center py-4">
+            <span className="font-mono text-[11px]" style={{ color: "var(--color-meta)" }}>
+              Loading newer messages...
+            </span>
+          </div>
+        )}
+        <div ref={bottomSentinelRef} className="h-px" />
         <div ref={messagesEndRef} />
       </div>
 
-      {showJumpToLatest && (
+      {isLoadingMore && (
+        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+          <span
+            className="font-mono text-[11px] px-2 py-1"
+            style={{
+              color: "var(--color-meta)",
+              background: "color-mix(in srgb, var(--bg-panel) 90%, transparent)",
+              border: "1px solid var(--border-dim)",
+            }}
+          >
+            Loading older messages...
+          </span>
+        </div>
+      )}
+
+      {shouldShowJumpAction && (
         <button
           type="button"
           onClick={handleJumpToLatest}
@@ -649,7 +1015,7 @@ export default function MessageList({
             boxShadow: "var(--glow-primary)",
           }}
         >
-          JUMP TO LATEST
+          {jumpActionLabel}
         </button>
       )}
     </div>

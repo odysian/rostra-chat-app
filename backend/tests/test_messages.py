@@ -1019,6 +1019,198 @@ async def test_pagination_stable_with_concurrent_inserts(
 
 
 # ============================================================================
+# GET /api/rooms/:id/messages/:message_id/context
+# GET /api/rooms/:id/messages/newer
+# ============================================================================
+
+
+async def test_get_message_context_returns_ordered_window_and_cursors(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Context endpoint returns oldest->newest window around target with both cursors."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Context Room")
+    room_id = room["id"]
+
+    created_messages = []
+    for i in range(7):
+        created_messages.append(await create_message(token, room_id, f"Message {i}"))
+
+    target = created_messages[3]
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/{target['id']}/context?before=2&after=2",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+
+    assert data["target_message_id"] == target["id"]
+    assert data["older_cursor"] is not None
+    assert data["newer_cursor"] is not None
+
+    returned_ids = [msg["id"] for msg in data["messages"]]
+    expected_ids = [
+        created_messages[1]["id"],
+        created_messages[2]["id"],
+        created_messages[3]["id"],
+        created_messages[4]["id"],
+        created_messages[5]["id"],
+    ]
+    assert returned_ids == expected_ids
+
+
+async def test_get_message_context_not_room_member_returns_403(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Non-members cannot load message context."""
+    owner = await create_user(email="contextowner@test.com", username="contextowner")
+    token_owner = owner["access_token"]
+    room = await create_room(token_owner, "Private Context Room")
+    room_id = room["id"]
+    target = await create_message(token_owner, room_id, "Secret context")
+
+    outsider = await create_user(email="contextoutsider@test.com", username="outsider")
+    token_outsider = outsider["access_token"]
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/{target['id']}/context",
+        headers={"Authorization": f"Bearer {token_outsider}"},
+    )
+
+    assert response.status_code == 403
+    assert "not a member" in response.json()["detail"].lower()
+
+
+async def test_get_message_context_message_not_in_room_returns_404(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Context lookup must scope message IDs to the requested room."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room_a = await create_room(token, "Context Room A")
+    room_b = await create_room(token, "Context Room B")
+    room_a_id = room_a["id"]
+    room_b_id = room_b["id"]
+    foreign_message = await create_message(token, room_b_id, "Foreign message")
+
+    response = await client.get(
+        f"/api/rooms/{room_a_id}/messages/{foreign_message['id']}/context",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 404
+    assert "message" in response.json()["detail"].lower()
+
+
+async def test_get_messages_newer_returns_strictly_newer_messages_in_order(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Newer pagination uses strict keyset boundary and ascending order."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Newer Cursor Room")
+    room_id = room["id"]
+
+    created_messages = []
+    for i in range(5):
+        created_messages.append(await create_message(token, room_id, f"Message {i}"))
+
+    target = created_messages[1]
+    context_response = await client.get(
+        f"/api/rooms/{room_id}/messages/{target['id']}/context?before=0&after=0",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert context_response.status_code == 200
+    newer_cursor = context_response.json()["newer_cursor"]
+    assert newer_cursor is not None
+
+    first_newer_page = await client.get(
+        f"/api/rooms/{room_id}/messages/newer?cursor={newer_cursor}&limit=2",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert first_newer_page.status_code == 200
+    first_data = first_newer_page.json()
+
+    first_ids = [msg["id"] for msg in first_data["messages"]]
+    assert first_ids == [created_messages[2]["id"], created_messages[3]["id"]]
+    assert first_data["next_cursor"] is not None
+
+    second_newer_page = await client.get(
+        f"/api/rooms/{room_id}/messages/newer?cursor={first_data['next_cursor']}&limit=2",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert second_newer_page.status_code == 200
+    second_data = second_newer_page.json()
+
+    second_ids = [msg["id"] for msg in second_data["messages"]]
+    assert second_ids == [created_messages[4]["id"]]
+    assert second_data["next_cursor"] is None
+
+
+async def test_get_messages_newer_invalid_cursor_returns_400(
+    client: AsyncClient, create_user, create_room
+):
+    """Invalid newer cursor is rejected with 400."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    room = await create_room(token, "Invalid Newer Cursor Room")
+    room_id = room["id"]
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/newer?cursor=not-a-valid-cursor",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 400
+    assert "cursor" in response.json()["detail"].lower()
+
+
+async def test_get_messages_newer_not_room_member_returns_403(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Non-members cannot page newer messages from a room."""
+    owner = await create_user(email="newerowner@test.com", username="newerowner")
+    token_owner = owner["access_token"]
+    room = await create_room(token_owner, "Private Newer Room")
+    room_id = room["id"]
+
+    target = await create_message(token_owner, room_id, "seed message")
+    context_response = await client.get(
+        f"/api/rooms/{room_id}/messages/{target['id']}/context?before=0&after=0",
+        headers={"Authorization": f"Bearer {token_owner}"},
+    )
+    assert context_response.status_code == 200
+    newer_cursor = context_response.json()["newer_cursor"]
+    assert newer_cursor is None
+
+    # Create one newer message so cursoring is meaningful for the outsider request.
+    await create_message(token_owner, room_id, "newer message")
+    context_response = await client.get(
+        f"/api/rooms/{room_id}/messages/{target['id']}/context?before=0&after=0",
+        headers={"Authorization": f"Bearer {token_owner}"},
+    )
+    newer_cursor = context_response.json()["newer_cursor"]
+    assert newer_cursor is not None
+
+    outsider = await create_user(email="neweroutsider@test.com", username="neweroutsider")
+    token_outsider = outsider["access_token"]
+
+    response = await client.get(
+        f"/api/rooms/{room_id}/messages/newer?cursor={newer_cursor}",
+        headers={"Authorization": f"Bearer {token_outsider}"},
+    )
+
+    assert response.status_code == 403
+    assert "not a member" in response.json()["detail"].lower()
+
+
+# ============================================================================
 # GET /api/rooms/:id/messages/search
 # ============================================================================
 

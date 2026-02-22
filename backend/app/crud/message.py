@@ -73,6 +73,24 @@ async def get_messages_by_room(
     return list(result.scalars().all())
 
 
+async def get_message_in_room(
+    db: AsyncSession,
+    room_id: int,
+    message_id: int,
+) -> Message | None:
+    """Get a single message by ID, scoped to a room."""
+    stmt = (
+        select(Message)
+        .options(selectinload(Message.user))
+        .where(
+            Message.room_id == room_id,
+            Message.id == message_id,
+        )
+    )
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def create_message(db: AsyncSession, message: MessageCreate, user_id: int):
     """
     Create a new message.
@@ -152,6 +170,41 @@ async def search_messages(
         Message.created_at.desc(),
         Message.id.desc(),
     ).limit(limit)
+
+    result = await db.execute(stmt)
+    return list(result.scalars().all())
+
+
+async def get_messages_newer_than(
+    db: AsyncSession,
+    room_id: int,
+    limit: int = 50,
+    after_created_at: datetime | None = None,
+    after_id: int | None = None,
+) -> list[Message]:
+    """Get messages newer than a keyset cursor in ascending order.
+
+    Ascending order is intentional for context-mode pagination:
+    appending older->newer avoids reordering on the frontend.
+    """
+    stmt = (
+        select(Message)
+        .options(selectinload(Message.user))
+        .where(Message.room_id == room_id)
+    )
+
+    if after_created_at is not None and after_id is not None:
+        stmt = stmt.where(
+            or_(
+                Message.created_at > after_created_at,
+                and_(
+                    Message.created_at == after_created_at,
+                    Message.id > after_id,
+                ),
+            )
+        )
+
+    stmt = stmt.order_by(Message.created_at.asc(), Message.id.asc()).limit(limit)
 
     result = await db.execute(stmt)
     return list(result.scalars().all())

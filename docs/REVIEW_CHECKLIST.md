@@ -20,6 +20,7 @@ Use this after agent sessions or before committing. Not every item applies to ev
 - [ ] **WebSocket auth:** New/changed WS routes still require token in query and reject with 1008 before accept.
 - [ ] **Message sanitization:** Message `content` is length-limited (1–1000) and stored/echoed as-is. No HTML/script stripping; UI renders as text only. If rendering changes, add sanitization.
 - [ ] **Room access:** Users must be a room member to subscribe (WS), send messages, or fetch messages. Membership is checked via `user_room` table. New endpoints that access room data should verify membership.
+- [ ] **Context jump authorization/scope:** `/rooms/{room_id}/messages/{message_id}/context` and `/rooms/{room_id}/messages/newer` enforce room membership and reject message IDs that are outside the requested room.
 - [ ] **File uploads:** None in the app. If added, validate type, size, and content per AGENTS.md.
 
 ## Performance (Check for Data-Heavy Features)
@@ -34,6 +35,7 @@ Use this after agent sessions or before committing. Not every item applies to ev
 ### App-specific
 
 - [ ] **Message list query:** GET messages uses cursor-based pagination (default limit 50, max 100). Composite index on `(room_id, created_at DESC, id DESC)` supports efficient keyset seeks.
+- [ ] **Bidirectional context pagination:** `older_cursor` and `newer_cursor` respect strict keyset boundaries (`created_at`, `id` tiebreak) and preserve stable ordering (`context` oldest->newest, `newer` oldest->newest).
 - [ ] **WebSocket connection count:** One WS per logged-in user; ConnectionManager holds all in memory. No per-user or global connection limit in code; consider limits for scale.
 - [ ] **Unread count:** Redis cache (`UnreadCountCache`) with PostgreSQL fallback. Verify new message-related features update the cache correctly (increment for recipients, reset for sender).
 - [ ] **Redis availability:** Cache operations catch `RedisError` and fall back gracefully. New cache usage should follow the same pattern.

@@ -52,6 +52,13 @@ export interface PaginatedMessages {
   next_cursor: string | null;
 }
 
+export interface MessageContextResponse {
+  messages: Message[];
+  target_message_id: number;
+  older_cursor: string | null;
+  newer_cursor: string | null;
+}
+
 // WebSocket message types
 export interface WSSubscribe {
   action: "subscribe";

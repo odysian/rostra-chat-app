@@ -4,10 +4,12 @@ import SearchPanel from "../SearchPanel";
 import type { Message } from "../../types";
 
 const mockSearchMessages = vi.fn();
+const mockGetMessageContext = vi.fn();
 const mockOnClose = vi.fn();
 
 vi.mock("../../services/api", () => ({
   searchMessages: (...args: unknown[]) => mockSearchMessages(...args),
+  getMessageContext: (...args: unknown[]) => mockGetMessageContext(...args),
 }));
 
 function makeMessage(id: number, content: string): Message {
@@ -24,6 +26,7 @@ function makeMessage(id: number, content: string): Message {
 describe("SearchPanel integration", () => {
   beforeEach(() => {
     mockSearchMessages.mockReset();
+    mockGetMessageContext.mockReset();
     mockOnClose.mockReset();
     vi.useFakeTimers();
   });

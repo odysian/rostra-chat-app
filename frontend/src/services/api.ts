@@ -6,6 +6,7 @@ import type {
   Room,
   Message,
   PaginatedMessages,
+  MessageContextResponse,
 } from "../types";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -294,11 +295,15 @@ export async function getRoomMessages(
   token: string,
   signal?: AbortSignal,
   cursor?: string,
+  limit?: number,
 ): Promise<PaginatedMessages> {
-  // Build query string with cursor if provided
+  // Build query string with cursor/limit if provided
   const params = new URLSearchParams();
   if (cursor) {
     params.set("cursor", cursor);
+  }
+  if (typeof limit === "number") {
+    params.set("limit", String(limit));
   }
   const query = params.toString();
   const path = `/rooms/${roomId}/messages${query ? `?${query}` : ""}`;
@@ -309,6 +314,45 @@ export async function getRoomMessages(
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
+export async function getRoomMessagesNewer(
+  roomId: number,
+  token: string,
+  cursor: string,
+  signal?: AbortSignal,
+): Promise<PaginatedMessages> {
+  const params = new URLSearchParams({ cursor });
+  return apiCall<PaginatedMessages>(`/rooms/${roomId}/messages/newer?${params}`, {
+    signal,
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function getMessageContext(
+  roomId: number,
+  messageId: number,
+  token: string,
+  signal?: AbortSignal,
+  before = 25,
+  after = 25,
+): Promise<MessageContextResponse> {
+  const params = new URLSearchParams({
+    before: String(before),
+    after: String(after),
+  });
+
+  return apiCall<MessageContextResponse>(
+    `/rooms/${roomId}/messages/${messageId}/context?${params}`,
+    {
+      signal,
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
 }
 
 export async function searchMessages(

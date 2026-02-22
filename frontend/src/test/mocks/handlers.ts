@@ -91,4 +91,20 @@ export const handlers = [
       next_cursor: null,
     });
   }),
+
+  http.get("*/api/rooms/:roomId/messages/newer", async () => {
+    return HttpResponse.json({
+      messages: [],
+      next_cursor: null,
+    });
+  }),
+
+  http.get("*/api/rooms/:roomId/messages/:messageId/context", async () => {
+    return HttpResponse.json({
+      messages: defaultMessages,
+      target_message_id: 1,
+      older_cursor: null,
+      newer_cursor: null,
+    });
+  }),
 ];

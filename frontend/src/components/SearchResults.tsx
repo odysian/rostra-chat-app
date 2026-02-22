@@ -5,9 +5,13 @@ interface SearchResultsProps {
   query: string;
   loading: boolean;
   error: string;
+  errorActionLabel?: string;
+  onErrorAction?: () => void;
   hasMore: boolean;
   onLoadMore: () => void;
   loadingMore: boolean;
+  onJumpToMessage?: (message: Message) => void;
+  jumpingMessageId?: number | null;
 }
 
 export default function SearchResults({
@@ -15,9 +19,13 @@ export default function SearchResults({
   query,
   loading,
   error,
+  errorActionLabel,
+  onErrorAction,
   hasMore,
   onLoadMore,
   loadingMore,
+  onJumpToMessage,
+  jumpingMessageId = null,
 }: SearchResultsProps) {
   // Format date for search results — always show full date since results span time
   const formatDate = (isoString: string): string => {
@@ -53,7 +61,7 @@ export default function SearchResults({
     );
   }
 
-  if (error) {
+  if (error && messages.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center p-4">
         <div
@@ -64,7 +72,20 @@ export default function SearchResults({
             border: "1px solid rgba(255, 0, 0, 0.2)",
           }}
         >
-          {error}
+          <p>{error}</p>
+          {onErrorAction && errorActionLabel && (
+            <button
+              type="button"
+              onClick={onErrorAction}
+              className="mt-2 px-3 py-1 font-bebas text-[13px] tracking-[0.08em] transition-colors"
+              style={{
+                color: "#ff4444",
+                border: "1px solid rgba(255, 68, 68, 0.4)",
+              }}
+            >
+              {errorActionLabel}
+            </button>
+          )}
         </div>
       </div>
     );
@@ -94,6 +115,34 @@ export default function SearchResults({
 
   return (
     <div className="flex-1 overflow-y-auto min-h-0">
+      {error && (
+        <div className="px-3.5 pt-2">
+          <div
+            className="p-2.5 font-mono text-[11px]"
+            style={{
+              background: "rgba(255, 0, 0, 0.05)",
+              color: "#ff4444",
+              border: "1px solid rgba(255, 0, 0, 0.2)",
+            }}
+          >
+            <p>{error}</p>
+            {onErrorAction && errorActionLabel && (
+              <button
+                type="button"
+                onClick={onErrorAction}
+                className="mt-2 px-3 py-1 font-bebas text-[13px] tracking-[0.08em] transition-colors"
+                style={{
+                  color: "#ff4444",
+                  border: "1px solid rgba(255, 68, 68, 0.4)",
+                }}
+              >
+                {errorActionLabel}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Result count */}
       <div
         className="px-3.5 py-2 font-mono text-[11px] tracking-[0.07em]"
@@ -104,10 +153,14 @@ export default function SearchResults({
 
       {/* Results list */}
       {messages.map((msg) => (
-        <div
+        <button
+          type="button"
           key={msg.id}
-          className="px-3.5 py-3 transition-colors"
+          className="w-full px-3.5 py-3 text-left transition-colors"
           style={{ borderBottom: "1px solid var(--border-dim)" }}
+          onClick={() => onJumpToMessage?.(msg)}
+          disabled={jumpingMessageId === msg.id}
+          aria-label={`Jump to message by ${msg.username}`}
         >
           <div className="flex items-start gap-2">
             <div
@@ -135,6 +188,14 @@ export default function SearchResults({
                 >
                   {formatDate(msg.created_at)}
                 </span>
+                {jumpingMessageId === msg.id && (
+                  <span
+                    className="font-mono text-[10px] tracking-[0.08em]"
+                    style={{ color: "var(--color-meta)" }}
+                  >
+                    JUMPING...
+                  </span>
+                )}
               </div>
 
               <p
@@ -150,7 +211,7 @@ export default function SearchResults({
               </p>
             </div>
           </div>
-        </div>
+        </button>
       ))}
 
       {/* Load more button */}

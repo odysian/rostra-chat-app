@@ -8,11 +8,12 @@ import { type WebSocketMessage } from "../context/WebSocketContext";
 import { useAuth } from "../context/AuthContext";
 import { markRoomRead, leaveRoom } from "../services/api";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
-import type { Message, OnlineUser, Room } from "../types";
+import type { Message, MessageContextResponse, OnlineUser, Room } from "../types";
 
 const MAX_SUBSCRIPTIONS = 10;
 const INITIAL_AUTO_SUBSCRIBE_COUNT = 5;
 type UiDensity = "compact" | "comfortable";
+type MessageViewMode = "normal" | "context";
 
 function isTypingTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -64,6 +65,8 @@ export default function ChatLayout() {
   const [typingUsersByRoom, setTypingUsersByRoom] = useState<
     Record<number, Record<number, { username: string; timeout: ReturnType<typeof setTimeout> }>>
   >({});
+  const [messageViewMode, setMessageViewMode] = useState<MessageViewMode>("normal");
+  const [messageContext, setMessageContext] = useState<MessageContextResponse | null>(null);
 
   const selectedRoomRef = useRef<Room | null>(null);
   const subscribedRoomIdsRef = useRef<number[]>([]);
@@ -261,6 +264,8 @@ export default function ChatLayout() {
   const handleSelectRoom = async (room: Room) => {
     setLeaveError(null);
     setSelectedRoom(room);
+    setMessageViewMode("normal");
+    setMessageContext(null);
     setIncomingMessagesForRoom([]);
     setSidebarOpen(false);
 
@@ -295,6 +300,8 @@ export default function ChatLayout() {
     setSubscribedRoomIds((prev) => prev.filter((id) => id !== deletedRoomId));
     unsubscribe(deletedRoomId);
     setSelectedRoom(null);
+    setMessageViewMode("normal");
+    setMessageContext(null);
     setIncomingMessagesForRoom([]);
     setOnlineUsersByRoom((prev) => {
       const next = { ...prev };
@@ -336,6 +343,8 @@ export default function ChatLayout() {
     unsubscribe(roomId);
     setSubscribedRoomIds((prev) => prev.filter((id) => id !== roomId));
     setSelectedRoom(null);
+    setMessageViewMode("normal");
+    setMessageContext(null);
     setIncomingMessagesForRoom([]);
     setOnlineUsersByRoom((prev) => {
       const next = { ...prev };
@@ -356,6 +365,8 @@ export default function ChatLayout() {
     subscribedSentRef.current.clear();
     setSubscribedRoomIds([]);
     setSelectedRoom(null);
+    setMessageViewMode("normal");
+    setMessageContext(null);
     setOnlineUsersByRoom({});
     setUnreadCounts({});
     logout(true);
@@ -375,6 +386,16 @@ export default function ChatLayout() {
 
   const handleIncomingMessagesProcessed = () => {
     setIncomingMessagesForRoom([]);
+  };
+
+  const handleOpenMessageContext = (context: MessageContextResponse) => {
+    setMessageContext(context);
+    setMessageViewMode("context");
+  };
+
+  const handleExitContextMode = () => {
+    setMessageViewMode("normal");
+    setMessageContext(null);
   };
 
   // ============================================================================
@@ -494,6 +515,8 @@ export default function ChatLayout() {
         <MessageArea
           selectedRoom={selectedRoom}
           density={density}
+          messageViewMode={messageViewMode}
+          messageContext={messageContext}
           hasOtherUnreadRooms={hasOtherUnreadRooms}
           incomingMessages={incomingMessagesForRoom}
           onIncomingMessagesProcessed={handleIncomingMessagesProcessed}
@@ -505,6 +528,7 @@ export default function ChatLayout() {
           typingUsernames={typingUsernames}
           wsError={wsError}
           onDismissWsError={() => setWsError(null)}
+          onExitContextMode={handleExitContextMode}
         />
       </div>
 
@@ -525,6 +549,7 @@ export default function ChatLayout() {
           roomId={selectedRoom.id}
           token={token}
           focusSignal={searchFocusSignal}
+          onOpenMessageContext={handleOpenMessageContext}
         />
       )}
     </div>
