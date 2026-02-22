@@ -33,19 +33,24 @@ const INITIAL_HISTORY_PAGE_SIZE = 75;
 const OLDER_HISTORY_PAGE_SIZE = 100;
 const TOP_PREFETCH_ROOT_MARGIN = "900px";
 
-function ensureUtcIso(isoString: string): string {
-  return isoString.endsWith("Z") ? isoString : `${isoString}Z`;
-}
-
 function isStrictlyNewerThan(
   candidate: Message,
   reference: Message,
 ): boolean {
-  const candidateTime = new Date(ensureUtcIso(candidate.created_at)).getTime();
-  const referenceTime = new Date(ensureUtcIso(reference.created_at)).getTime();
-  if (candidateTime !== referenceTime) {
+  const candidateTime = parseTimestamp(candidate.created_at);
+  const referenceTime = parseTimestamp(reference.created_at);
+
+  if (
+    candidateTime != null &&
+    referenceTime != null &&
+    candidateTime !== referenceTime
+  ) {
     return candidateTime > referenceTime;
   }
+
+  if (candidateTime != null && referenceTime == null) return true;
+  if (candidateTime == null && referenceTime != null) return false;
+
   return candidate.id > reference.id;
 }
 
@@ -141,6 +146,7 @@ export default function MessageList({
   const previousScrollToLatestSignalRef = useRef(scrollToLatestSignal);
   const contextLiveMessagesRef = useRef<Message[]>([]);
   const jumpVisibilitySuppressedRef = useRef(false);
+  const paginationEpochRef = useRef(0);
 
   useEffect(() => {
     contextLiveMessagesRef.current = contextLiveMessages;
@@ -298,6 +304,7 @@ export default function MessageList({
   useEffect(() => {
     if (messageViewMode !== "context" || !messageContext) return;
 
+    paginationEpochRef.current += 1;
     setError("");
     setLoading(false);
     setIsInitialPositioned(false);
@@ -323,6 +330,7 @@ export default function MessageList({
     const bufferedContextTail = contextLiveMessagesRef.current;
 
     if (token) {
+      paginationEpochRef.current += 1;
       setError("");
       setLoading(true);
       setNextCursor(null);
@@ -334,6 +342,7 @@ export default function MessageList({
       setNewMessagesAnchorId(null);
       pendingScrollAdjustmentRef.current = null;
     }
+    const activeEpoch = paginationEpochRef.current;
 
     async function fetchMessages() {
       if (!token) return;
@@ -356,6 +365,9 @@ export default function MessageList({
         );
         const history = fetchedMessages.reverse();
         clearTimeout(timeoutId);
+        if (paginationEpochRef.current !== activeEpoch) {
+          return;
+        }
 
         // Resolve divider anchor from entry-time history only, so live messages
         // that arrive while loading cannot retroactively create/move the marker.
@@ -451,6 +463,7 @@ export default function MessageList({
     const previousScrollHeight = scrollContainer.scrollHeight;
     const previousScrollTop = scrollContainer.scrollTop;
     const { anchorMessageId, anchorTop } = capturePrependAnchor(scrollContainer);
+    const requestEpoch = paginationEpochRef.current;
 
     setIsLoadingMore(true);
 
@@ -465,6 +478,9 @@ export default function MessageList({
 
       // Reverse to get oldest-first order (API returns newest-first)
       const reversedOlderMessages = olderMessages.reverse();
+      if (paginationEpochRef.current !== requestEpoch) {
+        return;
+      }
 
       pendingScrollAdjustmentRef.current = {
         type: "prepend",
