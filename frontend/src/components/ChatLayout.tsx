@@ -21,6 +21,27 @@ function isTypingTarget(target: EventTarget | null): boolean {
   );
 }
 
+function parseIsoTimestamp(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function getFreshestReadMarker(
+  cachedMarker: string | null | undefined,
+  serverMarker: string | null | undefined,
+): string | null {
+  const cachedTs = parseIsoTimestamp(cachedMarker);
+  const serverTs = parseIsoTimestamp(serverMarker);
+
+  if (cachedTs == null && serverTs == null) return null;
+  if (cachedTs == null) return serverMarker ?? null;
+  if (serverTs == null) return cachedMarker ?? null;
+
+  // Prefer server marker on ties so multi-tab/device updates win over stale local cache.
+  return serverTs >= cachedTs ? (serverMarker ?? null) : (cachedMarker ?? null);
+}
+
 /**
  * ChatLayout Component
  *
@@ -272,14 +293,12 @@ export default function ChatLayout() {
   const handleSelectRoom = async (room: Room) => {
     setLeaveError(null);
     setSelectedRoom(room);
-    const hasCachedReadMarker = Object.prototype.hasOwnProperty.call(
-      lastReadAtByRoomId,
-      room.id,
-    );
+    const hasCachedReadMarker = Object.prototype.hasOwnProperty.call(lastReadAtByRoomId, room.id);
+    const cachedReadMarker = hasCachedReadMarker
+      ? lastReadAtByRoomId[room.id]
+      : undefined;
     setRoomOpenLastReadSnapshot(
-      hasCachedReadMarker
-        ? lastReadAtByRoomId[room.id]
-        : (room.last_read_at ?? null),
+      getFreshestReadMarker(cachedReadMarker, room.last_read_at ?? null),
     );
     setIncomingMessagesForRoom([]);
     setSidebarOpen(false);
