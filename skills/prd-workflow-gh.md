@@ -8,6 +8,18 @@ Example request:
 
 `Run skills/prd-workflow-gh.md for 3.1 New Messages Divider mode=single. Produce issue body files + gh issue create commands.`
 
+Default shorthand request:
+
+`Create an issue workflow for feature <feature-id> in <filename>.`
+
+Interpret this shorthand as:
+
+- `mode=single`
+- source from `<filename>` (feature section)
+- create/update one Task body file under `plans/`
+- run `gh issue create` directly
+- return terse summary only
+
 ## Inputs
 
 - Feature identifier/title (example: `3.1 New Messages Divider`)
@@ -35,6 +47,22 @@ Example request:
 - start Task `#<id>` in a new branch and open PR with `Closes #<id>`
 
 ## Procedure
+
+### Single-Mode Automation Defaults (No-Chatter)
+
+When the shorthand request is used, default to this non-interactive behavior:
+
+1. Use the current branch. Do not switch branches unless explicitly asked.
+2. Do not run preflight discovery commands by default (`gh auth status`, `gh label list`, broad repo scans).
+3. Write one Task issue body file under `plans/`:
+- `plans/task-<feature-slug>-01.md`
+4. Run `gh issue create` directly with the labels inferred from scope.
+5. Only ask follow-up questions on hard failures (auth, permissions, missing required labels).
+6. Output only:
+- issue number + URL
+- file written
+- 3-5 bullet implementation plan
+- exact `gh issue create` command used
 
 ### A) Draft issue body content (text generation)
 

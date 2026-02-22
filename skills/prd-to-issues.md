@@ -28,3 +28,17 @@ Given a feature plan (from `plans/*.md`, specs, or a PRD):
 - `Mode selected: single|gated|fast`
 - `Default plan: single Task` (or gated structure)
 - `Optional split plan (only if needed): ...`
+
+## Single-Mode Quick Command Defaults
+
+If the request is phrased as:
+
+`Create an issue workflow for feature <feature-id> in <filename>.`
+
+apply these defaults automatically:
+
+- select `mode=single`
+- extract only the requested feature section from `<filename>`
+- generate one Task issue body at `plans/task-<feature-slug>-01.md`
+- run `gh issue create` without extra discovery chatter
+- return a terse completion summary (issue URL, file path, concise implementation plan, command used)
