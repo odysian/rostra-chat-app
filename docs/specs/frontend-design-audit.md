@@ -307,18 +307,18 @@ Tests:
 - Frontend: divider appears for unread boundary, absent when all messages are read.
 - Regression: divider does not duplicate across pagination loads.
 
-Details to lock before implementation:
-- Divider label text variant: `NEW MESSAGES` vs `UNREAD`.
-- Divider behavior when `last_read_at` is null (recommend: no divider, all are effectively unread but baseline unknown).
+Locked decisions for implementation (3.1):
+- Divider label text: `NEW MESSAGES`.
+- `last_read_at = null` behavior: do not render divider.
 
 Implementation Ready Checklist (3.1):
-- `Open`: `RoomResponse` contract includes `last_read_at?: string | null` and backend mapping path is explicitly selected.
-- `Open`: `last_read_at = null` behavior is locked (recommended: no divider).
-- `Open`: Divider recompute strategy locked (recommended: snapshot on room open; no live reposition while viewing).
-- `Open`: Divider insertion rule locked (single divider before first `created_at > last_read_at_snapshot`).
-- `Open`: Frontend ownership of snapshot state locked (`ChatLayout` owns and passes to `MessageList`).
-- `Open`: Backend rooms query path for `last_read_at` locked (single-query/member-join, no N+1).
-- `Open`: Test assertions enumerated in `backend/TESTPLAN.md` before implementation starts.
+- `Locked`: `RoomResponse` contract includes `last_read_at?: string | null` (ISO timestamp string or null).
+- `Locked`: `last_read_at = null` behavior is no divider.
+- `Locked`: Divider recompute strategy is snapshot on room open; no live reposition while viewing.
+- `Locked`: Divider insertion rule is single divider before first `created_at > last_read_at_snapshot`.
+- `Locked`: `ChatLayout` owns snapshot state and passes it to `MessageList`.
+- `Locked`: Backend rooms query path returns `last_read_at` via membership join without N+1 queries.
+- `Locked`: `backend/TESTPLAN.md` includes explicit 3.1 test assertions before implementation starts.
 
 ### 3.2 Global Jump-to-Message (Search -> Any Message in History)
 **Value:** High.
@@ -376,23 +376,35 @@ Tests:
 - Frontend: live updates indicator appears when anchored away from latest and clears when latest is reached.
 - Regression: normal room entry and infinite scroll behavior remains unchanged.
 
-Details to lock before implementation:
-- Default window size (`before/after`) (recommend: 25/25).
-- Route strategy (internal context only vs also support deep-link URL now).
-- Context-mode pagination policy (recommend: bidirectional required for v1 completeness).
-- Live-update policy while in context mode (recommend: indicator + explicit jump-to-latest, no forced auto-jump).
+Locked decisions for implementation (3.2):
+- Default context window: `before=25`, `after=25`.
+- Route strategy for v1: internal context loading only (no deep-link route in this feature).
+- Context-mode pagination: bidirectional required (`top => older`, `bottom => newer`).
+- Live updates while anchored: non-blocking indicator + explicit jump-to-latest; no forced auto-jump.
 
 Implementation Ready Checklist (3.2):
-- `Open`: Context endpoint response schema is finalized (messages ordering + `target_message_id` + `older_cursor` + `newer_cursor`).
-- `Open`: Cursor semantics are finalized (strictly older/newer than boundary message; stable tie-break with `(created_at,id)`).
-- `Open`: Default context window is locked (`before`, `after`).
-- `Open`: Frontend mode/state model is locked (`normal` vs `context` anchored mode, owner component defined).
-- `Open`: Sentinel behavior is locked in context mode (top=>older, bottom=>newer).
-- `Open`: Live updates while anchored are locked (indicator text/placement + jump-to-latest action + no forced auto-jump).
-- `Open`: Exit conditions from context mode are locked (user jump-to-latest, newer cursor exhausted, room switch).
-- `Open`: Failure handling is locked (403/404 target missing, stale cursor, network retry behavior).
-- `Open`: Regression contract is locked (normal room history behavior unchanged outside context mode).
-- `Open`: 3.2A/3.2B branch split and merge order is locked in execution notes.
+- `Locked`: Context endpoint response schema is:
+  - `messages` (ordered oldest -> newest),
+  - `target_message_id`,
+  - `older_cursor`,
+  - `newer_cursor`.
+- `Locked`: Cursor semantics are strict keyset boundaries with stable tie-break `(created_at, id)`:
+  - `older_cursor` fetches strictly older than oldest loaded row,
+  - `newer_cursor` fetches strictly newer than newest loaded row.
+- `Locked`: Default context window is `before=25`, `after=25`.
+- `Locked`: Frontend mode/state model is explicit `normal` vs `context` mode with owner state in `ChatLayout`.
+- `Locked`: Sentinel behavior in context mode is `top=>older`, `bottom=>newer`.
+- `Locked`: Live updates while anchored show non-blocking indicator text `New messages available` + explicit jump-to-latest action; no forced auto-jump.
+- `Locked`: Exit conditions from context mode are:
+  - user triggers jump-to-latest,
+  - room switch,
+  - `newer_cursor` exhausted and user reaches bottom edge (now at latest).
+- `Locked`: Failure handling is:
+  - context `403/404`: keep current buffer, show non-blocking inline error in search panel,
+  - stale cursor `400`: one automatic context refetch around current target, then inline error if refetch fails,
+  - network failure: retry action available in the invoking panel/context UI.
+- `Locked`: Regression contract is unchanged normal history behavior outside context mode.
+- `Locked`: 3.2A/3.2B branch split and merge order is mandatory (`3.2A` first).
 
 Delivery sequence for 3.2:
 1. **3.2A:** Ship backend + frontend bidirectional context pagination primitives with tests.
@@ -413,11 +425,15 @@ Backend plan:
 - Reuse message content validation rules (trim + 1..1000 chars).
 - Return updated message payload including `edited_at`.
 - Add WS event `message_edited` with updated fields.
+- Add edit endpoint rate limit: `20/minute` per user.
 
 Frontend plan:
 - Add edit affordance on own messages only.
 - Inline textarea with save/cancel (`Enter` save, `Escape` cancel).
 - Render `(edited)` in message metadata when `edited_at` exists.
+- Hover behavior:
+- hovering the original timestamp shows original `created_at` detail,
+- hovering the `(edited)` marker shows `edited_at` detail.
 - Handle `message_edited` WS event in `ChatLayout`/`MessageList`.
 
 Files expected:
@@ -437,9 +453,29 @@ Tests:
 - Backend: `edited_at` set and returned.
 - Frontend: inline edit UX + WS updates reflected.
 
-Details to lock before implementation:
-- Edit time window policy (recommend v1: no time limit).
-- Whether edited messages keep original timestamp + `(edited)` (recommend yes).
+Locked decisions for implementation (3.3):
+- Edit window policy: unlimited.
+- Timestamp semantics: keep original `created_at` + `(edited)` marker.
+- Hover semantics: original timestamp hover shows `created_at`; `(edited)` marker hover shows `edited_at`.
+- Authorization policy: owner only.
+- Deleted messages editability: cannot edit deleted messages.
+- No-op edit policy: reject when trimmed content is unchanged.
+- Validation policy: same as message-create validation (trimmed, 1..1000 chars).
+- Conflict policy: last-write-wins in v1.
+- Client update model: server-authoritative (no optimistic final state).
+- WS event contract: include `message_id`, `room_id`, `content`, `edited_at`.
+- Rate limit: `20/minute` on edit endpoint.
+
+Implementation Ready Checklist (3.3):
+- `Locked`: Endpoint is owner-only and returns 403 for non-owner edits.
+- `Locked`: Edit endpoint rejects no-op edits after trimming.
+- `Locked`: Edit endpoint enforces same content validation bounds as message create.
+- `Locked`: Deleted messages cannot be edited.
+- `Locked`: Frontend renders `(edited)` marker with separate hover timestamp behavior.
+- `Locked`: Frontend preserves original timestamp display next to edited marker.
+- `Locked`: WS event applies in-place content+edited_at update without reordering message.
+- `Locked`: Endpoint rate limit is set to `20/minute`.
+- `Locked`: Backend and frontend tests for all above are listed in `backend/TESTPLAN.md` and frontend component tests before implementation.
 
 ### 3.4 Message Deletion
 **Value:** High.
@@ -455,7 +491,7 @@ Backend plan:
 - set `deleted_at`,
 - replace `content` with empty string (or fixed tombstone token) so search vector no longer matches original text.
 - Add `DELETE /api/messages/{message_id}` endpoint.
-- Authz: owner and optionally room creator (decision required).
+- Authz: message owner + room creator can delete.
 - Exclude deleted rows from search endpoint results.
 - Add WS event `message_deleted`.
 
@@ -463,6 +499,7 @@ Frontend plan:
 - Show delete affordance for authorized users.
 - Confirm before delete.
 - Render deleted message tombstone style in list.
+- Tombstone copy/presentation: `(deleted)` in smaller muted/grey text.
 - Ignore edit/reaction actions on deleted rows.
 - Handle `message_deleted` WS event to update local list in place.
 
@@ -482,9 +519,29 @@ Tests:
 - Frontend: tombstone render and WS sync.
 - Regression: pagination ordering unaffected.
 
-Details to lock before implementation:
-- Final authz policy: owner-only vs owner + room creator (recommend owner + room creator).
-- Tombstone copy text (recommend: `This message was deleted`).
+Locked decisions for implementation (3.4):
+- Delete authorization: message owner + room creator.
+- Deletion model: soft delete only (`deleted_at`), no hard delete in v1.
+- Content scrubbing: overwrite stored `content` to empty string on delete.
+- Timeline behavior: keep row in history; do not remove or reorder row.
+- Tombstone presentation: `(deleted)` rendered as smaller muted/grey text.
+- Search behavior: deleted messages are excluded from search results.
+- DELETE response semantics: `204 No Content`, idempotent for already-deleted messages (authorized caller).
+- WS payload contract: `message_deleted` includes `room_id`, `message_id`, `deleted_at`.
+- Frontend WS handling: mutate row in place to deleted state.
+- Rate limit: `20/minute` on delete endpoint.
+- Post-delete restrictions: deleted messages are not editable and not reactable.
+
+Implementation Ready Checklist (3.4):
+- `Locked`: endpoint authz matrix enforces owner+creator policy.
+- `Locked`: endpoint performs soft delete only and sets `deleted_at`.
+- `Locked`: endpoint scrubs content and prevents deleted rows from appearing in search.
+- `Locked`: endpoint is idempotent for already-deleted rows and returns `204` for authorized caller.
+- `Locked`: WS `message_deleted` event includes required fields for in-place update.
+- `Locked`: frontend renders `(deleted)` in smaller muted style and keeps row position stable.
+- `Locked`: frontend disables edit/reaction actions on deleted messages.
+- `Locked`: delete endpoint rate limit is set to `20/minute`.
+- `Locked`: backend/frontend tests for the above are listed before implementation starts.
 
 ### 3.5 Message Reactions
 **Value:** Medium-high.
@@ -507,7 +564,7 @@ Backend plan:
 
 Frontend plan:
 - Add reaction bar under each message.
-- Fixed starter emoji set (no full picker in v1).
+- Fixed starter emoji set (no full picker in v1): `👍 👎 ❤️ 😂 🔥 👀 🎉`.
 - Toggle own reaction on click.
 - Apply WS delta updates without full refetch.
 
@@ -528,9 +585,30 @@ Tests:
 - Backend: summary aggregation correctness.
 - Frontend: pill rendering and real-time updates.
 
-Details to lock before implementation:
-- Emoji allowlist for v1 (recommend: 👍 ❤️ 😂 🔥 👀 🎉).
-- Per-message reaction UI cap before overflow behavior.
+Locked decisions for implementation (3.5):
+- Emoji allowlist for v1: `👍 👎 ❤️ 😂 🔥 👀 🎉`.
+- Per-user reaction model: user may react with multiple different emojis on the same message, once per emoji.
+- Authorization: any authenticated room member may add/remove own reactions.
+- Deleted-message behavior: deleted messages are non-reactable, show no reaction UI, and their stored reactions are removed when message is deleted.
+- Reaction overflow behavior: show up to 5 pills inline, then `+N`.
+- Pill ordering: count descending; tie-break by allowlist order.
+- API shape: explicit add/remove endpoints (`POST` add, `DELETE` remove); client composes toggle behavior.
+- WS payload contract: reaction events include `room_id`, `message_id`, `emoji`, `user_id`, and updated emoji `count`.
+- Client update model: server-authoritative updates; no optimistic final state.
+- Rate limit: `40/minute` on reaction endpoint family.
+
+Implementation Ready Checklist (3.5):
+- `Locked`: emoji set includes both `👍` and `👎` in v1 starter reactions.
+- `Locked`: duplicate same-emoji reaction by same user is prevented by unique constraint and treated as toggle via add/remove API usage.
+- `Locked`: non-room-members cannot react; users can only remove their own reactions.
+- `Locked`: deleted messages cannot be reacted to and render without reaction controls.
+- `Locked`: deleting a message removes its stored reactions.
+- `Locked`: UI shows max 5 pills inline and then `+N` overflow indicator.
+- `Locked`: reaction pills sort by count desc with allowlist-order ties.
+- `Locked`: WS reaction events carry required fields for deterministic in-place updates.
+- `Locked`: client applies server-authoritative state from API+WS and does not assume optimistic final state.
+- `Locked`: reaction rate limit is set to `40/minute`.
+- `Locked`: backend/frontend tests for the above are listed in `backend/TESTPLAN.md` and frontend test plan before implementation starts.
 
 ### 3.6 Room Descriptions (Optional)
 **Value:** Medium.
@@ -543,12 +621,16 @@ Backend plan:
 - Add nullable `description` to `rooms`.
 - Extend `RoomCreate` and `RoomResponse` with optional description.
 - Add creator-only room update endpoint for description/name edits.
-- Validate and trim (recommend max 500 chars).
+- Validate and trim (max `255` chars, no newline characters in v1).
+- Treat empty string after trim as clear (`description = null`).
+- Broadcast room metadata update event after successful update.
 
 Frontend plan:
-- Show description below room title in chat header.
+- Show description below room title in chat header using smaller font than room title.
 - Show description in room discovery modal/list.
+- Mobile behavior: truncate description and show explicit `...` button to expand/collapse full text.
 - Provide creator-only edit entry point.
+- Apply server-authoritative updates from API/WS (no optimistic final-state assumption).
 
 Files expected:
 - `backend/app/models/room.py`
@@ -563,10 +645,33 @@ Files expected:
 Tests:
 - Backend: creator-only update, validation boundaries.
 - Frontend: display fallback when description missing.
+- Frontend: mobile truncate/expand behavior for description.
 
-Details to lock before implementation:
-- Whether room name + description share one update endpoint (recommend yes).
-- Whether markdown/rich text is allowed (recommend no; plain text only).
+Locked decisions for implementation (3.6):
+- API shape: single creator-only `PATCH /api/rooms/{room_id}` updates both `name` and `description`.
+- Content type: plain text only (no markdown/rich text) in v1.
+- Max length: `255` characters.
+- Normalization: trim leading/trailing whitespace, preserve internal spaces, reject newline characters in v1.
+- Empty semantics: empty string after trim clears description (`null` in DB).
+- Authorization: room creator only.
+- Visibility surfaces: room header + room discovery list only (no additional v1 surfaces).
+- Mobile rendering: smaller description text; truncated by default on mobile with explicit `...` expand/collapse control.
+- Realtime propagation: room metadata update is broadcast via WS so connected clients update without reload.
+- Client update model: server-authoritative updates from API + WS.
+- Rate limit: `20/minute` on room update endpoint.
+
+Implementation Ready Checklist (3.6):
+- `Locked`: single creator-only `PATCH /api/rooms/{room_id}` handles `name` and `description`.
+- `Locked`: description validation enforces plain text, max `255`, and no newlines.
+- `Locked`: trim + clear semantics (`""` after trim => `null`) are implemented consistently.
+- `Locked`: non-creators cannot modify description.
+- `Locked`: description appears in header and discovery list only.
+- `Locked`: mobile renders truncated description with explicit `...` expand/collapse control.
+- `Locked`: description style is visually subordinate to room title (smaller font).
+- `Locked`: WS update event propagates metadata changes to all connected clients.
+- `Locked`: frontend applies server-authoritative room metadata updates.
+- `Locked`: room update endpoint rate limit is set to `20/minute`.
+- `Locked`: backend/frontend tests for all above are listed in `backend/TESTPLAN.md` and frontend test plan before implementation starts.
 
 ### 3.7 Parking Lot (Defer)
 - URL permalink/deep-link route support (separate from internal jump, higher complexity).
@@ -574,75 +679,21 @@ Details to lock before implementation:
 
 ---
 
-## Phase 3 Decision Locks (Proposed)
+## Phase 3 Decision Locks
 
-Use this section as the implementation gate. A Phase 3 feature starts only when all of its locks are marked `Locked`.
+Use this section as the implementation gate. Detailed lock rationale and acceptance checklists live in each feature section above.
 
-### 3.1 New Messages Divider
-- Decision: Divider label text.
-- Proposed choice: `NEW MESSAGES`.
-- Status: `Proposed`.
+| Feature | Status | Locked on | Scope snapshot |
+| --- | --- | --- | --- |
+| `3.1` New Messages Divider | `Locked` | `2026-02-21` | `NEW MESSAGES`; do not render when `last_read_at` is null. |
+| `3.2` Global Jump-to-Message | `Locked` | `2026-02-21` | Internal-only context jump; default `25/25` window; required bidirectional context pagination; non-blocking live indicator + jump-to-latest; `3.2A` before `3.2B`. |
+| `3.3` Message Editing | `Locked` | `2026-02-21` | Owner-only; no time limit; keep original timestamp + `(edited)` marker with separate hovers; no deleted edits; no-op rejected; server-authoritative LWW; rate limit `20/minute`. |
+| `3.4` Message Deletion | `Locked` | `2026-02-21` | Owner + room creator; soft delete + content scrub; `(deleted)` muted tombstone in place; excluded from search; idempotent `204`; server event sync; rate limit `20/minute`. |
+| `3.5` Message Reactions | `Locked` | `2026-02-22` | Allowlist `👍 👎 ❤️ 😂 🔥 👀 🎉`; multi-emoji per user (one per emoji); member-only; no deleted-message reactions; max 5 pills + `+N`; server-authoritative; rate limit `40/minute`. |
+| `3.6` Room Descriptions | `Locked` | `2026-02-22` | Creator-only single room `PATCH` for name+description; plain text max `255`; trim/no newlines; empty clears to null; header+discovery surfaces; mobile truncate + `...`; server-authoritative; rate limit `20/minute`. |
 
-- Decision: Behavior when `last_read_at` is `null`.
-- Proposed choice: Do not render divider when `last_read_at` is `null`.
-- Status: `Proposed`.
-
-### 3.2 Global Jump-to-Message
-- Decision: Default context window size.
-- Proposed choice: `before=25`, `after=25`.
-- Status: `Proposed`.
-
-- Decision: Route strategy for v1.
-- Proposed choice: Internal context loading only (no deep-link route in this feature).
-- Status: `Proposed`.
-
-- Decision: Context-mode pagination behavior.
-- Proposed choice: Bidirectional pagination is required (load older at top sentinel, load newer at bottom sentinel).
-- Status: `Proposed`.
-
-- Decision: Live updates while in context mode.
-- Proposed choice: Show non-blocking "new messages available" indicator and explicit jump-to-latest control; do not auto-jump user.
-- Status: `Proposed`.
-
-- Decision: 3.2 implementation order.
-- Proposed choice: `3.2A` infrastructure must land before `3.2B` UX behavior.
-- Status: `Proposed`.
-
-### 3.3 Message Editing
-- Decision: Edit time window.
-- Proposed choice: No time limit in v1.
-- Status: `Proposed`.
-
-- Decision: Timestamp semantics for edited messages.
-- Proposed choice: Keep original `created_at` display, append `(edited)` indicator.
-- Status: `Proposed`.
-
-### 3.4 Message Deletion
-- Decision: Delete authorization policy.
-- Proposed choice: Message owner + room creator can delete.
-- Status: `Proposed`.
-
-- Decision: Tombstone copy.
-- Proposed choice: `This message was deleted`.
-- Status: `Proposed`.
-
-### 3.5 Message Reactions
-- Decision: Emoji allowlist for v1.
-- Proposed choice: `👍 ❤️ 😂 🔥 👀 🎉`.
-- Status: `Proposed`.
-
-- Decision: Reaction overflow behavior.
-- Proposed choice: Show up to 5 pills inline, then `+N` overflow indicator.
-- Status: `Proposed`.
-
-### 3.6 Room Descriptions
-- Decision: Room updates API shape.
-- Proposed choice: Single creator-only `PATCH /api/rooms/{room_id}` endpoint for name + description.
-- Status: `Proposed`.
-
-- Decision: Description content type.
-- Proposed choice: Plain text only (no markdown/rich text) in v1.
-- Status: `Proposed`.
+Lock maintenance rule:
+- If a lock changes, update both this matrix and the corresponding `Locked decisions` + `Implementation Ready Checklist` in the feature section.
 
 ---
 
