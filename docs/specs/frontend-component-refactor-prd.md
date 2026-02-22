@@ -3,15 +3,15 @@
 **Date:** 2026-02-22  
 **Owner:** Frontend  
 **Execution mode:** `gated` (one PRD + child Task issues)
-**Status:** Draft (issue scaffolding pending)
+**Status:** Active (issue scaffolding complete)
 
 ## Tracking
-- PRD issue: `TBD`
+- PRD issue: `#14`
 - Child Task issues:
-  - [ ] Task 1 (`RoomList` decomposition): `TBD`
-  - [ ] Task 2 (`MessageList` decomposition): `TBD`
-  - [ ] Task 3 (`ChatLayout` orchestration cleanup): `TBD`
-  - [ ] Task 4 (`MessageArea` decomposition): `TBD`
+  - [ ] Task 1 (`RoomList` decomposition): `#15`
+  - [ ] Task 2 (`MessageList` decomposition): `#16`
+  - [ ] Task 3 (`ChatLayout` orchestration cleanup): `#17`
+  - [ ] Task 4 (`MessageArea` decomposition): `#18`
 - Finalizing PR: `TBD`
 
 ## Summary
@@ -97,7 +97,7 @@ No backend changes.
 ### Task 4: `MessageArea` decomposition
 - Extract header/menu actions into a dedicated header component.
 - Extract destructive confirmation modal into dedicated component.
-- Keep `MessageArea` focused on composition of header, list, typing row, error row, and input.
+- Keep typing indicator and ephemeral WS error rows in `MessageArea` for this pass; defer extracting those rows to a follow-up if needed.
 
 ## Child Task Map (Gated Execution)
 | Task | Scope | Primary Files | Verify Focus |
@@ -153,9 +153,12 @@ Test updates likely in:
 5. Maintain current visual design and interaction semantics.
 6. Keep theme and density behavior exactly as-is.
 7. Keep existing keyboard shortcut semantics (`Cmd/Ctrl+K`, `/`, `Escape`) unchanged.
+8. Hotspot file size target is ~350 LOC with hard cap <= 450 LOC per primary file; exceptions require a follow-up Task.
+9. Task 4 extracts header/menu/delete modal (including delete-error handling) and defers typing indicator row + ephemeral WS error row extraction.
+10. Naming convention is `kebab-case` subcomponent directories, `PascalCase` component files, and hooks in `src/hooks` as `useXxx`.
 
 ## Acceptance Criteria
-1. All targeted hotspot components are decomposed and each primary file is reduced below 500 LOC.
+1. All targeted hotspot components are decomposed and each primary file meets the LOC lock (target ~350, hard cap <= 450 LOC).
 2. `RoomList`, `MessageList`, `ChatLayout`, and `MessageArea` preserve existing user-visible behavior.
 3. Existing frontend tests pass; new regression tests for high-risk extracted logic are added and passing.
 4. Frontend verification commands pass (`tsc`, `eslint`, `build`).
@@ -213,7 +216,7 @@ After merge, record:
 - one reusable refactor pattern in `docs/PATTERNS.md`
 - one improvement to apply in the next structural refactor
 
-## Open Questions (Lock Before First Task PR)
-- [ ] Confirm final LOC target per hotspot file (currently `<500 LOC`).
-- [ ] Confirm if `MessageArea` extraction should include typing/error rows in this pass or defer to a follow-up.
-- [ ] Confirm preferred naming convention for new subcomponent folders (`kebab-case` directories with PascalCase files).
+## Resolved Lock Decisions
+- [x] LOC target per hotspot primary file: target ~350 LOC, hard cap <= 450 LOC (exceptions require follow-up Task).
+- [x] Task 4 scope: extract header/menu/delete modal in this pass; defer typing indicator row + ephemeral WS error row extraction.
+- [x] Naming convention: `kebab-case` directories with `PascalCase` component files; hooks in `src/hooks` as `useXxx`.
