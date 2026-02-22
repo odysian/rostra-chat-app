@@ -1,7 +1,7 @@
 ## Goal
 Decompose `MessageArea` into focused composition units (header/actions/modal) while preserving room-header behavior and destructive-action flows.
 
-Parent PRD: #14
+Parent Spec: #14
 
 Suggested labels: `type:task`, `area:frontend`, `area:tests`, `area:docs`, `status:blocked`
 
@@ -30,7 +30,7 @@ Suggested labels: `type:task`, `area:frontend`, `area:tests`, `area:docs`, `stat
 - [x] Locked: Refactor-only and behavior-preserving.
 - [x] Locked: No API/WS contract changes.
 - [x] Locked: No new dependencies.
-- [x] Locked in PRD: Extract header/menu/delete modal only (including `deleteError` handling); defer typing indicator + `wsError` rows.
+- [x] Locked in Spec: Extract header/menu/delete modal only (including `deleteError` handling); defer typing indicator + `wsError` rows.
 
 ## Acceptance Criteria
 - [ ] `MessageArea` is decomposed with dedicated header/actions/modal components.

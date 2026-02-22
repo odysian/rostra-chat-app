@@ -11,27 +11,27 @@ Read in this order:
 4. `docs/ARCHITECTURE.md`
 5. `docs/PATTERNS.md`
 6. `docs/REVIEW_CHECKLIST.md`
-7. `skills/write-prd.md`
-8. `skills/prd-to-issues.md`
+7. `skills/write-spec.md`
+8. `skills/spec-to-issues.md`
 9. `skills/issue-to-pr.md`
-10. `skills/prd-workflow-gh.md`
+10. `skills/spec-workflow-gh.md`
 
 ## Unit of Work Rule
 
 - **Unit of work is a GitHub Issue.**
 - Choose an execution mode from `docs/ISSUES_WORKFLOW.md` before coding:
   - `single` (default): one feature -> one Task issue -> one PR
-  - `gated`: PRD issue + child Task issue(s) for feature sets or higher-risk work
+  - `gated`: Spec issue + child Task issue(s) for feature sets or higher-risk work
   - `fast`: quick-fix path for tiny low-risk changes
 - Convert freeform requests into the selected issue mode before implementation.
 - Work one Task issue at a time.
-- PRs close Task issues (`Closes #123`), not PRDs.
-- PRDs close only when all child Tasks are done or explicitly deferred.
+- PRs close Task issues (`Closes #123`), not Specs.
+- Specs close only when all child Tasks are done or explicitly deferred.
 - Detailed control-plane rules are canonical in `docs/ISSUES_WORKFLOW.md`.
-- For one-shot issue body + `gh` command generation, use `skills/prd-workflow-gh.md`.
+- For one-shot issue body + `gh` command generation, use `skills/spec-workflow-gh.md`.
 - Default shorthand command:
   - `Create an issue workflow for feature <feature-id> in <filename>.`
-  - Interpreted as `mode=single` automation using `skills/prd-workflow-gh.md` with minimal chatter and direct `gh issue create`.
+  - Interpreted as `mode=single` automation using `skills/spec-workflow-gh.md` with minimal chatter and direct `gh issue create`.
 
 ## Agent Operating Loop
 
@@ -42,7 +42,7 @@ Read in this order:
 5. Implement with tight, surgical changes.
 6. Run verification commands.
 7. Update tests/docs if required.
-8. Open PR that closes the Task issue; close PRD after child Tasks are done/deferred.
+8. Open PR that closes the Task issue; close Spec after child Tasks are done/deferred.
 
 ## Process
 
@@ -206,11 +206,11 @@ Just do it. No plan needed. Execute, verify, done.
 
 ### Issues Workflow (Control Plane)
 
-- Choose mode first: `single` (default), `gated` (PRD + Tasks), or `fast` (tiny low-risk fixes).
+- Choose mode first: `single` (default), `gated` (Spec + Tasks), or `fast` (tiny low-risk fixes).
 - Default sizing in issue modes: 1 feature -> 1 Task -> 1 PR unless split criteria apply.
 - GitHub issues are the execution source of truth. `TASKS.md` is scratchpad-only.
 - Follow canonical rules in `docs/ISSUES_WORKFLOW.md` for DoR/DoD and Phase 3 gates.
-- Decision Locks live in the controlling issue (Task in `single` mode, PRD in `gated` mode); use Decision issues only for non-trivial/reused discussion.
+- Decision Locks live in the controlling issue (Task in `single` mode, Spec in `gated` mode); use Decision issues only for non-trivial/reused discussion.
 - If a decision has lasting architecture/security/performance impact, create and link an ADR (`docs/adr/NNN-kebab-case-title.md`).
 
 ### Goal-driven execution

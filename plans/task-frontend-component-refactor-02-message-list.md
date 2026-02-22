@@ -1,7 +1,7 @@
 ## Goal
 Decompose `MessageList` by separating feed lifecycle logic from rendering while preserving pagination, scroll stability, and divider behavior.
 
-Parent PRD: #14
+Parent Spec: #14
 
 Suggested labels: `type:task`, `area:frontend`, `area:tests`, `area:docs`, `status:blocked`
 
@@ -29,7 +29,7 @@ Suggested labels: `type:task`, `area:frontend`, `area:tests`, `area:docs`, `stat
 - [x] Locked: Refactor-only and behavior-preserving.
 - [x] Locked: No API/WS contract changes.
 - [x] Locked: No new dependencies.
-- [x] Locked in PRD: Hotspot LOC target is ~350 with hard cap <= 450 LOC for each primary file.
+- [x] Locked in Spec: Hotspot LOC target is ~350 with hard cap <= 450 LOC for each primary file.
 
 ## Acceptance Criteria
 - [ ] `MessageList` lifecycle logic is extracted and rendering is split into focused components.

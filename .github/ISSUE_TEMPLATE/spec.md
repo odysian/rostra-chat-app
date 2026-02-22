@@ -1,8 +1,8 @@
 ---
-name: "PRD"
-about: "Feature spec + acceptance criteria + decision locks"
-title: "PRD: "
-labels: ["type:prd"]
+name: "Spec"
+about: "Feature Spec or Technical Spec + acceptance criteria + decision locks"
+title: "Spec: "
+labels: ["type:spec"]
 ---
 
 ## Summary

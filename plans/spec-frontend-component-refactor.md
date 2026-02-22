@@ -1,9 +1,9 @@
 ## Summary
 Refactor oversized frontend chat components to reduce maintenance risk while preserving current behavior and UI.
 
-Source spec: `docs/specs/frontend-component-refactor-prd.md`
+Source spec: `docs/specs/frontend-component-refactor-spec.md`
 
-Suggested labels: `type:prd`, `area:frontend`, `area:tests`, `area:docs`, `status:ready`
+Suggested labels: `type:spec`, `area:frontend`, `area:tests`, `area:docs`, `status:ready`
 
 ## Value / User Impact
 - Faster and safer chat-surface changes due to smaller, focused modules.
@@ -59,7 +59,7 @@ Suggested labels: `type:prd`, `area:frontend`, `area:tests`, `area:docs`, `statu
 - [x] Locked: Naming convention is `kebab-case` subcomponent directories, `PascalCase` component files, and hooks in `src/hooks` as `useXxx`.
 
 ## Acceptance Criteria
-- [ ] PRD issue created and linked from child Task issues.
+- [ ] Spec issue created and linked from child Task issues.
 - [ ] Child Tasks are created and sequenced with explicit dependencies.
 - [ ] All four hotspot components are decomposed and each primary file meets the LOC lock (target ~350, hard cap <= 450).
 - [ ] Existing behavior for room selection, unread updates, scroll/pagination, and modal actions is preserved.
@@ -76,4 +76,4 @@ cd frontend && npm test
 
 ## Notes
 - This issue controls decision locks and cross-task sequencing for gated execution.
-- Child Task PRs should close only Task issues (`Closes #<task-id>`), not this PRD issue.
+- Child Task PRs should close only Task issues (`Closes #<task-id>`), not this Spec issue.
