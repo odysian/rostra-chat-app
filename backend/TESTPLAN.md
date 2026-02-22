@@ -187,7 +187,7 @@ When implementing these tests:
 
 ### POST /api/auth/refresh (future, not currently implemented)
 
-If refresh-token auth is added later, define this section in a dedicated PRD and expand tests at that time.
+If refresh-token auth is added later, define this section in a dedicated Spec and expand tests at that time.
 
 ---
 

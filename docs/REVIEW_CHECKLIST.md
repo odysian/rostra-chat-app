@@ -46,6 +46,9 @@ Use this after agent sessions or before committing. Not every item applies to ev
 - [ ] **Types:** No `any` in TypeScript; use `unknown` and narrow if needed. Backend uses type hints and Pydantic.
 - [ ] **Edge cases:** Empty input, null, long strings (Pydantic max lengths; frontend room name 3–50).
 - [ ] **Consistency:** Matches patterns in PATTERNS.md (error shape, auth, API client, component structure).
+- [ ] **Frontend bloat guardrail:** For touched container components, target around 350 LOC and keep <= 450 LOC, or create a linked follow-up Task in the same PR with explicit split scope.
+- [ ] **Responsibility boundaries:** Components do not accumulate mixed concerns (data orchestration + modal orchestration + heavy rendering) when extraction is feasible.
+- [ ] **Contract stability:** Refactors preserve public props/callback semantics unless contract changes are explicitly scoped and tests are updated.
 - [ ] **Dead code:** No unused imports, commented-out blocks, or unused variables. `useWebSocket` hook exists alongside WebSocketContext; ChatLayout uses context only.
 - [ ] **Naming:** Clear names; follows naming conventions in PATTERNS.md.
 

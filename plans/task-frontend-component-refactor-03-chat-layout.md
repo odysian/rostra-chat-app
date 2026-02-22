@@ -1,7 +1,7 @@
 ## Goal
 Clean up `ChatLayout` orchestration by isolating subscription/event handling and centralizing room reset behavior without changing runtime behavior.
 
-Parent PRD: #14
+Parent Spec: #14
 
 Suggested labels: `type:task`, `area:frontend`, `area:tests`, `area:docs`, `status:blocked`
 

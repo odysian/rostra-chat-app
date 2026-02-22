@@ -1,23 +1,23 @@
-# Playbook: Plan/PRD -> Issues
+# Playbook: Plan/Spec -> Issues
 
 This is a portable procedural playbook. It is not runtime-loaded unless your tooling explicitly loads it.
 
-Given a feature plan (from `plans/*.md`, specs, or a PRD):
+Given a feature plan (from `plans/*.md`, specs, or a Spec):
 
 1. Choose execution mode first:
 - `single` (default): one end-to-end Task issue, one PR closes it.
-- `gated`: one PRD issue + child Task issue(s).
+- `gated`: one Spec issue + child Task issue(s).
 - `fast`: quick-fix checklist only (no issue creation by default).
-2. In `single` mode, the Task should include mini-PRD sections:
+2. In `single` mode, the Task should include mini-spec sections:
 - summary/goal
 - scope in/out
 - acceptance criteria
 - verification commands
 - decision locks when backend-coupled
 3. In `gated` mode:
-- PRD holds decision locks and feature-set context
+- Spec holds decision locks and feature-set context
 - child Tasks stay PR-sized (default one Task per feature)
-- each Task includes `Parent PRD: (placeholder)` until real PRD issue ID exists
+- each Task includes `Parent Spec: (placeholder)` until real Spec issue ID exists
 4. Split into additional Tasks only when split criteria apply (size/risk/dependency/parallelization), and explain why.
 5. Task acceptance criteria should include checkboxes for:
 - backend work (if applicable)

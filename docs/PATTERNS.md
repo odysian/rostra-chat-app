@@ -71,6 +71,13 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Portals:** Modals (create room, delete room) use `createPortal(..., document.body)` to render outside the sidebar DOM hierarchy.
 - **One WebSocket provider:** WebSocketProvider wraps ChatLayout; only chat page uses WebSocket. Auth state is above so token is available when mounting WebSocketProvider.
 
+### Frontend Anti-Bloat Baseline
+
+- **Primary component size guardrail:** Target around 350 LOC; treat 450 LOC as hard cap for container components. If a component remains above 450 LOC, split now or open a linked follow-up Task in the same PR.
+- **Responsibility split rule:** Avoid mixing data orchestration, overlay/modal orchestration, and heavy rendering in one file. Prefer extraction into `src/hooks/useXxx.ts` for stateful logic and `src/components/<feature-kebab>/PascalCase.tsx` for rendering units.
+- **Contract stability rule:** During refactors, keep parent/child public prop contracts stable unless the task explicitly scopes a contract change and includes test updates for it.
+- **Refactor verification rule:** Extraction-only PRs should preserve behavior and include targeted regression tests for high-risk interactions (keyboard flow, unread counters, modal flows, scroll/feed behavior).
+
 ## WebSocket Pattern
 
 - **Service class:** `WebSocketService` in `services/websocket.ts`. Constructor takes token; `connect()` builds URL `ws(s)://host/ws/connect?token=<token>`. Base URL resolves from `VITE_WS_URL` when present, otherwise derives from `VITE_API_URL` (with optional `/api` suffix stripped). Before connecting, token is validated via a quick GET to `/api/auth/me`.

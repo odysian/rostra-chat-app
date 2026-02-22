@@ -1,12 +1,12 @@
-# PRD: Frontend Component Refactor for File-Size Bloat
+# Technical Spec: Frontend Component Refactor for File-Size Bloat
 
 **Date:** 2026-02-22  
 **Owner:** Frontend  
-**Execution mode:** `gated` (one PRD + child Task issues)
+**Execution mode:** `gated` (one Technical Spec + child Task issues)
 **Status:** Active (issue scaffolding complete)
 
 ## Tracking
-- PRD issue: `#14`
+- Spec issue: `#14`
 - Child Task issues:
   - [ ] Task 1 (`RoomList` decomposition): `#15`
   - [ ] Task 2 (`MessageList` decomposition): `#16`
@@ -163,13 +163,13 @@ Test updates likely in:
 3. Existing frontend tests pass; new regression tests for high-risk extracted logic are added and passing.
 4. Frontend verification commands pass (`tsc`, `eslint`, `build`).
 5. No backend code changes and no dependency changes are introduced.
-6. Child Task issues are created and executed one at a time under this PRD (`gated` flow).
+6. Child Task issues are created and executed one at a time under this Spec (`gated` flow).
 
 ## Definition of Ready / Definition of Done
 ### Definition of Ready (for each child Task)
 - [ ] Task issue has clear summary, scope in/out, and acceptance criteria.
 - [ ] Verification commands are listed in the issue body.
-- [ ] Required decision locks are copied from this PRD where applicable.
+- [ ] Required decision locks are copied from this Spec where applicable.
 - [ ] Target file list and regression risks are explicit.
 
 ### Definition of Done (for each child Task)

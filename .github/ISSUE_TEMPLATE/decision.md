@@ -26,5 +26,5 @@ labels: ["type:decision"]
 - [ ] No
 
 ## Links
-- PRD issue:
+- Spec issue:
 - ADR (if required):

@@ -38,7 +38,7 @@ project-root/
 │   ├── PATTERNS.md            # Code conventions and reusable patterns
 │   └── REVIEW_CHECKLIST.md    # Post-implementation verification checklist
 ├── .github/
-│   ├── ISSUE_TEMPLATE/        # PRD/Task/Decision issue templates
+│   ├── ISSUE_TEMPLATE/        # Spec/Task/Decision issue templates
 │   └── PULL_REQUEST_TEMPLATE.md
 ├── skills/                    # Portable issue workflow playbooks
 ├── tests/
@@ -520,7 +520,7 @@ This is harness engineering. Over time, the AGENTS.md becomes increasingly speci
 
 | Event                          | Files to Update                                    |
 |-------------------------------|---------------------------------------------------|
-| New feature designed           | ARCHITECTURE.md, backend/TESTPLAN.md, PRD + Task issues |
+| New feature designed           | ARCHITECTURE.md, backend/TESTPLAN.md, Spec + Task issues |
 | Feature implemented            | PATTERNS.md (if new convention), Task issue + linked PR |
 | Agent made a mistake           | AGENTS.md (new rule), README.md (Review Log)        |
 | Code review completed          | REVIEW_CHECKLIST.md (if new check type discovered)  |
@@ -820,10 +820,10 @@ These rules govern agent behavior across all tasks. They supplement project-spec
 
 Canonical execution rules live in `docs/ISSUES_WORKFLOW.md`.
 
-- Choose execution mode first: `single` (default), `gated` (PRD + Task issues), or `fast` (quick fix).
+- Choose execution mode first: `single` (default), `gated` (Spec + Task issues), or `fast` (quick fix).
 - Default sizing is 1 feature -> 1 Task -> 1 PR unless split criteria apply.
 - GitHub issues are source of truth for execution (`TASKS.md` is scratchpad only).
-- PRs close Task issues, and PRDs close after all child Tasks are done.
+- PRs close Task issues, and Specs close after all child Tasks are done.
 - Backend-coupled work requires Decision Locks before implementation.
 
 ### During Implementation
@@ -911,7 +911,7 @@ Before reporting any task as complete:
 │  1. DESIGN (Developer + Claude)                         │
 │     Whiteboard architecture → Update ARCHITECTURE.md    │
 │     Define test cases → Update backend/TESTPLAN.md      │
-│     Break into Task issues from PRD                     │
+│     Break into Task issues from Spec                     │
 ├─────────────────────────────────────────────────────────┤
 │  2. TEST (Agent implements from backend/TESTPLAN.md)     │
 │     Write test code → Tests should FAIL (no feature yet)│

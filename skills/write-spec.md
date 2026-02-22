@@ -1,8 +1,8 @@
-# Playbook: Write a PRD
+# Playbook: Write a Spec
 
 This is a portable procedural playbook. It is not runtime-loaded unless your tooling explicitly loads it.
 
-When asked to create a PRD:
+When asked to create a Spec:
 
 1. Confirm scope, non-goals, compatibility needs, risks, and verification commands.
 2. Write concise sections:
