@@ -111,6 +111,26 @@ describe("MessageArea", () => {
     expect(screen.getByRole("button", { name: "Delete Room" })).toBeInTheDocument();
   });
 
+  it("calls mobile back callback from header button", async () => {
+    const user = userEvent.setup();
+    renderMessageArea();
+
+    await user.click(screen.getByRole("button", { name: "Back to rooms" }));
+
+    expect(mockOnBackToRooms).toHaveBeenCalledTimes(1);
+  });
+
+  it("calls search and users header actions", async () => {
+    const user = userEvent.setup();
+    renderMessageArea();
+
+    await user.click(screen.getByRole("button", { name: "Search messages" }));
+    await user.click(screen.getByRole("button", { name: "Toggle users panel" }));
+
+    expect(mockOnToggleSearch).toHaveBeenCalledTimes(1);
+    expect(mockOnToggleUsers).toHaveBeenCalledTimes(1);
+  });
+
   it("hides delete option for non-room-owner", async () => {
     const user = userEvent.setup();
     renderMessageArea({
@@ -172,6 +192,7 @@ describe("MessageArea", () => {
       expect(mockOnRoomDeleted).toHaveBeenCalledTimes(1);
     });
     expect(mockDeleteRoom).toHaveBeenCalledWith(10, "test-token");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("shows inline delete error on API failure", async () => {
@@ -188,7 +209,20 @@ describe("MessageArea", () => {
     await user.click(screen.getByRole("button", { name: "DELETE ROOM" }));
 
     expect(await screen.findByText("Delete failed")).toBeInTheDocument();
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(consoleErrorSpy).toHaveBeenCalled();
+  });
+
+  it("closes delete modal when cancel is clicked", async () => {
+    const user = userEvent.setup();
+    renderMessageArea();
+
+    await user.click(screen.getByRole("button", { name: "Room options" }));
+    await user.click(screen.getByRole("button", { name: "Delete Room" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "CANCEL" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("supports typing indicator text formats", () => {

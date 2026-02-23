@@ -8,6 +8,8 @@ import { deleteRoom } from "../services/api";
 import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { MessageAreaHeader } from "./message-area/MessageAreaHeader";
+import { DeleteRoomModal } from "./message-area/DeleteRoomModal";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
@@ -203,255 +205,37 @@ export default function MessageArea({
       className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden"
       style={{ background: "var(--bg-app)" }}
     >
-      {/* Room Header */}
-      <div
-        className="shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 min-w-0"
-        style={{
-          borderBottom: "1px solid var(--border-dim)",
-          padding: "12px 20px",
+      <MessageAreaHeader
+        displayRoomName={displayRoomName}
+        theme={theme}
+        showRoomMenu={showRoomMenu}
+        hasOtherUnreadRooms={hasOtherUnreadRooms}
+        isRoomOwner={isRoomOwner}
+        onBackToRooms={onBackToRooms}
+        onToggleRoomMenu={() => setShowRoomMenu((prev) => !prev)}
+        onCloseRoomMenu={() => setShowRoomMenu(false)}
+        onLeaveRoom={() => {
+          setShowRoomMenu(false);
+          onLeaveRoom();
         }}
-      >
-        <div className="flex items-center gap-2.5 min-w-0 flex-1">
-          {/* Back button - mobile only */}
-          <div className="relative md:hidden">
-            <button
-              type="button"
-              data-tab-focus="back-button"
-              onClick={onBackToRooms}
-              className="shrink-0 transition-colors p-1 icon-button-focus"
-              style={{ color: "var(--color-meta)" }}
-              title="Back to rooms"
-              aria-label="Back to rooms"
-            >
-              <svg
-                className="w-6 h-6"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            {hasOtherUnreadRooms && (
-              <span
-                className="absolute top-0 right-0 w-2 h-2 rounded-full"
-                style={{
-                  background: "var(--color-secondary)",
-                  boxShadow: "var(--glow-secondary)",
-                }}
-                aria-hidden
-              />
-            )}
-          </div>
+        onRequestDeleteRoom={() => {
+          setShowRoomMenu(false);
+          setDeleteError("");
+          setShowDeleteModal(true);
+        }}
+        onToggleSearch={onToggleSearch}
+        onToggleUsers={onToggleUsers}
+      />
 
-          <div className="min-w-0 flex-1 overflow-hidden">
-            {/* Room name — gradient for neon, solid glow for amber */}
-            {theme === "neon" ? (
-              <h2
-                className="inline-flex items-center max-w-full font-bebas text-[24px] leading-none tracking-[0.11em] truncate gradient-text"
-                title={`#${displayRoomName}`}
-                style={{
-                  backgroundImage:
-                    "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
-                  filter: "drop-shadow(0 0 6px rgba(0, 240, 255, 0.27))",
-                }}
-              >
-                #{displayRoomName}
-              </h2>
-            ) : (
-              <h2
-                className="inline-flex items-center max-w-full font-bebas text-[24px] leading-none tracking-[0.11em] truncate"
-                title={`#${displayRoomName}`}
-                style={{
-                  color: "var(--color-primary)",
-                  textShadow: "var(--glow-primary)",
-                }}
-              >
-                #{displayRoomName}
-              </h2>
-            )}
-          </div>
-
-          {/* Room Options Menu */}
-          <div className="relative shrink-0">
-            <button
-              type="button"
-              data-tab-focus="room-menu-button"
-              onClick={() => setShowRoomMenu(!showRoomMenu)}
-              className="transition-colors p-1.5 icon-button-focus"
-              style={{ color: "var(--color-meta)" }}
-              title="Room options"
-              aria-label="Room options"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2zm0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z" />
-              </svg>
-            </button>
-
-            {/* Dropdown Menu */}
-            {showRoomMenu && (
-              <>
-                <div
-                  className="fixed inset-0 z-10 cursor-pointer"
-                  onClick={() => setShowRoomMenu(false)}
-                />
-                <div
-                  className="absolute right-0 mt-2 w-48 max-w-[calc(100vw-16px)] max-h-64 overflow-y-auto shadow-lg py-1 z-20"
-                  style={{
-                    background: "var(--bg-panel)",
-                    border: "1px solid var(--border-primary)",
-                  }}
-                >
-                  <button
-                    onClick={() => {
-                      setShowRoomMenu(false);
-                      onLeaveRoom();
-                    }}
-                    className="w-full px-4 py-2 text-left font-mono text-[12px] room-menu-item"
-                    style={{ color: "var(--color-text)" }}
-                  >
-                    Leave Room
-                  </button>
-
-                  {isRoomOwner && (
-                    <>
-                      <div style={{ borderTop: "1px solid var(--border-dim)", margin: "4px 0" }} />
-                      <button
-                        onClick={() => {
-                          setShowRoomMenu(false);
-                          setDeleteError("");
-                          setShowDeleteModal(true);
-                        }}
-                        className="w-full px-4 py-2 text-left font-mono text-[12px] room-menu-item"
-                        style={{ color: "#ff4444" }}
-                      >
-                        Delete Room
-                      </button>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Search toggle */}
-        <button
-          type="button"
-          data-tab-focus="search-button"
-          onClick={onToggleSearch}
-          className="shrink-0 transition-colors p-1 icon-button-focus"
-          style={{ color: "var(--color-meta)" }}
-          title="Search messages"
-          aria-label="Search messages"
-        >
-          <svg
-            className="w-5 h-5"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-            />
-          </svg>
-        </button>
-
-        <button
-          type="button"
-          data-tab-focus="users-button"
-          onClick={onToggleUsers}
-          className="shrink-0 transition-colors p-1 icon-button-focus"
-          style={{ color: "var(--color-meta)" }}
-          title="Toggle users panel"
-          aria-label="Toggle users panel"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
-            />
-          </svg>
-        </button>
-      </div>
-
-      {/* Delete Confirmation Modal */}
-      {showDeleteModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div
-            ref={deleteModalRef}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="delete-room-title"
-            className="p-6 max-w-md w-full mx-4"
-            style={{
-              background: "var(--bg-panel)",
-              border: "1px solid var(--border-primary)",
-            }}
-          >
-            <h3
-              id="delete-room-title"
-              className="font-bebas text-[22px] tracking-[0.08em] mb-2"
-              style={{ color: "var(--color-primary)" }}
-            >
-              Delete Room?
-            </h3>
-            <p className="font-mono text-[14px] mb-6" style={{ color: "var(--color-meta)" }}>
-              Are you sure you want to delete{" "}
-              <span style={{ color: "var(--color-primary)" }}>
-                {displayRoomName}
-              </span>
-              ? This will permanently delete all messages. This action cannot be undone.
-            </p>
-            {deleteError && (
-              <p className="text-sm mb-4" style={{ color: "#ff4444" }}>{deleteError}</p>
-            )}
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  closeDeleteModal();
-                }}
-                disabled={deleting}
-                className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"
-                style={{
-                  border: "1px solid var(--border-dim)",
-                  color: "var(--color-text)",
-                  background: "transparent",
-                }}
-              >
-                CANCEL
-              </button>
-              <button
-                onClick={handleDeleteRoom}
-                disabled={deleting}
-                className="px-4 py-2 font-bebas text-[14px] tracking-[0.10em] transition-colors disabled:opacity-50"
-                style={{
-                  background: "#ff4444",
-                  color: "#000",
-                  border: "1px solid #ff4444",
-                }}
-              >
-                {deleting ? "DELETING..." : "DELETE ROOM"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <DeleteRoomModal
+        open={showDeleteModal}
+        displayRoomName={displayRoomName}
+        deleting={deleting}
+        deleteError={deleteError}
+        modalRef={deleteModalRef}
+        onCancel={closeDeleteModal}
+        onConfirm={handleDeleteRoom}
+      />
 
       <MessageList
         key={selectedRoom.id}
