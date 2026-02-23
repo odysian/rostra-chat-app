@@ -79,6 +79,12 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Contract stability rule:** During refactors, keep parent/child public prop contracts stable unless the task explicitly scopes a contract change and includes test updates for it.
 - **Refactor verification rule:** Extraction-only PRs should preserve behavior and include targeted regression tests for high-risk interactions (keyboard flow, unread counters, modal flows, scroll/feed behavior).
 
+## Frontend Commenting Pattern
+
+- **Module responsibility header (complex files):** For orchestration-heavy files (for example ChatLayout, feed lifecycle hooks, websocket transport/context), start with a short comment describing ownership boundaries and major side effects.
+- **Invariant comments over mechanics:** Comment non-obvious guardrails (for example deduped WS subscriptions, read-marker authority, scroll anchor stability), not line-by-line syntax.
+- **Render vs orchestration ownership:** In render helpers/components, document when a value is read-only display state computed upstream (for example message divider anchors) to avoid accidental logic drift.
+
 ## WebSocket Pattern
 
 - **Service class:** `WebSocketService` in `services/websocket.ts`. Constructor takes token; `connect()` builds URL `ws(s)://host/ws/connect?token=<token>`. Base URL resolves from `VITE_WS_URL` when present, otherwise derives from `VITE_API_URL` (with optional `/api` suffix stripped). Before connecting, token is validated via a quick GET to `/api/auth/me`.

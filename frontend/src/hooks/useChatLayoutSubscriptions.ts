@@ -1,5 +1,9 @@
 import { useEffect, type Dispatch, type MutableRefObject, type SetStateAction } from "react";
 
+/**
+ * Keeps local room-subscription intent and server-side WS subscriptions aligned.
+ * Reconnect invariant: every reconnect must resend current room IDs exactly once.
+ */
 interface UseChatLayoutSubscriptionsParams {
   connected: boolean;
   subscribedRoomIds: number[];
@@ -26,6 +30,7 @@ export function useChatLayoutSubscriptions({
     if (!prevConnectedRef.current && connected) {
       subscribedSentRef.current.clear();
       if (hasConnectedOnceRef.current) {
+        // Trigger Sidebar reload after reconnect so unread + room state resync from API.
         refreshTimeoutId = window.setTimeout(() => {
           setRefreshTrigger((prev) => prev + 1);
         }, 0);
@@ -50,6 +55,7 @@ export function useChatLayoutSubscriptions({
       if (subscribedSentRef.current.has(roomId)) {
         return;
       }
+      // Dedupe subscribe() calls across rerenders while keeping explicit room order local.
       subscribe(roomId);
       subscribedSentRef.current.add(roomId);
     });

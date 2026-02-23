@@ -9,6 +9,10 @@ import type {
   MessageContextResponse,
 } from "../types";
 
+// Central API client used by all frontend features.
+// Contract invariants:
+// - All HTTP calls flow through apiCall() for consistent timeout/retry/error handling.
+// - 401 always triggers the registered unauthorized handler before surfacing error.
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const API_URL = `${BASE_URL}/api`;
@@ -138,6 +142,7 @@ async function apiCall<T>(endpoint: string, options?: RequestInit): Promise<T> {
 
         // Wait before retry
         if (attempt < RETRY_CONFIG.maxRetries) {
+          // Backoff keeps cold-start bursts from hammering the backend wake-up path.
           await new Promise(resolve => setTimeout(resolve, getDelay(attempt)));
         }
       } else {

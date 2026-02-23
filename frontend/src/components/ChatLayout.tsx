@@ -16,6 +16,8 @@ import {
 } from "./chat-layout/chatLayoutRoomState";
 import type { Message, MessageContextResponse, OnlineUser, Room } from "../types";
 
+// Keep a bounded subscription set so unread updates stay real-time without
+// subscribing to every discovered room in large workspaces.
 const MAX_SUBSCRIPTIONS = 10;
 const INITIAL_AUTO_SUBSCRIBE_COUNT = 5;
 type UiDensity = "compact" | "comfortable";
@@ -104,6 +106,7 @@ export default function ChatLayout() {
   const tokenRef = useRef<string | null>(null);
   /** Track all active typing timeouts for cleanup on unmount */
   const typingTimeoutsRef = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+  // Refs mirror the latest state so the WS message handler can stay registered once.
   useEffect(() => {
     selectedRoomRef.current = selectedRoom;
     subscribedRoomIdsRef.current = subscribedRoomIds;
@@ -209,6 +212,7 @@ export default function ChatLayout() {
     setRoomOpenLastReadSnapshot(
       getFreshestReadMarker(cachedReadMarker, room.last_read_at ?? null),
     );
+    // MessageList owns replaying queued WS messages; reset queue per room switch.
     setIncomingMessagesForRoom([]);
     setSidebarOpen(false);
 
@@ -230,6 +234,7 @@ export default function ChatLayout() {
       let next = [...prev, room.id];
       if (next.length > MAX_SUBSCRIPTIONS) {
         const [evict] = next;
+        // Keep local list and server subscriptions in sync when evicting LRU room.
         unsubscribe(evict);
         next = next.slice(1);
       }
@@ -280,6 +285,7 @@ export default function ChatLayout() {
   };
 
   const handleLogout = () => {
+    // Explicit unsubscribe avoids transient "ghost online users" until socket teardown.
     subscribedRoomIds.forEach((id) => unsubscribe(id));
     subscribedSentRef.current.clear();
     setSubscribedRoomIds([]);

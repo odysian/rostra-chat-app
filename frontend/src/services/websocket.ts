@@ -1,5 +1,6 @@
 import { logDebug, logError } from "../utils/logger";
 
+// Thin transport wrapper; ChatLayout owns room-subscription policy.
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const WS_BASE_URL =
   resolveWebSocketBaseUrl(API_URL, import.meta.env.VITE_WS_URL) ||
@@ -153,6 +154,7 @@ export class WebSocketService {
           // Attempt to reconnect for abnormal closures
           this.attemptReconnect();
         } else {
+          // Expected disconnect path (logout/token rotate/manual close).
           this.onStatusChangeCallback?.("disconnected");
         }
       };
@@ -172,6 +174,7 @@ export class WebSocketService {
   }
 
   disconnect() {
+    // Disable reconnect before closing so manual teardown does not loop.
     this.shouldReconnect = false;
     clearTimeout(this.connectionTimeout);
     

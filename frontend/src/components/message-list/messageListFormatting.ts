@@ -1,5 +1,6 @@
 import type { Message } from "../../types";
 
+// Shared formatting + ordering helpers used by message lifecycle and rendering.
 export interface SystemMessage {
   id: string;
   type: "system";
@@ -10,6 +11,7 @@ export interface SystemMessage {
 export type ChatItem = Message | SystemMessage;
 
 export function normalizeToUtcIso(isoString: string): string {
+  // Backend should emit timezone-aware strings, but legacy rows/tests may not.
   const hasTimezoneSuffix = /(?:Z|[+-]\d{2}:\d{2})$/i.test(isoString);
   return hasTimezoneSuffix ? isoString : `${isoString}Z`;
 }
@@ -38,6 +40,7 @@ export function isStrictlyNewerThan(
   if (candidateTime != null && referenceTime == null) return true;
   if (candidateTime == null && referenceTime != null) return false;
 
+  // Deterministic tiebreaker when timestamps collide or are unparsable.
   return candidate.id > reference.id;
 }
 
@@ -147,6 +150,7 @@ export function capturePrependAnchor(
   );
 
   const anchorElement =
+    // First visible message keeps viewport stable when older rows are prepended.
     messageElements.find(
       (el) => el.getBoundingClientRect().bottom >= containerTop,
     ) ?? messageElements[0];
