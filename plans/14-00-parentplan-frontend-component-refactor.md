@@ -28,6 +28,8 @@ Suggested labels: `type:spec`, `area:frontend`, `area:tests`, `area:docs`, `stat
 2. Task 2 handles highest-risk feed/scroll extraction in `MessageList`.
 3. Task 3 isolates `ChatLayout` subscription orchestration and reset flow.
 4. Task 4 finalizes `MessageArea` composition split.
+5. Task 5 resolves the remaining `ChatLayout` LOC-cap exception via UI-effects/shortcut extraction.
+6. Task 6 adds high-signal frontend comments/documentation to improve scanability without behavior changes.
 
 ## Backend Plan (If Applicable)
 - API changes: None.
@@ -40,12 +42,16 @@ Suggested labels: `type:spec`, `area:frontend`, `area:tests`, `area:docs`, `stat
 - Task 2: `MessageList` lifecycle and rendering decomposition.
 - Task 3: `ChatLayout` subscription orchestration cleanup.
 - Task 4: `MessageArea` header/action/modal decomposition.
+- Task 5: `ChatLayout` LOC-cap follow-up decomposition (UI-effects + shortcut extraction).
+- Task 6: frontend commenting/documentation pass across orchestration/lifecycle/services.
 
 ## Child Task Plan
-- [ ] Task 1 (`#15`): `plans/14-15-room-list-decomposition.md`
-- [ ] Task 2 (`#16`): `plans/14-16-message-list-decomposition.md`
-- [ ] Task 3 (`#17`): `plans/14-17-chat-layout-orchestration-cleanup.md`
-- [ ] Task 4 (`#18`): `plans/14-18-message-area-decomposition.md`
+- [x] Task 1 (`#15`): `plans/14-15-room-list-decomposition.md`
+- [x] Task 2 (`#16`): `plans/14-16-message-list-decomposition.md`
+- [x] Task 3 (`#17`): `plans/14-17-chat-layout-orchestration-cleanup.md`
+- [x] Task 4 (`#18`): `plans/14-18-message-area-decomposition.md`
+- [x] Task 5 (`#24`): `plans/14-24-chat-layout-loc-cap-follow-up.md`
+- [ ] Task 6 (`#26`): `plans/14-26-frontend-commenting-documentation-pass.md`
 
 ## Decision Locks
 - [x] Locked: Refactor-only; no new feature behavior.
@@ -57,14 +63,15 @@ Suggested labels: `type:spec`, `area:frontend`, `area:tests`, `area:docs`, `stat
 - [x] Locked: Hotspot file size target is ~350 LOC, with hard cap <= 450 LOC per primary file; exceptions require a follow-up Task.
 - [x] Locked: Task 4 extracts header/menu/delete modal (including `deleteError`) and defers typing indicator row + ephemeral `wsError` row extraction.
 - [x] Locked: Naming convention is `kebab-case` subcomponent directories, `PascalCase` component files, and hooks in `src/hooks` as `useXxx`.
+- [x] Locked: Task 6 is a comment/documentation-only pass and may exceed the LOC cap where needed for clarity.
 
 ## Acceptance Criteria
-- [ ] Spec issue created and linked from child Task issues.
-- [ ] Child Tasks are created and sequenced with explicit dependencies.
-- [ ] All four hotspot components are decomposed and each primary file meets the LOC lock (target ~350, hard cap <= 450).
-- [ ] Existing behavior for room selection, unread updates, scroll/pagination, and modal actions is preserved.
-- [ ] Frontend verification commands pass for each merged Task.
-- [ ] Required docs/tests are updated in each Task PR.
+- [x] Spec issue created and linked from child Task issues.
+- [x] Child Tasks are created and sequenced with explicit dependencies.
+- [x] All four hotspot components are decomposed and each primary file met the LOC lock in the decomposition phase.
+- [x] Existing behavior for room selection, unread updates, scroll/pagination, and modal actions is preserved.
+- [x] Frontend verification commands pass for each merged decomposition Task.
+- [ ] Required docs/tests are updated in each Task PR (including pending Task 6).
 
 ## Verification
 ```bash

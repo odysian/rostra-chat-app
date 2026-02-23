@@ -825,6 +825,7 @@ Canonical execution rules live in `docs/ISSUES_WORKFLOW.md`.
 - GitHub issues are source of truth for execution (`TASKS.md` is scratchpad only).
 - PRs close Task issues, and Specs close after all child Tasks are done.
 - Backend-coupled work requires Decision Locks before implementation.
+- After major refactors, open one docs-only Task for readability hardening (comments + `docs/PATTERNS.md` updates), with no behavior changes.
 
 ### During Implementation
 - **One task at a time.** Never implement multiple features or fix multiple unrelated issues in one session.

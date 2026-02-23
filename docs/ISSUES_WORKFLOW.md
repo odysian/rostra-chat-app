@@ -23,6 +23,7 @@ This repository uses GitHub issues as the execution control plane.
 4. Specs close only when all child Tasks are done or explicitly deferred.
 5. Tasks are PR-sized; in this workflow PR-sized usually means end-to-end feature delivery.
 6. Phase 3/backend-coupled work requires Decision Locks checked before implementation begins.
+7. After major refactors, open one docs-only Task for readability hardening (comments + `docs/PATTERNS.md` updates), with no behavior changes.
 
 ## Execution Modes (Choose Before Opening Issues)
 
