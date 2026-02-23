@@ -30,6 +30,8 @@ type SidebarMockProps = {
   onSelectRoom: (room: Room) => void;
   refreshTrigger: number;
   unreadCounts: Record<number, number>;
+  openCommandPaletteSignal: number;
+  closeCommandPaletteSignal: number;
 };
 
 type MessageAreaMockProps = {
@@ -44,8 +46,14 @@ type UsersPanelMockProps = {
   onlineUsers: Array<{ id: number; username: string }>;
 };
 
+type SearchPanelMockProps = {
+  isOpen: boolean;
+  focusSignal: number;
+};
+
 let latestSidebarProps: SidebarMockProps | null = null;
 let latestUsersPanelProps: UsersPanelMockProps | null = null;
+let latestSearchPanelProps: SearchPanelMockProps | null = null;
 let wsMessageHandler: ((message: WebSocketMessage) => void) | undefined;
 
 vi.mock("../../context/AuthContext", () => ({
@@ -85,6 +93,9 @@ vi.mock("../Sidebar", () => ({
     return (
       <div>
         <div data-testid="refresh-trigger">{props.refreshTrigger}</div>
+        <div data-testid="open-command-signal">{props.openCommandPaletteSignal}</div>
+        <div data-testid="close-command-signal">{props.closeCommandPaletteSignal}</div>
+        <input aria-label="Typing Target" />
         <button type="button" onClick={() => props.onSelectRoom(roomOne)}>
           Select Room One
         </button>
@@ -126,7 +137,15 @@ vi.mock("../UsersPanel", () => ({
 }));
 
 vi.mock("../SearchPanel", () => ({
-  default: () => null,
+  default: (props: SearchPanelMockProps) => {
+    latestSearchPanelProps = props;
+    return (
+      <div>
+        <div data-testid="search-open">{props.isOpen ? "open" : "closed"}</div>
+        <div data-testid="search-focus-signal">{props.focusSignal}</div>
+      </div>
+    );
+  },
 }));
 
 function emitWsMessage(message: WebSocketMessage) {
@@ -147,6 +166,7 @@ describe("ChatLayout", () => {
     mockLogout.mockReset();
     latestSidebarProps = null;
     latestUsersPanelProps = null;
+    latestSearchPanelProps = null;
     wsMessageHandler = undefined;
     mockMarkRoomRead.mockResolvedValue({ last_read_at: "2024-01-02T00:00:00" });
     mockLeaveRoom.mockResolvedValue({ room_id: 1 });
@@ -279,5 +299,63 @@ describe("ChatLayout", () => {
     });
 
     expect(screen.getByTestId("ws-error-text")).toHaveTextContent("");
+  });
+
+  it("opens command palette signal on Cmd/Ctrl+K", () => {
+    render(<ChatLayout />);
+
+    fireEvent.keyDown(window, { key: "k", ctrlKey: true });
+
+    expect(screen.getByTestId("open-command-signal")).toHaveTextContent("1");
+  });
+
+  it("opens search panel on slash when a room is selected", async () => {
+    render(<ChatLayout />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Room One" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-room-id")).toHaveTextContent("1");
+    });
+    expect(screen.getByTestId("search-open")).toHaveTextContent("closed");
+
+    fireEvent.keyDown(window, { key: "/" });
+
+    expect(screen.getByTestId("search-open")).toHaveTextContent("open");
+    expect(screen.getByTestId("search-focus-signal")).toHaveTextContent("1");
+    expect(latestSearchPanelProps?.isOpen).toBe(true);
+  });
+
+  it("does not open search panel on slash while typing in an input target", async () => {
+    render(<ChatLayout />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Room One" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-room-id")).toHaveTextContent("1");
+    });
+    expect(screen.getByTestId("search-open")).toHaveTextContent("closed");
+
+    const typingInput = screen.getByLabelText("Typing Target");
+    typingInput.focus();
+    fireEvent.keyDown(typingInput, { key: "/" });
+
+    expect(screen.getByTestId("search-open")).toHaveTextContent("closed");
+    expect(screen.getByTestId("search-focus-signal")).toHaveTextContent("0");
+  });
+
+  it("escape closes right panel and emits close command palette signal", async () => {
+    render(<ChatLayout />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Room One" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-room-id")).toHaveTextContent("1");
+    });
+
+    fireEvent.keyDown(window, { key: "/" });
+    expect(screen.getByTestId("search-open")).toHaveTextContent("open");
+
+    fireEvent.keyDown(window, { key: "Escape" });
+
+    expect(screen.getByTestId("search-open")).toHaveTextContent("closed");
+    expect(screen.getByTestId("close-command-signal")).toHaveTextContent("1");
   });
 });
