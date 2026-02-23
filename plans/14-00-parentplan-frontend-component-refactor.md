@@ -42,10 +42,10 @@ Suggested labels: `type:spec`, `area:frontend`, `area:tests`, `area:docs`, `stat
 - Task 4: `MessageArea` header/action/modal decomposition.
 
 ## Child Task Plan
-- [ ] Task 1 (`#15`): `plans/task-frontend-component-refactor-01-room-list.md`
-- [ ] Task 2 (`#16`): `plans/task-frontend-component-refactor-02-message-list.md`
-- [ ] Task 3 (`#17`): `plans/task-frontend-component-refactor-03-chat-layout.md`
-- [ ] Task 4 (`#18`): `plans/task-frontend-component-refactor-04-message-area.md`
+- [ ] Task 1 (`#15`): `plans/14-15-room-list-decomposition.md`
+- [ ] Task 2 (`#16`): `plans/14-16-message-list-decomposition.md`
+- [ ] Task 3 (`#17`): `plans/14-17-chat-layout-orchestration-cleanup.md`
+- [ ] Task 4 (`#18`): `plans/14-18-message-area-decomposition.md`
 
 ## Decision Locks
 - [x] Locked: Refactor-only; no new feature behavior.
