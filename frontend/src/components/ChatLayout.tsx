@@ -4,10 +4,15 @@ import MessageArea from "./MessageArea";
 import UsersPanel from "./UsersPanel";
 import SearchPanel from "./SearchPanel";
 import { useWebSocketContext } from "../context/useWebSocketContext";
-import { type WebSocketMessage } from "../context/WebSocketContext";
 import { useAuth } from "../context/AuthContext";
 import { markRoomRead, leaveRoom } from "../services/api";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
+import { useChatLayoutMessageHandler } from "../hooks/useChatLayoutMessageHandler";
+import { useChatLayoutSubscriptions } from "../hooks/useChatLayoutSubscriptions";
+import {
+  clearRoomScopedState,
+  resetSelectedRoomState,
+} from "./chat-layout/chatLayoutRoomState";
 import type { Message, MessageContextResponse, OnlineUser, Room } from "../types";
 
 const MAX_SUBSCRIPTIONS = 10;
@@ -175,123 +180,48 @@ export default function ChatLayout() {
     return () => window.removeEventListener("keydown", handleGlobalShortcuts);
   }, [selectedRoom]);
 
-  useEffect(() => {
-    const handleMessage = (msg: WebSocketMessage) => {
-      // Show WS errors (e.g. rate limit) as an ephemeral banner that auto-clears
-      if (msg.type === "error") {
-        setWsError(msg.message);
-        setTimeout(() => setWsError(null), 4000);
-        return;
-      }
-
-      const msgRoomId =
-        msg.type === "new_message"
-          ? msg.message.room_id
-          : "room_id" in msg
-            ? msg.room_id
-            : null;
-
-      if (msg.type === "new_message" && msgRoomId != null) {
-        if (msgRoomId === selectedRoomRef.current?.id) {
-          setIncomingMessagesForRoom((prev) => [...prev, msg.message]);
-          const t = tokenRef.current;
-          if (t) {
-            markRoomRead(msgRoomId, t)
-              .then((response) => {
-                setLastReadAtByRoomId((prev) => ({
-                  ...prev,
-                  [msgRoomId]: response.last_read_at,
-                }));
-              })
-              .catch(() => {});
-          }
-        } else if (subscribedRoomIdsRef.current.includes(msgRoomId)) {
-          setUnreadCounts((prev) => ({
-            ...prev,
-            [msgRoomId]: (prev[msgRoomId] ?? 0) + 1,
-          }));
-        }
-
-        // Clear typing indicator for the sender (they finished composing)
-        setTypingUsersByRoom((prev) => {
-          const roomTyping = prev[msgRoomId];
-          if (!roomTyping || !roomTyping[msg.message.user_id]) return prev;
-          clearTimeout(roomTyping[msg.message.user_id].timeout);
-          typingTimeoutsRef.current.delete(roomTyping[msg.message.user_id].timeout);
-          const updated = { ...roomTyping };
-          delete updated[msg.message.user_id];
-          return { ...prev, [msgRoomId]: updated };
-        });
-
-        return;
-      }
-
-      if (msgRoomId == null) return;
-
-      switch (msg.type) {
-        case "subscribed":
-          setOnlineUsersByRoom((prev) => ({
-            ...prev,
-            [msgRoomId]: msg.online_users,
-          }));
-          break;
-        case "user_joined":
-          setOnlineUsersByRoom((prev) => {
-            const list = prev[msgRoomId] ?? [];
-            const exists = list.some((u) => u.id === msg.user.id);
-            return {
-              ...prev,
-              [msgRoomId]: exists ? list : [...list, msg.user],
-            };
-          });
-          break;
-        case "user_left":
-          setOnlineUsersByRoom((prev) => ({
-            ...prev,
-            [msgRoomId]: (prev[msgRoomId] ?? []).filter((u) => u.id !== msg.user.id),
-          }));
-          break;
-        case "typing_indicator":
-          {
-            const { room_id, user } = msg;
-
-            setTypingUsersByRoom((prev) => {
-              // Clone the relevant room's typing map (or start fresh)
-              const roomTyping = { ...(prev[room_id] ?? {}) };
-
-              // Clear existing timeout for this user (they're still typing)
-              if (roomTyping[user.id]) {
-                clearTimeout(roomTyping[user.id].timeout);
-                typingTimeoutsRef.current.delete(roomTyping[user.id].timeout);
-              }
-
-              // Set a 3s auto-clear timeout
-              const timeout = setTimeout(() => {
-                setTypingUsersByRoom((current) => {
-                  const updated = { ...(current[room_id] ?? {}) };
-                  delete updated[user.id];
-                  return { ...current, [room_id]: updated };
-                });
-                typingTimeoutsRef.current.delete(timeout);
-              }, 3000);
-
-              // Track timeout for cleanup
-              typingTimeoutsRef.current.add(timeout);
-
-              roomTyping[user.id] = { username: user.username, timeout };
-              return { ...prev, [room_id]: roomTyping };
-            });
-          }
-          break;
-      }
-    };
-    registerMessageHandler(handleMessage);
-    return () => registerMessageHandler(undefined);
-  }, [registerMessageHandler]);
+  useChatLayoutMessageHandler({
+    registerMessageHandler,
+    selectedRoomRef,
+    subscribedRoomIdsRef,
+    tokenRef,
+    typingTimeoutsRef,
+    setIncomingMessagesForRoom,
+    setUnreadCounts,
+    setLastReadAtByRoomId,
+    setOnlineUsersByRoom,
+    setTypingUsersByRoom,
+    setWsError,
+  });
 
   // ============================================================================
   // HANDLERS
   // ============================================================================
+
+  const resetSelectionState = () => {
+    resetSelectedRoomState({
+      setSelectedRoom,
+      setMessageViewMode,
+      setMessageContext,
+      setRoomOpenLastReadSnapshot,
+      setIncomingMessagesForRoom,
+    });
+  };
+
+  const cleanupRoomState = (roomId: number) => {
+    clearRoomScopedState({
+      roomId,
+      setOnlineUsersByRoom,
+      setLastReadAtByRoomId,
+      setUnreadCounts,
+      setTypingUsersByRoom,
+    });
+  };
+
+  const unsubscribeRoom = (roomId: number) => {
+    unsubscribe(roomId);
+    setSubscribedRoomIds((prev) => prev.filter((id) => id !== roomId));
+  };
 
   const handleSelectRoom = async (room: Room) => {
     setLeaveError(null);
@@ -340,38 +270,15 @@ export default function ChatLayout() {
   const handleRoomDeleted = () => {
     const deletedRoomId = selectedRoom?.id;
     if (deletedRoomId == null) return;
-    setSubscribedRoomIds((prev) => prev.filter((id) => id !== deletedRoomId));
-    unsubscribe(deletedRoomId);
-    setSelectedRoom(null);
-    setMessageViewMode("normal");
-    setMessageContext(null);
-    setRoomOpenLastReadSnapshot(null);
-    setIncomingMessagesForRoom([]);
-    setOnlineUsersByRoom((prev) => {
-      const next = { ...prev };
-      delete next[deletedRoomId];
-      return next;
-    });
-    setLastReadAtByRoomId((prev) => {
-      const next = { ...prev };
-      delete next[deletedRoomId];
-      return next;
-    });
-    setUnreadCounts((prev) => {
-      const next = { ...prev };
-      delete next[deletedRoomId];
-      return next;
-    });
+    unsubscribeRoom(deletedRoomId);
+    resetSelectionState();
+    cleanupRoomState(deletedRoomId);
     setRefreshTrigger((prev) => prev + 1);
   };
 
   const handleLeaveRoom = async () => {
     if (!selectedRoom || !token) {
-      setSelectedRoom(null);
-      setMessageViewMode("normal");
-      setMessageContext(null);
-      setRoomOpenLastReadSnapshot(null);
-      setIncomingMessagesForRoom([]);
+      resetSelectionState();
       return;
     }
 
@@ -391,29 +298,9 @@ export default function ChatLayout() {
       // Still clear selection and unsubscribe so the user isn't stuck
     }
 
-    // Unsubscribe from WebSocket and remove from local subscription list
-    unsubscribe(roomId);
-  setSubscribedRoomIds((prev) => prev.filter((id) => id !== roomId));
-  setSelectedRoom(null);
-  setMessageViewMode("normal");
-  setMessageContext(null);
-  setRoomOpenLastReadSnapshot(null);
-    setIncomingMessagesForRoom([]);
-    setOnlineUsersByRoom((prev) => {
-      const next = { ...prev };
-      delete next[roomId];
-      return next;
-    });
-    setLastReadAtByRoomId((prev) => {
-      const next = { ...prev };
-      delete next[roomId];
-      return next;
-    });
-    setUnreadCounts((prev) => {
-      const next = { ...prev };
-      delete next[roomId];
-      return next;
-    });
+    unsubscribeRoom(roomId);
+    resetSelectionState();
+    cleanupRoomState(roomId);
     // Refresh room list so the left room disappears from the sidebar
     setRefreshTrigger((prev) => prev + 1);
   };
@@ -462,46 +349,15 @@ export default function ChatLayout() {
   // EFFECTS
   // ============================================================================
 
-  // Subscribe only to rooms we haven't sent subscribe for yet (avoids duplicate subscribe on re-run or when list grows)
-  useEffect(() => {
-    let refreshTimeoutId: number | undefined;
-
-    // Server subscription state is reset on reconnect; clear local sent-cache so rooms are re-subscribed.
-    if (!prevConnectedRef.current && connected) {
-      subscribedSentRef.current.clear();
-      // Pull fresh unread counts after reconnect because messages may have arrived while disconnected.
-      if (hasConnectedOnceRef.current) {
-        refreshTimeoutId = window.setTimeout(() => {
-          setRefreshTrigger((prev) => prev + 1);
-        }, 0);
-      }
-      hasConnectedOnceRef.current = true;
-    }
-    prevConnectedRef.current = connected;
-
-    return () => {
-      if (refreshTimeoutId) {
-        clearTimeout(refreshTimeoutId);
-      }
-    };
-  }, [connected]);
-
-  useEffect(() => {
-    if (!connected || subscribedRoomIds.length === 0) return;
-
-    subscribedRoomIds.forEach((id) => {
-      if (!subscribedSentRef.current.has(id)) {
-        subscribe(id);
-        subscribedSentRef.current.add(id);
-      }
-    });
-
-    // Drop ref entries for rooms no longer in the list (unsubscribed elsewhere)
-    const idSet = new Set(subscribedRoomIds);
-    subscribedSentRef.current.forEach((id) => {
-      if (!idSet.has(id)) subscribedSentRef.current.delete(id);
-    });
-  }, [connected, subscribedRoomIds, subscribe]);
+  useChatLayoutSubscriptions({
+    connected,
+    subscribedRoomIds,
+    subscribe,
+    setRefreshTrigger,
+    subscribedSentRef,
+    prevConnectedRef,
+    hasConnectedOnceRef,
+  });
 
   // Clean up all typing timeouts on unmount
   useEffect(() => {
