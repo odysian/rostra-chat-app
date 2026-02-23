@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import type { Room } from "../types";
 
+// Shared guard for global shortcuts: slash should not hijack focused form fields.
 interface UseChatLayoutShortcutsParams {
   selectedRoom: Room | null;
   onOpenCommandPalette: () => void;
@@ -43,6 +44,7 @@ export function useChatLayoutShortcuts({
         !event.altKey &&
         selectedRoom
       ) {
+        // Search is room-scoped; ignore slash when no active room exists.
         event.preventDefault();
         onOpenSearchPanel();
         return;

@@ -8,6 +8,13 @@ import type { WebSocketMessage } from "../context/WebSocketContext";
 import { markRoomRead } from "../services/api";
 import type { Message, OnlineUser, Room } from "../types";
 
+/**
+ * Owns ChatLayout's websocket event policy.
+ * Invariants:
+ * - Never drop delivered messages for the selected room.
+ * - Keep unread counters scoped to subscribed-but-not-selected rooms.
+ * - Keep typing indicators self-healing via timeout cleanup.
+ */
 type TypingUsersByRoom = Record<
   number,
   Record<number, { username: string; timeout: ReturnType<typeof setTimeout> }>
@@ -43,6 +50,7 @@ export function useChatLayoutMessageHandler({
   useEffect(() => {
     const handleMessage = (message: WebSocketMessage) => {
       if (message.type === "error") {
+        // WS errors are transient UX hints; auto-clear prevents sticky banners.
         setWsError(message.message);
         setTimeout(() => setWsError(null), 4000);
         return;
@@ -57,9 +65,11 @@ export function useChatLayoutMessageHandler({
 
       if (message.type === "new_message" && messageRoomId != null) {
         if (messageRoomId === selectedRoomRef.current?.id) {
+          // Append into queue; MessageList consumes and clears in-order.
           setIncomingMessagesForRoom((prev) => [...prev, message.message]);
           const token = tokenRef.current;
           if (token) {
+            // Keep read marker server-authored to stay consistent across tabs/devices.
             markRoomRead(messageRoomId, token)
               .then((response) => {
                 setLastReadAtByRoomId((prev) => ({
@@ -70,6 +80,7 @@ export function useChatLayoutMessageHandler({
               .catch(() => {});
           }
         } else if (subscribedRoomIdsRef.current.includes(messageRoomId)) {
+          // Only increment unread for rooms the user explicitly tracks in the LRU set.
           setUnreadCounts((prev) => ({
             ...prev,
             [messageRoomId]: (prev[messageRoomId] ?? 0) + 1,
@@ -129,6 +140,7 @@ export function useChatLayoutMessageHandler({
           setTypingUsersByRoom((prev) => {
             const roomTyping = { ...(prev[roomId] ?? {}) };
             if (roomTyping[user.id]) {
+              // Renew timeout whenever a fresh typing event arrives for same user.
               clearTimeout(roomTyping[user.id].timeout);
               typingTimeoutsRef.current.delete(roomTyping[user.id].timeout);
             }

@@ -10,6 +10,7 @@ import {
 
 export type { WebSocketMessage } from "./webSocketContextState";
 
+// Provider owns websocket lifecycle per auth token and exposes transport actions.
 export function WebSocketProvider({ children }: { children: ReactNode }) {
   const { token } = useAuth();
   const [connected, setConnected] = useState(false);
@@ -17,6 +18,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const wsRef = useRef<WebSocketService | null>(null);
   const currentTokenRef = useRef<string | null>(null);
+  // Mutable callback avoids reconnecting/rebinding service on every consumer rerender.
   const messageHandlerRef = useRef<((msg: WebSocketMessage) => void) | undefined>(undefined);
 
   const registerMessageHandler = useCallback(
@@ -33,6 +35,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
         wsRef.current = null;
       }
       currentTokenRef.current = null;
+      // Defer state updates to keep this effect cleanup-safe in Strict Mode.
       const statusTimer = setTimeout(() => {
         setConnectionStatus("disconnected");
         setConnected(false);
@@ -60,6 +63,7 @@ export function WebSocketProvider({ children }: { children: ReactNode }) {
     ws.onMessage((data) => {
       const msg = data as WebSocketMessage;
       setLastMessage(msg);
+      // Fan out to ChatLayout-owned handler without forcing provider state shape changes.
       messageHandlerRef.current?.(msg);
     });
 

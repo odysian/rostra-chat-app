@@ -14,6 +14,7 @@ interface MessageFeedContentProps {
   messages: ChatItem[];
   density: "compact" | "comfortable";
   theme: "neon" | "amber";
+  // Marker is resolved once at room-open; render path must stay read-only.
   newMessagesAnchorId: number | null;
   highlightedMessageId: number | null;
 }
@@ -63,6 +64,7 @@ export function MessageFeedContent({
         return (
           <div key={message.id}>
             {newMessagesAnchorId === message.id && (
+              // Intentional one-time divider: lifecycle decides anchor, renderer only displays.
               <div
                 className={`flex items-center ${isComfortableDensity ? "gap-3 my-6" : "gap-2.5 my-5"}`}
               >

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import type { Dispatch, RefObject, SetStateAction } from "react";
 
+// Scroll policy coordinator for MessageList. It applies pending adjustments
+// produced by lifecycle events (initial load, prepend, append, context target).
 export type PendingScrollAdjustment =
   | { type: "initial" }
   | { type: "context-target"; targetMessageId: number }
@@ -65,6 +67,7 @@ export function useMessageFeedViewport({
   pendingScrollAdjustmentRef,
 }: UseMessageFeedViewportParams): UseMessageFeedViewportResult {
   const previousScrollToLatestSignalRef = useRef(scrollToLatestSignal);
+  // Suppresses jump button while smooth scroll animation is in-flight.
   const jumpVisibilitySuppressedRef = useRef(false);
 
   const isNearBottom = useCallback((container: HTMLDivElement): boolean => {
@@ -86,6 +89,7 @@ export function useMessageFeedViewport({
     }
 
     if (messageViewMode === "context") {
+      // In context mode, the button is both "jump to latest" and "exit context".
       if (newerCursor !== null) {
         setShowJumpToLatest(true);
         return;
@@ -302,6 +306,7 @@ export function useMessageFeedViewport({
       },
       {
         root: scrollContainerRef.current,
+        // Smaller prefetch window at bottom keeps context-mode newer paging predictable.
         rootMargin: "100px",
         threshold: 0,
       }

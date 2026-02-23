@@ -14,6 +14,13 @@ import {
   type PendingScrollAdjustment,
 } from "./useMessageFeedViewport";
 
+/**
+ * Orchestrates MessageList data lifecycle.
+ * Ownership:
+ * - Cursor pagination state (older + newer in context mode)
+ * - Initial/history/context fetch sequencing
+ * - Live message merge policy without duplicate rows
+ */
 interface UseMessageFeedLifecycleParams {
   roomId: number;
   token: string | null;
@@ -89,6 +96,7 @@ export function useMessageFeedLifecycle({
   const pendingScrollAdjustmentRef = useRef<PendingScrollAdjustment | null>(null);
   const timeoutFiredRef = useRef(false);
   const contextLiveMessagesRef = useRef<Message[]>([]);
+  // Guards async race conditions when room/mode changes mid-request.
   const paginationEpochRef = useRef(0);
 
   useEffect(() => {
@@ -98,6 +106,7 @@ export function useMessageFeedLifecycle({
   useEffect(() => {
     if (messageViewMode !== "context" || !messageContext) return;
 
+    // Entering context mode resets normal-history cursors and hydrates around anchor message.
     paginationEpochRef.current += 1;
     setError("");
     setLoading(false);
@@ -121,6 +130,7 @@ export function useMessageFeedLifecycle({
 
     const abortController = new AbortController();
     let timeoutId: number | undefined;
+    // Preserve unseen live messages captured while in context mode during mode handoff.
     const bufferedContextTail = contextLiveMessagesRef.current;
 
     if (token) {
@@ -191,6 +201,7 @@ export function useMessageFeedLifecycle({
           });
 
           const uniqueTailById = new Map<number, Message>();
+          // Keep deterministic order: existing live tail first, then buffered context tail.
           [...trueLiveTail, ...bufferedTail].forEach((message) => {
             uniqueTailById.set(message.id, message);
           });
@@ -253,6 +264,7 @@ export function useMessageFeedLifecycle({
 
     const previousScrollHeight = scrollContainer.scrollHeight;
     const previousScrollTop = scrollContainer.scrollTop;
+    // Anchor snapshot lets viewport preserve exact visible row after prepend.
     const { anchorMessageId, anchorTop } = capturePrependAnchor(scrollContainer);
     const requestEpoch = paginationEpochRef.current;
 
@@ -390,6 +402,7 @@ export function useMessageFeedLifecycle({
           return [...prev, ...toAdd];
         });
       } else {
+        // In context mode, keep live traffic separate until user returns to latest.
         setContextLiveMessages((prev) => {
           const ids = new Set(prev.map((msg) => msg.id));
           const toAdd = incomingMessages.filter((msg) => !ids.has(msg.id));
