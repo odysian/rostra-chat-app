@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Sidebar from "./Sidebar";
 import MessageArea from "./MessageArea";
 import UsersPanel from "./UsersPanel";
@@ -6,9 +6,10 @@ import SearchPanel from "./SearchPanel";
 import { useWebSocketContext } from "../context/useWebSocketContext";
 import { useAuth } from "../context/AuthContext";
 import { markRoomRead, leaveRoom } from "../services/api";
-import { formatRoomNameForDisplay } from "../utils/roomNames";
 import { useChatLayoutMessageHandler } from "../hooks/useChatLayoutMessageHandler";
 import { useChatLayoutSubscriptions } from "../hooks/useChatLayoutSubscriptions";
+import { useChatLayoutShortcuts } from "../hooks/useChatLayoutShortcuts";
+import { useChatLayoutUiEffects } from "../hooks/useChatLayoutUiEffects";
 import {
   clearRoomScopedState,
   resetSelectedRoomState,
@@ -19,13 +20,6 @@ const MAX_SUBSCRIPTIONS = 10;
 const INITIAL_AUTO_SUBSCRIBE_COUNT = 5;
 type UiDensity = "compact" | "comfortable";
 type MessageViewMode = "normal" | "context";
-
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) return false;
-  return Boolean(
-    target.closest("input, textarea, select, [contenteditable='true']"),
-  );
-}
 
 function parseIsoTimestamp(value: string | null | undefined): number | null {
   if (!value) return null;
@@ -130,55 +124,35 @@ export default function ChatLayout() {
     tokenRef.current = token;
   }, [token]);
 
-  useEffect(() => {
-    localStorage.setItem("rostra-density", density);
-  }, [density]);
+  const handleOpenCommandPalette = useCallback(() => {
+    setOpenCommandPaletteSignal((prev) => prev + 1);
+  }, []);
 
-  useEffect(() => {
-    if (!selectedRoom) {
-      document.title = "Rostra";
-      return;
-    }
+  const handleCloseCommandPalette = useCallback(() => {
+    setCloseCommandPaletteSignal((prev) => prev + 1);
+  }, []);
 
-    const roomName = formatRoomNameForDisplay(selectedRoom.name);
-    document.title = `#${roomName} - Rostra`;
-  }, [selectedRoom]);
+  const handleOpenSearchPanel = useCallback(() => {
+    setRightPanel("search");
+    setSearchFocusSignal((prev) => prev + 1);
+  }, []);
 
-  useEffect(() => {
-    const handleGlobalShortcuts = (event: KeyboardEvent) => {
-      if (
-        (event.metaKey || event.ctrlKey) &&
-        event.key.toLowerCase() === "k"
-      ) {
-        event.preventDefault();
-        setOpenCommandPaletteSignal((prev) => prev + 1);
-        return;
-      }
+  const handleCloseRightPanel = useCallback(() => {
+    setRightPanel("none");
+  }, []);
 
-      if (isTypingTarget(event.target)) return;
+  useChatLayoutUiEffects({
+    selectedRoom,
+    density,
+  });
 
-      if (
-        event.key === "/" &&
-        !event.metaKey &&
-        !event.ctrlKey &&
-        !event.altKey &&
-        selectedRoom
-      ) {
-        event.preventDefault();
-        setRightPanel("search");
-        setSearchFocusSignal((prev) => prev + 1);
-        return;
-      }
-
-      if (event.key === "Escape") {
-        setRightPanel("none");
-        setCloseCommandPaletteSignal((prev) => prev + 1);
-      }
-    };
-
-    window.addEventListener("keydown", handleGlobalShortcuts);
-    return () => window.removeEventListener("keydown", handleGlobalShortcuts);
-  }, [selectedRoom]);
+  useChatLayoutShortcuts({
+    selectedRoom,
+    onOpenCommandPalette: handleOpenCommandPalette,
+    onCloseCommandPalette: handleCloseCommandPalette,
+    onOpenSearchPanel: handleOpenSearchPanel,
+    onCloseRightPanel: handleCloseRightPanel,
+  });
 
   useChatLayoutMessageHandler({
     registerMessageHandler,
