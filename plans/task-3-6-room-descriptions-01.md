@@ -70,6 +70,6 @@ cd frontend && npm run build
 ```
 
 ## PR Checklist
-- [ ] PR references this issue (`Closes #...`).
-- [ ] Backend and frontend tests added/updated for room description behavior.
-- [ ] Docs updated where required (`docs/ARCHITECTURE.md`, `docs/PATTERNS.md`, `docs/REVIEW_CHECKLIST.md`, `backend/TESTPLAN.md`, `docs/adr/`).
+- [x] PR references this issue (`Closes #...`).
+- [x] Backend and frontend tests added/updated for room description behavior.
+- [x] Docs updated where required (`docs/ARCHITECTURE.md`, `docs/PATTERNS.md`, `docs/REVIEW_CHECKLIST.md`, `backend/TESTPLAN.md`, `docs/adr/`).
