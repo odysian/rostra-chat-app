@@ -21,6 +21,8 @@ import type {
   Room,
   WSDeletedMessagePayload,
   WSEditedMessagePayload,
+  WSMessageReactionAdded,
+  WSMessageReactionRemoved,
 } from "../types";
 
 // Keep a bounded subscription set so unread updates stay real-time without
@@ -88,6 +90,10 @@ export default function ChatLayout() {
   /** Message edits for the selected room delivered via WebSocket (processed then cleared). */
   const [incomingMessageEditsForRoom, setIncomingMessageEditsForRoom] = useState<
     WSEditedMessagePayload[]
+  >([]);
+  /** Message reactions for the selected room delivered via WebSocket (processed then cleared). */
+  const [incomingMessageReactionsForRoom, setIncomingMessageReactionsForRoom] = useState<
+    Array<WSMessageReactionAdded | WSMessageReactionRemoved>
   >([]);
   /** Snapshot of selected room's last_read_at at room-open time (used for stable new-message divider placement). */
   const [roomOpenLastReadSnapshot, setRoomOpenLastReadSnapshot] = useState<string | null>(null);
@@ -181,6 +187,7 @@ export default function ChatLayout() {
     setIncomingMessagesForRoom,
     setIncomingMessageDeletionsForRoom,
     setIncomingMessageEditsForRoom,
+    setIncomingMessageReactionsForRoom,
     setUnreadCounts,
     setLastReadAtByRoomId,
     setOnlineUsersByRoom,
@@ -202,6 +209,7 @@ export default function ChatLayout() {
     });
     setIncomingMessageDeletionsForRoom([]);
     setIncomingMessageEditsForRoom([]);
+    setIncomingMessageReactionsForRoom([]);
   };
 
   const cleanupRoomState = (roomId: number) => {
@@ -235,6 +243,7 @@ export default function ChatLayout() {
     setIncomingMessagesForRoom([]);
     setIncomingMessageDeletionsForRoom([]);
     setIncomingMessageEditsForRoom([]);
+    setIncomingMessageReactionsForRoom([]);
     setSidebarOpen(false);
 
     if (token) {
@@ -320,6 +329,7 @@ export default function ChatLayout() {
     setIncomingMessagesForRoom([]);
     setIncomingMessageDeletionsForRoom([]);
     setIncomingMessageEditsForRoom([]);
+    setIncomingMessageReactionsForRoom([]);
     logout(true);
   };
 
@@ -345,6 +355,10 @@ export default function ChatLayout() {
 
   const handleIncomingMessageEditsProcessed = () => {
     setIncomingMessageEditsForRoom([]);
+  };
+
+  const handleIncomingMessageReactionsProcessed = () => {
+    setIncomingMessageReactionsForRoom([]);
   };
 
   const handleOpenMessageContext = (context: MessageContextResponse) => {
@@ -453,6 +467,8 @@ export default function ChatLayout() {
           onIncomingMessageDeletionsProcessed={handleIncomingMessageDeletionsProcessed}
           incomingMessageEdits={incomingMessageEditsForRoom}
           onIncomingMessageEditsProcessed={handleIncomingMessageEditsProcessed}
+          incomingMessageReactions={incomingMessageReactionsForRoom}
+          onIncomingMessageReactionsProcessed={handleIncomingMessageReactionsProcessed}
           onToggleUsers={() => setRightPanel((prev) => prev === "users" ? "none" : "users")}
           onToggleSearch={() => setRightPanel((prev) => prev === "search" ? "none" : "search")}
           onRoomDeleted={handleRoomDeleted}

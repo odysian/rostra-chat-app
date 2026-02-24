@@ -1,11 +1,17 @@
+from collections import defaultdict
 from datetime import UTC, datetime
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.message import Message
-from app.schemas.message import MessageCreate
+from app.models.message_reaction import MessageReaction
+from app.schemas.message import (
+    REACTION_EMOJI_ALLOWLIST,
+    MessageCreate,
+    MessageReactionSummary,
+)
 
 
 async def get_messages_by_room(
@@ -123,6 +129,8 @@ async def soft_delete_message(db: AsyncSession, message: Message) -> Message:
     """Soft-delete a message by scrubbing content and setting deleted_at."""
     message.content = ""
     message.deleted_at = datetime.now(UTC)
+    # Deleting reactions on soft-delete enforces non-reactable tombstones.
+    await db.execute(delete(MessageReaction).where(MessageReaction.message_id == message.id))
     await db.commit()
     await db.refresh(message)
     return message
@@ -238,3 +246,116 @@ async def get_messages_newer_than(
 
     result = await db.execute(stmt)
     return list(result.scalars().all())
+
+
+async def get_reaction_summaries_for_message_ids(
+    db: AsyncSession,
+    message_ids: list[int],
+    current_user_id: int,
+) -> dict[int, list[MessageReactionSummary]]:
+    """Return aggregated reaction summaries keyed by message id."""
+    if not message_ids:
+        return {}
+
+    stmt = (
+        select(
+            MessageReaction.message_id,
+            MessageReaction.emoji,
+            func.count(MessageReaction.id).label("count"),
+            func.max(
+                case((MessageReaction.user_id == current_user_id, 1), else_=0)
+            ).label("reacted_by_me"),
+        )
+        .where(MessageReaction.message_id.in_(message_ids))
+        .group_by(MessageReaction.message_id, MessageReaction.emoji)
+    )
+    result = await db.execute(stmt)
+
+    emoji_order = {
+        emoji: index for index, emoji in enumerate(REACTION_EMOJI_ALLOWLIST)
+    }
+    summaries_by_message: dict[int, list[MessageReactionSummary]] = defaultdict(list)
+    for message_id, emoji, count, reacted_by_me in result.all():
+        emoji_value = str(emoji)
+        if emoji_value not in emoji_order:
+            continue
+        summaries_by_message[int(message_id)].append(
+            MessageReactionSummary(
+                emoji=emoji_value,  # type: ignore[arg-type]
+                count=int(count),
+                reacted_by_me=bool(reacted_by_me),
+            )
+        )
+
+    for message_summary in summaries_by_message.values():
+        message_summary.sort(
+            key=lambda summary: (
+                -summary.count,
+                emoji_order.get(summary.emoji, len(emoji_order)),
+            )
+        )
+
+    return dict(summaries_by_message)
+
+
+async def add_message_reaction(
+    db: AsyncSession,
+    message_id: int,
+    user_id: int,
+    emoji: str,
+) -> bool:
+    """Add reaction row if missing. Returns True when a new row was created."""
+    existing_stmt = select(MessageReaction).where(
+        MessageReaction.message_id == message_id,
+        MessageReaction.user_id == user_id,
+        MessageReaction.emoji == emoji,
+    )
+    existing = await db.execute(existing_stmt)
+    if existing.scalar_one_or_none():
+        return False
+
+    db.add(
+        MessageReaction(
+            message_id=message_id,
+            user_id=user_id,
+            emoji=emoji,
+        )
+    )
+    await db.commit()
+    return True
+
+
+async def remove_message_reaction(
+    db: AsyncSession,
+    message_id: int,
+    user_id: int,
+    emoji: str,
+) -> bool:
+    """Remove caller-owned reaction row. Returns True when deleted."""
+    stmt = select(MessageReaction).where(
+        MessageReaction.message_id == message_id,
+        MessageReaction.user_id == user_id,
+        MessageReaction.emoji == emoji,
+    )
+    result = await db.execute(stmt)
+    reaction = result.scalar_one_or_none()
+    if reaction is None:
+        return False
+
+    await db.delete(reaction)
+    await db.commit()
+    return True
+
+
+async def get_reaction_count_for_emoji(
+    db: AsyncSession,
+    message_id: int,
+    emoji: str,
+) -> int:
+    """Get current aggregate count for one emoji on a message."""
+    stmt = select(func.count(MessageReaction.id)).where(
+        MessageReaction.message_id == message_id,
+        MessageReaction.emoji == emoji,
+    )
+    result = await db.execute(stmt)
+    return int(result.scalar_one())

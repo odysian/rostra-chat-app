@@ -5,8 +5,11 @@ import { logError } from "../utils/logger";
 import type {
   Message,
   MessageContextResponse,
+  MessageReactionSummary,
   WSDeletedMessagePayload,
   WSEditedMessagePayload,
+  WSMessageReactionAdded,
+  WSMessageReactionRemoved,
 } from "../types";
 import {
   capturePrependAnchor,
@@ -14,6 +17,7 @@ import {
   isStrictlyNewerThan,
   type ChatItem,
 } from "../components/message-list/messageListFormatting";
+import { sortReactions } from "../components/message-list/reactionConfig";
 import {
   useMessageFeedViewport,
   type PendingScrollAdjustment,
@@ -40,6 +44,8 @@ interface UseMessageFeedLifecycleParams {
   onIncomingMessageDeletionsProcessed?: () => void;
   incomingMessageEdits: WSEditedMessagePayload[];
   onIncomingMessageEditsProcessed?: () => void;
+  incomingMessageReactions: Array<WSMessageReactionAdded | WSMessageReactionRemoved>;
+  onIncomingMessageReactionsProcessed?: () => void;
   scrollToLatestSignal: number;
   onExitContextMode?: () => void;
 }
@@ -61,6 +67,10 @@ interface UseMessageFeedLifecycleResult {
     messageId: number,
     content: string,
     editedAt: string | null,
+  ) => void;
+  applyMessageReactions: (
+    messageId: number,
+    reactions: MessageReactionSummary[],
   ) => void;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   sentinelRef: RefObject<HTMLDivElement | null>;
@@ -86,6 +96,8 @@ export function useMessageFeedLifecycle({
   onIncomingMessageDeletionsProcessed,
   incomingMessageEdits,
   onIncomingMessageEditsProcessed,
+  incomingMessageReactions,
+  onIncomingMessageReactionsProcessed,
   scrollToLatestSignal,
   onExitContextMode,
 }: UseMessageFeedLifecycleParams): UseMessageFeedLifecycleResult {
@@ -471,6 +483,7 @@ export function useMessageFeedLifecycle({
           ...item,
           content: "",
           deleted_at: deletion.deleted_at,
+          reactions: [],
         };
       }),
     );
@@ -483,6 +496,7 @@ export function useMessageFeedLifecycle({
           ...item,
           content: "",
           deleted_at: deletion.deleted_at,
+          reactions: [],
         };
       }),
     );
@@ -523,6 +537,60 @@ export function useMessageFeedLifecycle({
     onIncomingMessageEditsProcessed?.();
   }, [incomingMessageEdits, onIncomingMessageEditsProcessed]);
 
+  useEffect(() => {
+    if (incomingMessageReactions.length === 0) return;
+
+    const applyReactionEvents = (target: Message): Message => {
+      const nextReactions = [...(target.reactions ?? [])];
+
+      incomingMessageReactions.forEach((event) => {
+        if (event.reaction.message_id !== target.id) return;
+
+        const { emoji, count, user_id: actorId } = event.reaction;
+        const existingIndex = nextReactions.findIndex((entry) => entry.emoji === emoji);
+
+        if (count <= 0) {
+          if (existingIndex >= 0) {
+            nextReactions.splice(existingIndex, 1);
+          }
+          return;
+        }
+
+        const existing = existingIndex >= 0 ? nextReactions[existingIndex] : null;
+        const reactedByMe =
+          actorId === userId
+            ? event.type === "reaction_added"
+            : (existing?.reacted_by_me ?? false);
+        const updated = {
+          emoji,
+          count,
+          reacted_by_me: reactedByMe,
+        };
+
+        if (existingIndex >= 0) {
+          nextReactions[existingIndex] = updated;
+        } else {
+          nextReactions.push(updated);
+        }
+      });
+
+      return {
+        ...target,
+        reactions: sortReactions(nextReactions),
+      };
+    };
+
+    setMessages((prev) =>
+      prev.map((item) => {
+        if ("type" in item) return item;
+        return applyReactionEvents(item);
+      }),
+    );
+
+    setContextLiveMessages((prev) => prev.map((item) => applyReactionEvents(item)));
+    onIncomingMessageReactionsProcessed?.();
+  }, [incomingMessageReactions, onIncomingMessageReactionsProcessed, userId]);
+
   const showContextLiveIndicator =
     messageViewMode === "context" && contextLiveMessages.length > 0;
 
@@ -546,6 +614,28 @@ export function useMessageFeedLifecycle({
     [],
   );
 
+  const applyMessageReactions = useCallback(
+    (messageId: number, reactions: MessageReactionSummary[]) => {
+      const sorted = sortReactions(reactions);
+
+      setMessages((prev) =>
+        prev.map((item) => {
+          if ("type" in item) return item;
+          if (item.id !== messageId) return item;
+          return { ...item, reactions: sorted };
+        }),
+      );
+
+      setContextLiveMessages((prev) =>
+        prev.map((item) => {
+          if (item.id !== messageId) return item;
+          return { ...item, reactions: sorted };
+        }),
+      );
+    },
+    [],
+  );
+
   return {
     messages,
     loading,
@@ -560,6 +650,7 @@ export function useMessageFeedLifecycle({
     showContextLiveIndicator,
     jumpToLatest,
     applyMessageEdit,
+    applyMessageReactions,
     scrollContainerRef,
     sentinelRef,
     bottomSentinelRef,

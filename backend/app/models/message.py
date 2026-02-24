@@ -41,6 +41,11 @@ class Message(Base):
     # Relationships
     user = relationship("User", back_populates="messages")
     room = relationship("Room", back_populates="messages")
+    reactions = relationship(
+        "MessageReaction",
+        back_populates="message",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         # Composite index for cursor-based pagination (room_id, created_at DESC, id DESC)

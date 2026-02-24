@@ -108,6 +108,30 @@ class WSMessageEdited(BaseModel):
     message: WSEditedMessage
 
 
+class WSReactionMessage(BaseModel):
+    """Reaction delta payload for realtime reaction updates."""
+
+    room_id: int
+    message_id: int
+    emoji: str
+    user_id: int
+    count: int
+
+
+class WSMessageReactionAdded(BaseModel):
+    """Server broadcasts reaction add event."""
+
+    type: Literal["reaction_added"]
+    reaction: WSReactionMessage
+
+
+class WSMessageReactionRemoved(BaseModel):
+    """Server broadcasts reaction remove event."""
+
+    type: Literal["reaction_removed"]
+    reaction: WSReactionMessage
+
+
 class WSUserJoined(BaseModel):
     """Server notifies that user joined room"""
 

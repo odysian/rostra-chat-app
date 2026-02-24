@@ -2,7 +2,7 @@
 
 ## Overview
 
-Rostra is a real-time chat application. Users register and log in with username/password, discover and join named rooms, and send text messages. Messages are delivered in real time over WebSockets; the app also shows who is currently in each room (online users). Room access is controlled by explicit membership — users must join a room before they can view messages, send messages, or subscribe via WebSocket. Unread counts per room are tracked via a `user_room` table (last read timestamp) and cached in Redis with PostgreSQL fallback. Message history supports cursor-based pagination for infinite scroll. Rooms can be created and deleted (delete restricted to the room creator); members can leave rooms (except the creator). The stack is a React (Vite) frontend, FastAPI backend, PostgreSQL database, and Redis cache; all tables live in the `rostra` schema.
+Rostra is a real-time chat application. Users register and log in with username/password, discover and join named rooms, and send text messages. Messages are delivered in real time over WebSockets; the app also shows who is currently in each room (online users). Room access is controlled by explicit membership — users must join a room before they can view messages, send messages, react to messages, or subscribe via WebSocket. Unread counts per room are tracked via a `user_room` table (last read timestamp) and cached in Redis with PostgreSQL fallback. Message history supports cursor-based pagination for infinite scroll. Rooms can be created and deleted (delete restricted to the room creator); members can leave rooms (except the creator). The stack is a React (Vite) frontend, FastAPI backend, PostgreSQL database, and Redis cache; all tables live in the `rostra` schema.
 
 ## Tech Stack
 
@@ -71,21 +71,25 @@ All tables are in schema **rostra**.
 | **users**  | `id` (PK), `username`, `email`, `hashed_password`, `created_at` | User accounts; username and email unique. |
 | **rooms**  | `id` (PK), `name`, `created_by` (FK → users.id), `created_at` | Chat rooms; name unique. |
 | **messages** | `id` (PK), `room_id` (FK → rooms.id), `user_id` (FK → users.id), `content`, `created_at`, `edited_at` (nullable), `deleted_at` (nullable), `search_vector` (generated tsvector) | One message per row. Message edits update `content` and set `edited_at` while preserving `created_at`. Soft deletion sets `deleted_at` and scrubs `content` to empty string while preserving row position in history. `search_vector` is a stored generated column: `to_tsvector('english', content)`. |
+| **message_reactions** | `id` (PK), `message_id` (FK → messages.id ON DELETE CASCADE), `user_id` (FK → users.id ON DELETE CASCADE), `emoji`, `created_at` | Stores one emoji reaction row per `(message_id, user_id, emoji)`. Supports multiple different emojis per user on the same message while preventing same-emoji duplicates. |
 | **user_room** | `id` (PK), `user_id` (FK → users.id ON DELETE CASCADE), `room_id` (FK → rooms.id ON DELETE CASCADE), `last_read_at`, `joined_at` | Per-user read state per room; unique on (user_id, room_id). |
 
 ### Relationships
 
 - **users** → **messages**: one-to-many (user.messages).
+- **users** → **message_reactions**: one-to-many (user.message_reactions).
 - **users** → **rooms** (as creator): one-to-many (user.rooms, room.created_by).
 - **users** ↔ **rooms** (membership/read state): many-to-many via **user_room** (user.user_rooms, room.user_rooms).
 - **rooms** → **messages**: one-to-many with cascade delete (room.messages).
 - **rooms** → **user_room**: one-to-many with cascade delete.
+- **messages** → **message_reactions**: one-to-many with reaction cleanup on soft delete and FK cascade on hard delete.
 
 ### Indexes (from migrations and models)
 
 - **users**: `ix_users_id`, `ix_users_username` (unique), `ix_users_email` (unique).
 - **rooms**: `ix_rooms_id`, `ix_rooms_name` (unique).
 - **messages**: `ix_messages_id`, `ix_messages_room_created_id` composite index on `(room_id, created_at DESC, id DESC)` — covers cursor-based pagination queries (WHERE + ORDER BY + seek). `ix_messages_search_vector` GIN index on `search_vector` — covers full-text search queries (`@@` operator).
+- **message_reactions**: `ix_message_reactions_message_id` (message_id), `ix_message_reactions_user_id` (user_id), unique constraint `uq_message_reactions_message_user_emoji` on `(message_id, user_id, emoji)`.
 - **user_room**: `ix_user_room_user` (user_id), `ix_user_room_room` (room_id); unique constraint `uq_user_room` on (user_id, room_id).
 
 ## API Contracts
@@ -131,6 +135,8 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | POST   | /messages                | Yes  | Body: `MessageCreate` (room_id, content 1–1000 chars). Creates message as current user. 403 if not a room member. 404 if room not found. |
 | PATCH  | /messages/{message_id}   | Yes  | Edit message content. Authorization: message owner only. Body: `MessageUpdate` (content 1–1000 chars, trimmed). Rejects no-op edits after trimming (409) and edits to deleted messages (409). Returns updated `MessageResponse` including `edited_at`. Broadcasts `message_edited` event. **Rate limited: 20/min.** |
 | DELETE | /messages/{message_id}   | Yes  | Soft-delete message. Authorization: message owner OR room creator, with authz check before idempotency response. Behavior: set `deleted_at`, scrub `content` to empty string, keep row in timeline. Returns 204 for successful deletes and for already-deleted messages when caller is authorized. Broadcasts `message_deleted` event. **Rate limited: 20/min.** |
+| POST   | /messages/{message_id}/reactions | Yes | Add a caller-owned reaction using allowlisted emoji `👍 👎 ❤️ 😂 🔥 👀 🎉`. Caller must be a room member; deleted messages are non-reactable. Returns `MessageReactionUpdateResponse { message_id, room_id, reactions[] }`. Broadcasts `reaction_added` with delta payload `{ room_id, message_id, emoji, user_id, count }`. **Rate limited: 40/min.** |
+| DELETE | /messages/{message_id}/reactions/{emoji} | Yes | Remove caller-owned reaction for one emoji. Caller must be a room member and own the reaction row. Returns `MessageReactionUpdateResponse { message_id, room_id, reactions[] }`. Broadcasts `reaction_removed` delta payload with updated `count`. **Rate limited: 40/min.** |
 
 ### WebSocket
 
@@ -152,6 +158,8 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 - `{ "type": "new_message", "message": { id, room_id, user_id, username, content, created_at, edited_at?, deleted_at? } }`
 - `{ "type": "message_edited", "message": { id, room_id, content, edited_at } }`
 - `{ "type": "message_deleted", "message": { id, room_id, deleted_at } }`
+- `{ "type": "reaction_added", "reaction": { room_id, message_id, emoji, user_id, count } }`
+- `{ "type": "reaction_removed", "reaction": { room_id, message_id, emoji, user_id, count } }`
 - `{ "type": "user_joined", "room_id": int, "user": { id, username } }`
 - `{ "type": "user_left", "room_id": int, "user": { id, username } }`
 - `{ "type": "typing_indicator", "room_id": int, "user": { id, username } }`
@@ -171,6 +179,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Jump-to-message context | Two-phase context contract (`context` + `newer`) | `/messages/{id}/context` returns anchored window + `older_cursor`/`newer_cursor`; `/messages/newer` pages forward in ascending order. Keeps existing history/search contracts unchanged while enabling bidirectional context mode. |
 | Message history | REST for history, WS for live | Messages loaded via paginated GET endpoint; new messages pushed via WebSocket; no WS history replay. |
 | Message editing model | Owner-only PATCH + in-place WS update | PATCH `/messages/{id}` trims content, rejects no-op edits (`409`), blocks deleted-row edits, stamps `edited_at`, and broadcasts `message_edited` for in-place client updates without reordering. |
+| Message reactions model | Explicit add/remove endpoints + server-authoritative WS deltas | Reactions use allowlist `👍 👎 ❤️ 😂 🔥 👀 🎉`, unique `(message_id, user_id, emoji)` rows, member-only authz, and no optimistic final-state assumption on client. Deleted messages are non-reactable and soft-delete clears stored reactions. |
 | Async everywhere | AsyncSession, async CRUD, asyncpg | All endpoints use `async def`, all DB operations use `await`. WebSocket handlers create short-lived `AsyncSessionLocal()` sessions per message (like mini HTTP requests). |
 | Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
 | Message deletion model | Soft delete + scrub | DELETE `/messages/{id}` keeps row in place, sets `deleted_at`, and scrubs `content` to empty string. Search excludes soft-deleted rows; authorized repeat delete is idempotent (204). |
@@ -198,6 +207,7 @@ app/
 │   ├── user.py
 │   ├── room.py
 │   ├── message.py
+│   ├── message_reaction.py
 │   └── user_room.py
 ├── schemas/                 # Pydantic request/response models
 │   ├── user.py

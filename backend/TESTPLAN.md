@@ -625,6 +625,58 @@ If refresh-token auth is added later, define this section in a dedicated Spec an
 
 ---
 
+### POST /api/messages/:message_id/reactions
+### DELETE /api/messages/:message_id/reactions/:emoji
+
+**Happy Path:**
+- `test_add_reaction_member_succeeds_and_returns_summary`
+  - Room member adds allowlisted emoji reaction
+  - Endpoint returns 200 with updated message reaction summary entries
+  - Summary includes `emoji`, `count`, `reacted_by_me`
+
+- `test_remove_reaction_owner_succeeds_and_returns_summary`
+  - Caller removes their own existing reaction
+  - Endpoint returns 200 and updated summary
+
+- `test_reaction_endpoints_emit_ws_events_with_expected_payload`
+  - Add emits `reaction_added`; remove emits `reaction_removed`
+  - Payload includes `room_id`, `message_id`, `emoji`, `user_id`, `count`
+
+**Authorization / Security Cases:**
+- `test_add_reaction_not_room_member_returns_403`
+  - Non-member cannot react to room messages
+
+- `test_remove_reaction_only_owns_row`
+  - Caller cannot remove another user's reaction row
+  - Endpoint rejects with not-found/forbidden semantics for non-owned reaction
+
+**Behavioral Cases:**
+- `test_duplicate_same_emoji_reaction_same_user_does_not_create_second_row`
+  - Duplicate same-emoji reaction from same user is prevented by uniqueness
+  - Endpoint behavior matches explicit add/remove toggle contract
+
+- `test_reaction_summary_sorted_by_count_then_allowlist_order`
+  - Summary ordering is count desc, ties resolved by allowlist order
+
+- `test_deleted_message_cannot_be_reacted_to`
+  - Add/remove on soft-deleted message is rejected
+  - Deleted-message payloads show no reactions
+
+- `test_delete_message_removes_stored_reactions`
+  - Reactions exist before soft delete
+  - After delete, stored reactions for that message are removed
+
+**Validation Cases:**
+- `test_add_reaction_non_allowlisted_emoji_returns_422`
+  - Emoji outside allowlist is rejected
+
+**Rate Limit Cases:**
+- `test_reaction_rate_limit_40_per_minute`
+  - Perform 41 reaction mutations within one minute from same client
+  - First 40 succeed, request 41 returns 429
+
+---
+
 ### GET /api/rooms/:id/messages/search
 
 **Happy Path:**

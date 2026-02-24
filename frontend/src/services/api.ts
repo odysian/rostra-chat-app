@@ -7,6 +7,8 @@ import type {
   Message,
   PaginatedMessages,
   MessageContextResponse,
+  MessageReactionUpdateResponse,
+  ReactionEmoji,
 } from "../types";
 
 // Central API client used by all frontend features.
@@ -432,4 +434,34 @@ export async function deleteMessage(
       Authorization: `Bearer ${token}`,
     },
   });
+}
+
+export async function addMessageReaction(
+  messageId: number,
+  emoji: ReactionEmoji,
+  token: string,
+): Promise<MessageReactionUpdateResponse> {
+  return apiCall<MessageReactionUpdateResponse>(`/messages/${messageId}/reactions`, {
+    method: "POST",
+    body: JSON.stringify({ emoji }),
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
+export async function removeMessageReaction(
+  messageId: number,
+  emoji: ReactionEmoji,
+  token: string,
+): Promise<MessageReactionUpdateResponse> {
+  return apiCall<MessageReactionUpdateResponse>(
+    `/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
 }

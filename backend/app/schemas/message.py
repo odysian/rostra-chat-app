@@ -1,6 +1,10 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+REACTION_EMOJI_ALLOWLIST = ("👍", "👎", "❤️", "😂", "🔥", "👀", "🎉")
+ReactionEmoji = Literal["👍", "👎", "❤️", "😂", "🔥", "👀", "🎉"]
 
 
 class MessageCreate(BaseModel):
@@ -32,6 +36,20 @@ class MessageUpdate(BaseModel):
         return v
 
 
+class MessageReactionAdd(BaseModel):
+    """Schema for adding an emoji reaction to a message."""
+
+    emoji: ReactionEmoji
+
+
+class MessageReactionSummary(BaseModel):
+    """Aggregated reaction state for a single emoji on a message."""
+
+    emoji: ReactionEmoji
+    count: int
+    reacted_by_me: bool
+
+
 class MessageResponse(BaseModel):
     """Schema for message in responses"""
 
@@ -45,6 +63,7 @@ class MessageResponse(BaseModel):
     created_at: datetime
     edited_at: datetime | None = None
     deleted_at: datetime | None = None
+    reactions: list[MessageReactionSummary] = Field(default_factory=list)
 
 
 class PaginatedMessages(BaseModel):
@@ -61,3 +80,11 @@ class MessageContextResponse(BaseModel):
     target_message_id: int
     older_cursor: str | None = None
     newer_cursor: str | None = None
+
+
+class MessageReactionUpdateResponse(BaseModel):
+    """Schema returned by reaction mutation endpoints."""
+
+    message_id: int
+    room_id: int
+    reactions: list[MessageReactionSummary]

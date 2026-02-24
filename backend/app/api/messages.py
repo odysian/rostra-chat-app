@@ -9,10 +9,15 @@ from app.core.rate_limit import limiter
 from app.crud import message as message_crud
 from app.crud import room as room_crud
 from app.crud import user_room as user_room_crud
+from app.models.message import Message as MessageModel
 from app.models.user import User
 from app.schemas.message import (
+    REACTION_EMOJI_ALLOWLIST,
     MessageContextResponse,
     MessageCreate,
+    MessageReactionAdd,
+    MessageReactionSummary,
+    MessageReactionUpdateResponse,
     MessageResponse,
     MessageUpdate,
     PaginatedMessages,
@@ -24,9 +29,62 @@ from app.websocket.schemas import (
     WSEditedMessage,
     WSMessageDeleted,
     WSMessageEdited,
+    WSMessageReactionAdded,
+    WSMessageReactionRemoved,
+    WSReactionMessage,
 )
 
 router = APIRouter()
+
+
+def _validate_reaction_emoji(emoji: str) -> str:
+    if emoji not in REACTION_EMOJI_ALLOWLIST:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                f"Emoji must be one of: {', '.join(REACTION_EMOJI_ALLOWLIST)}"
+            ),
+        )
+    return emoji
+
+
+async def _get_reaction_summary_map(
+    db: AsyncSession,
+    messages: list[MessageModel],
+    current_user_id: int,
+) -> dict[int, list[MessageReactionSummary]]:
+    message_ids = [int(msg.id) for msg in messages]
+    return await message_crud.get_reaction_summaries_for_message_ids(
+        db,
+        message_ids,
+        current_user_id,
+    )
+
+
+def _to_message_response(
+    msg: MessageModel,
+    reaction_summary_map: dict[int, list[MessageReactionSummary]],
+) -> MessageResponse:
+    msg_id: int = msg.id  # type: ignore[assignment]
+    msg_room_id: int = msg.room_id  # type: ignore[assignment]
+    msg_user_id: int = msg.user_id  # type: ignore[assignment]
+    msg_content: str = msg.content  # type: ignore[assignment]
+    msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+    msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
+    msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
+    msg_username: str = msg.user.username  # type: ignore[union-attr]
+
+    return MessageResponse(
+        id=msg_id,
+        room_id=msg_room_id,
+        user_id=msg_user_id,
+        username=msg_username,
+        content=msg_content,
+        created_at=msg_created_at,
+        edited_at=msg_edited_at,
+        deleted_at=msg_deleted_at,
+        reactions=reaction_summary_map.get(msg_id, []),
+    )
 
 
 @router.get("/rooms/{room_id}/messages/search", response_model=PaginatedMessages)
@@ -98,30 +156,10 @@ async def search_room_messages(
     if has_more:
         messages = messages[:limit]
 
-    # Build response — same pattern as get_room_messages
-    response_messages = []
-    for msg in messages:
-        msg_id: int = msg.id  # type: ignore[assignment]
-        msg_room_id: int = msg.room_id  # type: ignore[assignment]
-        msg_user_id: int = msg.user_id  # type: ignore[assignment]
-        msg_content: str = msg.content  # type: ignore[assignment]
-        msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
-        msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
-        msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
-        msg_username: str = msg.user.username  # type: ignore[union-attr]
-
-        response_messages.append(
-            MessageResponse(
-                id=msg_id,
-                room_id=msg_room_id,
-                user_id=msg_user_id,
-                username=msg_username,
-                content=msg_content,
-                created_at=msg_created_at,
-                edited_at=msg_edited_at,
-                deleted_at=msg_deleted_at,
-            )
-        )
+    reaction_summary_map = await _get_reaction_summary_map(db, messages, current_user.id)
+    response_messages = [
+        _to_message_response(msg, reaction_summary_map) for msg in messages
+    ]
 
     # Create next_cursor if there are more results
     next_cursor = None
@@ -199,33 +237,10 @@ async def get_room_messages(
         # Trim to the requested limit
         messages = messages[:limit]
 
-    # Build response messages
-    # We need to manually construct MessageResponse to include username from the relationship
-    # Cannot use model_validate(msg) directly because username isn't a Message column
-    response_messages = []
-    for msg in messages:
-        # Access attributes and assign to variables to help mypy infer correct types
-        msg_id: int = msg.id  # type: ignore[assignment]
-        msg_room_id: int = msg.room_id  # type: ignore[assignment]
-        msg_user_id: int = msg.user_id  # type: ignore[assignment]
-        msg_content: str = msg.content  # type: ignore[assignment]
-        msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
-        msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
-        msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
-        msg_username: str = msg.user.username  # type: ignore[union-attr]
-
-        response_messages.append(
-            MessageResponse(
-                id=msg_id,
-                room_id=msg_room_id,
-                user_id=msg_user_id,
-                username=msg_username,
-                content=msg_content,
-                created_at=msg_created_at,
-                edited_at=msg_edited_at,
-                deleted_at=msg_deleted_at,
-            )
-        )
+    reaction_summary_map = await _get_reaction_summary_map(db, messages, current_user.id)
+    response_messages = [
+        _to_message_response(msg, reaction_summary_map) for msg in messages
+    ]
 
     # Create next_cursor if there are more messages
     # The cursor points to the last message we're returning, so the next
@@ -282,29 +297,10 @@ async def get_room_messages_newer(
     if has_more:
         messages = messages[:limit]
 
-    response_messages = []
-    for msg in messages:
-        msg_id: int = msg.id  # type: ignore[assignment]
-        msg_room_id: int = msg.room_id  # type: ignore[assignment]
-        msg_user_id: int = msg.user_id  # type: ignore[assignment]
-        msg_content: str = msg.content  # type: ignore[assignment]
-        msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
-        msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
-        msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
-        msg_username: str = msg.user.username  # type: ignore[union-attr]
-
-        response_messages.append(
-            MessageResponse(
-                id=msg_id,
-                room_id=msg_room_id,
-                user_id=msg_user_id,
-                username=msg_username,
-                content=msg_content,
-                created_at=msg_created_at,
-                edited_at=msg_edited_at,
-                deleted_at=msg_deleted_at,
-            )
-        )
+    reaction_summary_map = await _get_reaction_summary_map(db, messages, current_user.id)
+    response_messages = [
+        _to_message_response(msg, reaction_summary_map) for msg in messages
+    ]
 
     next_cursor = None
     if has_more and messages:
@@ -375,29 +371,12 @@ async def get_room_message_context(
 
     window_messages = [*older_asc, target, *newer_asc]
 
-    response_messages = []
-    for msg in window_messages:
-        msg_id: int = msg.id  # type: ignore[assignment]
-        msg_room_id: int = msg.room_id  # type: ignore[assignment]
-        msg_user_id: int = msg.user_id  # type: ignore[assignment]
-        msg_content: str = msg.content  # type: ignore[assignment]
-        msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
-        msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
-        msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
-        msg_username: str = msg.user.username  # type: ignore[union-attr]
-
-        response_messages.append(
-            MessageResponse(
-                id=msg_id,
-                room_id=msg_room_id,
-                user_id=msg_user_id,
-                username=msg_username,
-                content=msg_content,
-                created_at=msg_created_at,
-                edited_at=msg_edited_at,
-                deleted_at=msg_deleted_at,
-            )
-        )
+    reaction_summary_map = await _get_reaction_summary_map(
+        db, window_messages, current_user.id
+    )
+    response_messages = [
+        _to_message_response(msg, reaction_summary_map) for msg in window_messages
+    ]
 
     older_cursor = None
     if has_more_older and window_messages:
@@ -540,6 +519,12 @@ async def edit_message(
         payload.model_dump(mode="json"),
     )
 
+    reaction_summary_map = await _get_reaction_summary_map(
+        db,
+        [updated_message],
+        current_user_id,
+    )
+
     return MessageResponse(
         id=updated_message_id,
         room_id=updated_room_id,
@@ -549,6 +534,7 @@ async def edit_message(
         created_at=updated_created_at,
         edited_at=updated_edited_at,
         deleted_at=updated_deleted_at,
+        reactions=reaction_summary_map.get(updated_message_id, []),
     )
 
 
@@ -614,3 +600,164 @@ async def delete_message(
         )
 
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post(
+    "/messages/{message_id}/reactions",
+    response_model=MessageReactionUpdateResponse,
+)
+@limiter.limit("40/minute")
+async def add_message_reaction(
+    request: Request,
+    message_id: int,
+    reaction: MessageReactionAdd,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageReactionUpdateResponse:
+    """Add a caller-owned emoji reaction when caller is a room member."""
+    db_message = await message_crud.get_message_by_id(db, message_id)
+    if not db_message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Message not found",
+        )
+
+    message_room_id: int = db_message.room_id  # type: ignore[assignment]
+    message_deleted_at: datetime | None = db_message.deleted_at  # type: ignore[assignment]
+    current_user_id: int = current_user.id
+
+    membership = await user_room_crud.get_user_room(db, current_user_id, message_room_id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this room",
+        )
+
+    if message_deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot react to a deleted message",
+        )
+
+    created = await message_crud.add_message_reaction(
+        db,
+        message_id=message_id,
+        user_id=current_user_id,
+        emoji=reaction.emoji,
+    )
+
+    reaction_count = await message_crud.get_reaction_count_for_emoji(
+        db,
+        message_id=message_id,
+        emoji=reaction.emoji,
+    )
+    summary_map = await message_crud.get_reaction_summaries_for_message_ids(
+        db,
+        [message_id],
+        current_user_id,
+    )
+
+    if created:
+        payload = WSMessageReactionAdded(
+            type="reaction_added",
+            reaction=WSReactionMessage(
+                room_id=message_room_id,
+                message_id=message_id,
+                emoji=reaction.emoji,
+                user_id=current_user_id,
+                count=reaction_count,
+            ),
+        )
+        await manager.broadcast_to_room(
+            message_room_id,
+            payload.model_dump(mode="json"),
+        )
+
+    return MessageReactionUpdateResponse(
+        message_id=message_id,
+        room_id=message_room_id,
+        reactions=summary_map.get(message_id, []),
+    )
+
+
+@router.delete(
+    "/messages/{message_id}/reactions/{emoji}",
+    response_model=MessageReactionUpdateResponse,
+)
+@limiter.limit("40/minute")
+async def remove_message_reaction(
+    request: Request,
+    message_id: int,
+    emoji: str,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> MessageReactionUpdateResponse:
+    """Remove caller-owned reaction row for an emoji."""
+    validated_emoji = _validate_reaction_emoji(emoji)
+    db_message = await message_crud.get_message_by_id(db, message_id)
+    if not db_message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Message not found",
+        )
+
+    message_room_id: int = db_message.room_id  # type: ignore[assignment]
+    message_deleted_at: datetime | None = db_message.deleted_at  # type: ignore[assignment]
+    current_user_id: int = current_user.id
+
+    membership = await user_room_crud.get_user_room(db, current_user_id, message_room_id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this room",
+        )
+
+    if message_deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot react to a deleted message",
+        )
+
+    removed = await message_crud.remove_message_reaction(
+        db,
+        message_id=message_id,
+        user_id=current_user_id,
+        emoji=validated_emoji,
+    )
+    if not removed:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Reaction not found",
+        )
+
+    reaction_count = await message_crud.get_reaction_count_for_emoji(
+        db,
+        message_id=message_id,
+        emoji=validated_emoji,
+    )
+    summary_map = await message_crud.get_reaction_summaries_for_message_ids(
+        db,
+        [message_id],
+        current_user_id,
+    )
+
+    payload = WSMessageReactionRemoved(
+        type="reaction_removed",
+        reaction=WSReactionMessage(
+            room_id=message_room_id,
+            message_id=message_id,
+            emoji=validated_emoji,
+            user_id=current_user_id,
+            count=reaction_count,
+        ),
+    )
+    await manager.broadcast_to_room(
+        message_room_id,
+        payload.model_dump(mode="json"),
+    )
+
+    return MessageReactionUpdateResponse(
+        message_id=message_id,
+        room_id=message_room_id,
+        reactions=summary_map.get(message_id, []),
+    )

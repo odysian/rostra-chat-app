@@ -40,6 +40,14 @@ export interface Room {
 }
 
 // Message types
+export type ReactionEmoji = "👍" | "👎" | "❤️" | "😂" | "🔥" | "👀" | "🎉";
+
+export interface MessageReactionSummary {
+  emoji: ReactionEmoji;
+  count: number;
+  reacted_by_me: boolean;
+}
+
 export interface Message {
   id: number;
   room_id: number;
@@ -49,6 +57,7 @@ export interface Message {
   created_at: string;
   edited_at?: string | null;
   deleted_at?: string | null;
+  reactions?: MessageReactionSummary[];
 }
 
 export interface PaginatedMessages {
@@ -61,6 +70,12 @@ export interface MessageContextResponse {
   target_message_id: number;
   older_cursor: string | null;
   newer_cursor: string | null;
+}
+
+export interface MessageReactionUpdateResponse {
+  message_id: number;
+  room_id: number;
+  reactions: MessageReactionSummary[];
 }
 
 // WebSocket message types
@@ -108,6 +123,24 @@ export interface WSMessageEdited {
   message: WSEditedMessagePayload;
 }
 
+export interface WSReactionPayload {
+  room_id: number;
+  message_id: number;
+  emoji: ReactionEmoji;
+  user_id: number;
+  count: number;
+}
+
+export interface WSMessageReactionAdded {
+  type: "reaction_added";
+  reaction: WSReactionPayload;
+}
+
+export interface WSMessageReactionRemoved {
+  type: "reaction_removed";
+  reaction: WSReactionPayload;
+}
+
 export interface WSUserJoined {
   type: "user_joined";
   room_id: number;
@@ -153,6 +186,8 @@ export type WebSocketMessage =
   | WSNewMessage
   | WSMessageEdited
   | WSMessageDeleted
+  | WSMessageReactionAdded
+  | WSMessageReactionRemoved
   | WSUserJoined
   | WSUserLeft
   | WSError

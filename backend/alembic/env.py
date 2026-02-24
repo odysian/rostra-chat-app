@@ -9,7 +9,7 @@ from app.core.config import settings
 from app.core.database import Base
 
 # Import all models so Alembic can discover them
-from app.models import message, room, user, user_room  # noqa: F401
+from app.models import message, message_reaction, room, user, user_room  # noqa: F401
 
 config = context.config
 

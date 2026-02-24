@@ -7,6 +7,8 @@ import type {
   Room,
   WSDeletedMessagePayload,
   WSEditedMessagePayload,
+  WSMessageReactionAdded,
+  WSMessageReactionRemoved,
 } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -30,6 +32,8 @@ interface MessageAreaProps {
   onIncomingMessageDeletionsProcessed?: () => void;
   incomingMessageEdits?: WSEditedMessagePayload[];
   onIncomingMessageEditsProcessed?: () => void;
+  incomingMessageReactions?: Array<WSMessageReactionAdded | WSMessageReactionRemoved>;
+  onIncomingMessageReactionsProcessed?: () => void;
   onToggleUsers: () => void;
   onToggleSearch: () => void;
   onRoomDeleted: () => void;
@@ -54,6 +58,8 @@ export default function MessageArea({
   onIncomingMessageDeletionsProcessed = () => {},
   incomingMessageEdits = [],
   onIncomingMessageEditsProcessed = () => {},
+  incomingMessageReactions = [],
+  onIncomingMessageReactionsProcessed = () => {},
   onToggleUsers,
   onToggleSearch,
   onRoomDeleted,
@@ -265,6 +271,8 @@ export default function MessageArea({
         onIncomingMessageDeletionsProcessed={onIncomingMessageDeletionsProcessed}
         incomingMessageEdits={incomingMessageEdits}
         onIncomingMessageEditsProcessed={onIncomingMessageEditsProcessed}
+        incomingMessageReactions={incomingMessageReactions}
+        onIncomingMessageReactionsProcessed={onIncomingMessageReactionsProcessed}
         scrollToLatestSignal={scrollToLatestSignal}
         onExitContextMode={onExitContextMode}
       />

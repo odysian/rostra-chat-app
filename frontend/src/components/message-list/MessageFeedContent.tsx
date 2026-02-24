@@ -1,5 +1,5 @@
 import type { KeyboardEvent } from "react";
-import type { Message } from "../../types";
+import type { Message, ReactionEmoji } from "../../types";
 import {
   getDateLabel,
   getFullDateTime,
@@ -25,12 +25,14 @@ interface MessageFeedContentProps {
   editDraft: string;
   editError: string;
   savingMessageIds: number[];
+  pendingReactionKeys: string[];
   onDeleteMessage: (messageId: number) => void;
   onStartEdit: (messageId: number, content: string) => void;
   onEditDraftChange: (value: string) => void;
   onEditKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
+  onToggleReaction: (messageId: number, emoji: ReactionEmoji, reactedByMe: boolean) => void;
 }
 
 export function MessageFeedContent({
@@ -46,12 +48,14 @@ export function MessageFeedContent({
   editDraft,
   editError,
   savingMessageIds,
+  pendingReactionKeys,
   onDeleteMessage,
   onStartEdit,
   onEditDraftChange,
   onEditKeyDown,
   onCancelEdit,
   onSaveEdit,
+  onToggleReaction,
 }: MessageFeedContentProps) {
   const isComfortableDensity = density === "comfortable";
 
@@ -93,6 +97,7 @@ export function MessageFeedContent({
           (message.user_id === currentUserId || roomCreatorId === currentUserId);
         const canEdit =
           !message.deleted_at && currentUserId != null && message.user_id === currentUserId;
+        const canReact = !message.deleted_at && currentUserId != null;
         const isDeleting = deletingMessageIds.includes(message.id);
         const isEditing = editingMessageId === message.id;
         const isSavingEdit = savingMessageIds.includes(message.id);
@@ -181,12 +186,15 @@ export function MessageFeedContent({
               isSavingEdit={isSavingEdit}
               editDraft={editDraft}
               editError={isEditing ? editError : ""}
+              canReact={canReact}
+              pendingReactionKeys={pendingReactionKeys}
               onStartEdit={onStartEdit}
               onEditDraftChange={onEditDraftChange}
               onEditKeyDown={onEditKeyDown}
               onCancelEdit={onCancelEdit}
               onSaveEdit={onSaveEdit}
               onDeleteMessage={onDeleteMessage}
+              onToggleReaction={onToggleReaction}
             />
           </div>
         );
