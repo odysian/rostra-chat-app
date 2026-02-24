@@ -71,6 +71,8 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Portals:** Modals (create room, delete room) use `createPortal(..., document.body)` to render outside the sidebar DOM hierarchy.
 - **One WebSocket provider:** WebSocketProvider wraps ChatLayout; only chat page uses WebSocket. Auth state is above so token is available when mounting WebSocketProvider.
 - **Decomposition baseline for large frontend components:** Keep the top-level component as a composition container and extract state orchestration into `src/hooks/useXxx.ts` plus feature-scoped presentational components under `src/components/<feature-kebab>/` (for example: `RoomList` + `useRoomsData` + `components/room-list/*`).
+- **Input-modality action surfaces (message rows):** For mixed desktop/mobile controls, split interaction by pointer mode:
+  desktop uses one hover/focus `...` trigger that opens an anchored action shelf; coarse-pointer devices use long-press + bottom-sheet actions without persistent inline controls.
 
 ### Frontend Anti-Bloat Baseline
 

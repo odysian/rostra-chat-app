@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ComponentProps } from "react";
@@ -12,6 +12,7 @@ const mockEditMessage = vi.fn();
 const mockAddMessageReaction = vi.fn();
 const mockRemoveMessageReaction = vi.fn();
 const mockOnIncomingMessagesProcessed = vi.fn();
+const originalMatchMedia = window.matchMedia;
 
 vi.mock("../../context/AuthContext", () => ({
   useAuth: () => ({
@@ -74,6 +75,30 @@ function renderMessageList(overrides?: Partial<ComponentProps<typeof MessageList
   );
 }
 
+function mockPointerMode(coarsePointer: boolean) {
+  Object.defineProperty(window, "matchMedia", {
+    writable: true,
+    value: vi.fn().mockImplementation((query: string) => ({
+      matches: query === "(pointer: coarse)" ? coarsePointer : false,
+      media: query,
+      onchange: null,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+      addListener: vi.fn(),
+      removeListener: vi.fn(),
+      dispatchEvent: vi.fn(),
+    })),
+  });
+}
+
+async function longPressMessage(text: string) {
+  const content = await screen.findByText(text);
+  fireEvent.pointerDown(content, { pointerType: "touch", clientX: 80, clientY: 60 });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 360));
+  });
+}
+
 function makeHistory(total: number, startId = 1): Message[] {
   const base = new Date("2024-01-01T10:00:00Z").getTime();
   return Array.from({ length: total }, (_, index) =>
@@ -95,6 +120,7 @@ function getUppercaseDateLabel(isoString: string): string {
 
 describe("MessageList", () => {
   beforeEach(() => {
+    mockPointerMode(false);
     mockGetRoomMessages.mockReset();
     mockGetRoomMessagesNewer.mockReset();
     mockDeleteMessage.mockReset();
@@ -123,6 +149,13 @@ describe("MessageList", () => {
       message_id: 1,
       room_id: 1,
       reactions: [],
+    });
+  });
+
+  afterAll(() => {
+    Object.defineProperty(window, "matchMedia", {
+      writable: true,
+      value: originalMatchMedia,
     });
   });
 
@@ -237,7 +270,7 @@ describe("MessageList", () => {
     expect(screen.queryByText("Original deleted content")).not.toBeInTheDocument();
   });
 
-  it("renders one reaction-menu trigger for active messages and hides it for deleted rows", async () => {
+  it("renders one message-actions trigger for active messages and hides it for deleted rows", async () => {
     const activeMessage = makeMessage({
       id: 8,
       username: "alice",
@@ -260,7 +293,7 @@ describe("MessageList", () => {
     renderMessageList();
     await screen.findByText("Active row");
 
-    const menuButtons = screen.getAllByRole("button", { name: "Open reaction menu" });
+    const menuButtons = screen.getAllByRole("button", { name: "More message actions" });
     expect(menuButtons).toHaveLength(1);
   });
 
@@ -292,17 +325,71 @@ describe("MessageList", () => {
     renderMessageList();
     await screen.findByText("Toggle reactions here");
 
-    await user.click(screen.getByRole("button", { name: "Open reaction menu" }));
+    await user.click(screen.getByRole("button", { name: "More message actions" }));
     await user.click(screen.getByRole("button", { name: "Add 👍 reaction" }));
     await waitFor(() => {
       expect(mockAddMessageReaction).toHaveBeenCalledWith(10, "👍", "test-token");
     });
     expect(screen.getByRole("button", { name: "Toggle 👍 reaction" })).toBeInTheDocument();
 
-    await user.click(screen.getByRole("button", { name: "Open reaction menu" }));
+    await user.click(screen.getByRole("button", { name: "More message actions" }));
     await user.click(screen.getByRole("button", { name: "Remove 👍 reaction" }));
     await waitFor(() => {
       expect(mockRemoveMessageReaction).toHaveBeenCalledWith(10, "👍", "test-token");
+    });
+  });
+
+  it("opens mobile message actions from long-press only", async () => {
+    mockPointerMode(true);
+    const user = userEvent.setup();
+    const message = makeMessage({
+      id: 11,
+      userId: 2,
+      username: "bob",
+      content: "Touch actions here",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [message],
+      next_cursor: null,
+    });
+
+    renderMessageList();
+    await longPressMessage("Touch actions here");
+    expect(screen.getByRole("dialog", { name: "Message actions" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Close message actions" }));
+    expect(screen.queryByRole("dialog", { name: "Message actions" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "More message actions" })).not.toBeInTheDocument();
+  });
+
+  it("toggles reactions from the mobile action sheet", async () => {
+    mockPointerMode(true);
+    const user = userEvent.setup();
+    const message = makeMessage({
+      id: 12,
+      userId: 2,
+      username: "bob",
+      content: "Sheet reactions",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [message],
+      next_cursor: null,
+    });
+    mockAddMessageReaction.mockResolvedValueOnce({
+      message_id: 12,
+      room_id: 1,
+      reactions: [{ emoji: "👍", count: 1, reacted_by_me: true }],
+    });
+
+    renderMessageList();
+    await longPressMessage("Sheet reactions");
+    await user.click(screen.getByRole("button", { name: "Add 👍 reaction" }));
+    await waitFor(() => {
+      expect(mockAddMessageReaction).toHaveBeenCalledWith(12, "👍", "test-token");
     });
   });
 
@@ -463,6 +550,7 @@ describe("MessageList", () => {
     renderMessageList();
     await screen.findByText("Delete me");
 
+    await user.click(screen.getByRole("button", { name: "More message actions" }));
     await user.click(screen.getByRole("button", { name: "Delete message" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     expect(screen.getByText("Delete Message?")).toBeInTheDocument();
@@ -489,6 +577,7 @@ describe("MessageList", () => {
     renderMessageList();
     await screen.findByText("Cancel delete");
 
+    await user.click(screen.getByRole("button", { name: "More message actions" }));
     await user.click(screen.getByRole("button", { name: "Delete message" }));
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "CANCEL" }));
@@ -552,6 +641,7 @@ describe("MessageList", () => {
     renderMessageList();
     await screen.findByText("Original content");
 
+    await user.click(screen.getByRole("button", { name: "More message actions" }));
     await user.click(screen.getByRole("button", { name: "Edit message" }));
     const textarea = screen.getByLabelText("Edit message content");
     await user.clear(textarea);
@@ -592,6 +682,7 @@ describe("MessageList", () => {
     renderMessageList();
     await screen.findByText("Line one");
 
+    await user.click(screen.getByRole("button", { name: "More message actions" }));
     await user.click(screen.getByRole("button", { name: "Edit message" }));
     const textarea = screen.getByLabelText("Edit message content");
     await user.click(textarea);
@@ -610,6 +701,7 @@ describe("MessageList", () => {
     expect(updatedRow).not.toBeNull();
     expect(updatedRow).toHaveTextContent("Line one Line two");
 
+    await user.click(screen.getByRole("button", { name: "More message actions" }));
     await user.click(screen.getByRole("button", { name: "Edit message" }));
     const reopened = screen.getByLabelText("Edit message content");
     fireEvent.keyDown(reopened, { key: "Escape" });
