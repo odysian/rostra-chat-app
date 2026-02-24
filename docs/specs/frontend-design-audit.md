@@ -431,7 +431,7 @@ Backend plan:
 
 Frontend plan:
 - Add edit affordance on own messages only.
-- Inline textarea with save/cancel (`Enter` save, `Escape` cancel).
+- Inline textarea with save/cancel (`Enter` save, `Shift+Enter` newline, `Escape` cancel).
 - Render `(edited)` in message metadata when `edited_at` exists.
 - Hover behavior:
 - hovering the original timestamp shows original `created_at` detail,
@@ -461,21 +461,23 @@ Locked decisions for implementation (3.3):
 - Hover semantics: original timestamp hover shows `created_at`; `(edited)` marker hover shows `edited_at`.
 - Authorization policy: owner only.
 - Deleted messages editability: cannot edit deleted messages.
-- No-op edit policy: reject when trimmed content is unchanged.
+- No-op edit policy: reject when trimmed content is unchanged (`409 Conflict`).
 - Validation policy: same as message-create validation (trimmed, 1..1000 chars).
 - Conflict policy: last-write-wins in v1.
+- Edit keyboard policy: `Enter` saves, `Shift+Enter` inserts newline, `Escape` cancels.
 - Client update model: server-authoritative (no optimistic final state).
-- WS event contract: include `message_id`, `room_id`, `content`, `edited_at`.
+- WS event contract: `message_edited` uses the existing `{ type, message }` envelope where `message` includes `id`, `room_id`, `content`, and `edited_at`.
 - Rate limit: `20/minute` on edit endpoint.
 
 Implementation Ready Checklist (3.3):
 - `Locked`: Endpoint is owner-only and returns 403 for non-owner edits.
-- `Locked`: Edit endpoint rejects no-op edits after trimming.
+- `Locked`: Edit endpoint rejects no-op edits after trimming with `409 Conflict`.
 - `Locked`: Edit endpoint enforces same content validation bounds as message create.
 - `Locked`: Deleted messages cannot be edited.
+- `Locked`: Edit mode keyboard behavior is `Enter` save, `Shift+Enter` newline, `Escape` cancel.
 - `Locked`: Frontend renders `(edited)` marker with separate hover timestamp behavior.
 - `Locked`: Frontend preserves original timestamp display next to edited marker.
-- `Locked`: WS event applies in-place content+edited_at update without reordering message.
+- `Locked`: WS `message_edited` event uses `{ type, message }` and applies in-place content+edited_at update without reordering.
 - `Locked`: Endpoint rate limit is set to `20/minute`.
 - `Locked`: Backend and frontend tests for all above are listed in `backend/TESTPLAN.md` and frontend component tests before implementation.
 
@@ -528,18 +530,20 @@ Locked decisions for implementation (3.4):
 - Timeline behavior: keep row in history; do not remove or reorder row.
 - Tombstone presentation: `(deleted)` rendered as smaller muted/grey text.
 - Search behavior: deleted messages are excluded from search results.
-- DELETE response semantics: `204 No Content`, idempotent for already-deleted messages (authorized caller).
-- WS payload contract: `message_deleted` includes `room_id`, `message_id`, `deleted_at`.
+- DELETE response semantics: `204 No Content`, idempotent for already-deleted messages (authorized caller), with authorization check enforced before idempotency evaluation.
+- Authorization check order: authz-first before idempotency evaluation to avoid resource-state leakage.
+- WS payload contract: `message_deleted` uses the existing `{ type, message }` envelope where `message` includes `id`, `room_id`, and `deleted_at`.
 - Frontend WS handling: mutate row in place to deleted state.
 - Rate limit: `20/minute` on delete endpoint.
 - Post-delete restrictions: deleted messages are not editable and not reactable.
 
 Implementation Ready Checklist (3.4):
 - `Locked`: endpoint authz matrix enforces owner+creator policy.
+- `Locked`: endpoint enforces authz-first check order before idempotency behavior.
 - `Locked`: endpoint performs soft delete only and sets `deleted_at`.
 - `Locked`: endpoint scrubs content and prevents deleted rows from appearing in search.
 - `Locked`: endpoint is idempotent for already-deleted rows and returns `204` for authorized caller.
-- `Locked`: WS `message_deleted` event includes required fields for in-place update.
+- `Locked`: WS `message_deleted` event uses `{ type, message }` with required fields for in-place update.
 - `Locked`: frontend renders `(deleted)` in smaller muted style and keeps row position stable.
 - `Locked`: frontend disables edit/reaction actions on deleted messages.
 - `Locked`: delete endpoint rate limit is set to `20/minute`.
@@ -689,8 +693,8 @@ Use this section as the implementation gate. Detailed lock rationale and accepta
 | --- | --- | --- | --- |
 | `3.1` New Messages Divider | `Locked` | `2026-02-21` | `NEW MESSAGES`; do not render when `last_read_at` is null. |
 | `3.2` Global Jump-to-Message | `Locked` | `2026-02-22` | Internal-only context jump; default `25/25` window; required bidirectional context pagination; non-blocking live indicator + jump-to-latest; **continuous context UX** (no bottom-edge auto-exit; at-latest context appends live in-place); `3.2A` before `3.2B`. |
-| `3.3` Message Editing | `Locked` | `2026-02-21` | Owner-only; no time limit; keep original timestamp + `(edited)` marker with separate hovers; no deleted edits; no-op rejected; server-authoritative LWW; rate limit `20/minute`. |
-| `3.4` Message Deletion | `Locked` | `2026-02-21` | Owner + room creator; soft delete + content scrub; `(deleted)` muted tombstone in place; excluded from search; idempotent `204`; server event sync; rate limit `20/minute`. |
+| `3.3` Message Editing | `Locked` | `2026-02-24` | Owner-only; no time limit; keep original timestamp + `(edited)` marker with separate hovers; no deleted edits; no-op rejected as `409`; `Enter` save + `Shift+Enter` newline; server-authoritative LWW; WS uses existing `{ type, message }` envelope; rate limit `20/minute`. |
+| `3.4` Message Deletion | `Locked` | `2026-02-24` | Owner + room creator; authz-first before idempotent `204`; soft delete + content scrub; `(deleted)` muted tombstone in place; excluded from search; WS uses existing `{ type, message }` envelope; rate limit `20/minute`. |
 | `3.5` Message Reactions | `Locked` | `2026-02-22` | Allowlist `👍 👎 ❤️ 😂 🔥 👀 🎉`; multi-emoji per user (one per emoji); member-only; no deleted-message reactions; max 5 pills + `+N`; server-authoritative; rate limit `40/minute`. |
 | `3.6` Room Descriptions | `Locked` | `2026-02-22` | Creator-only single room `PATCH` for name+description; plain text max `255`; trim/no newlines; empty clears to null; header+discovery surfaces; mobile truncate + `...`; server-authoritative; rate limit `20/minute`. |
 
