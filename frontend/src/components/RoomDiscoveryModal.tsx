@@ -301,6 +301,7 @@ export function RoomDiscoveryModal({
                 const isJoined = effectiveJoinedIds.has(room.id);
                 const isCreator = room.created_by === currentUserId;
                 const displayRoomName = formatRoomNameForDisplay(room.name);
+                const roomDescription = room.description?.trim() || "No description";
 
                 return (
                   <li
@@ -311,22 +312,31 @@ export function RoomDiscoveryModal({
                       border: "1px solid var(--border-dim)",
                     }}
                   >
-                    <div className="min-w-0 flex-1 flex items-center gap-2">
-                      <span
-                        className="font-bebas text-[17px] tracking-[0.08em] truncate"
-                        style={{ color: "var(--color-text)" }}
-                        title={displayRoomName}
-                      >
-                        {displayRoomName}
-                      </span>
-                      {isCreator && (
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 min-w-0">
                         <span
-                          className="font-pixel text-[7px]"
-                          style={{ color: "var(--color-primary)" }}
+                          className="font-bebas text-[17px] tracking-[0.08em] truncate"
+                          style={{ color: "var(--color-text)" }}
+                          title={displayRoomName}
                         >
-                          OWNER
+                          {displayRoomName}
                         </span>
-                      )}
+                        {isCreator && (
+                          <span
+                            className="font-pixel text-[7px]"
+                            style={{ color: "var(--color-primary)" }}
+                          >
+                            OWNER
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className="font-mono text-[11px] leading-snug truncate mt-1"
+                        style={{ color: "var(--color-meta)" }}
+                        title={roomDescription}
+                      >
+                        {roomDescription}
+                      </p>
                     </div>
 
                     <div className="shrink-0">

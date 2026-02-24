@@ -86,7 +86,11 @@ async def create_room(db: AsyncSession, room: RoomCreate, user_id: int) -> Room:
     """
     from datetime import datetime
 
-    db_room = Room(name=room.name, created_by=user_id)
+    db_room = Room(
+        name=room.name,
+        description=room.description,
+        created_by=user_id,
+    )
     db.add(db_room)
 
     # Flush sends the INSERT to the DB (inside the transaction) so we get room.id,
@@ -104,6 +108,24 @@ async def create_room(db: AsyncSession, room: RoomCreate, user_id: int) -> Room:
     await db.refresh(db_room)
 
     return db_room
+
+
+async def update_room_metadata(
+    db: AsyncSession,
+    room: Room,
+    updates: dict[str, str | None],
+) -> Room:
+    """
+    Persist creator-approved room metadata updates.
+
+    The API layer is responsible for authorization and validation.
+    """
+    for field, value in updates.items():
+        setattr(room, field, value)
+
+    await db.commit()
+    await db.refresh(room)
+    return room
 
 
 async def delete_room(db: AsyncSession, room_id: int) -> None:

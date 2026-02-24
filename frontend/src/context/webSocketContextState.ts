@@ -7,6 +7,7 @@ import type {
   WSNewMessage,
   WSUserJoined,
   WSUserLeft,
+  WSRoomUpdated,
   WSError,
   WSSubscribed,
   WSTypingIndicator,
@@ -20,6 +21,7 @@ export type WebSocketMessage =
   | WSMessageReactionRemoved
   | WSUserJoined
   | WSUserLeft
+  | WSRoomUpdated
   | WSError
   | WSSubscribed
   | WSTypingIndicator;

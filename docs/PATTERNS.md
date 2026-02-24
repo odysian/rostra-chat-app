@@ -43,7 +43,7 @@ Reusable code patterns and conventions in this project. All of the following are
 - Retry: exponential backoff for network/5xx/timeout (max retries 4, no retry on 401). Timeout 10s per request.
 - 401: if `onUnauthorized` is set (by AuthContext), it is called before throwing; no retry.
 - Errors: message comes from `response.json().detail` when possible, else status text; thrown as `Error(message)`.
-- Named functions per resource: `login`, `register`, `getCurrentUser`, `getRooms`, `discoverRooms`, `markRoomRead`, `createRoom`, `deleteRoom`, `joinRoom`, `leaveRoom`, `getRoomMessages` (older pagination), `getRoomMessagesNewer` (context-mode forward pagination), `searchMessages`, `getMessageContext`, `sendMessage`. Each takes required params and `token` where auth is needed.
+- Named functions per resource: `login`, `register`, `getCurrentUser`, `getRooms`, `discoverRooms`, `markRoomRead`, `createRoom`, `updateRoom`, `deleteRoom`, `joinRoom`, `leaveRoom`, `getRoomMessages` (older pagination), `getRoomMessagesNewer` (context-mode forward pagination), `searchMessages`, `getMessageContext`, `sendMessage`. Each takes required params and `token` where auth is needed.
 
 ## Database Query Patterns
 
@@ -96,6 +96,7 @@ Reusable code patterns and conventions in this project. All of the following are
 - **Message handling:** `onMessage(callback)` stores a single callback; incoming JSON is passed to it. WebSocketContext sets this callback and also pushes the same message into `lastMessage` state and forwards to `messageHandlerRef.current` (so ChatLayout can register one handler and process every message without missing any between re-renders).
 - **Sending:** `send(message)` does `ws.send(JSON.stringify(message))` if state is OPEN; otherwise logs and does nothing.
 - **Context:** WebSocketProvider (inside ProtectedRoute) creates one WebSocketService per token, exposes `subscribe(roomId)`, `unsubscribe(roomId)`, `sendMessage(roomId, content)`, `sendTypingIndicator(roomId)`, `registerMessageHandler(fn)`, plus `connected`, `connectionStatus`, `lastMessage`. Subscriptions are sent as `{ action: "subscribe", room_id }`; ChatLayout subscribes to a bounded set of room IDs (LRU-style when over limit).
+- **Room metadata sync:** Creator-triggered room metadata PATCH responses are used immediately for local state, and `room_updated` WS events keep selected-room state and room-list refreshes synchronized across connected clients (server-authoritative model).
 - **Typing indicators:** Client-side throttle (2s cooldown via ref in MessageInput) limits `user_typing` events. Server broadcasts `typing_indicator` to other room subscribers (sender excluded, no DB session needed — uses in-memory subscription check). ChatLayout tracks typing state per room (`typingUsersByRoom`) with a 3s auto-clear timeout per user; receiving a `new_message` from a user also clears their typing state. MessageArea always renders a fixed-height typing indicator container (`h-7 shrink-0`) to avoid layout shifts.
 - **Token change:** `updateToken(newToken)` disconnects, sets token, re-enables reconnection, then `setTimeout(..., 100)` before `connect()` again.
 

@@ -1,5 +1,6 @@
 interface MessageAreaHeaderProps {
   displayRoomName: string;
+  displayRoomDescription: string | null;
   theme: "neon" | "amber";
   showRoomMenu: boolean;
   hasOtherUnreadRooms: boolean;
@@ -8,6 +9,7 @@ interface MessageAreaHeaderProps {
   onToggleRoomMenu: () => void;
   onCloseRoomMenu: () => void;
   onLeaveRoom: () => void;
+  onRequestEditRoom: () => void;
   onRequestDeleteRoom: () => void;
   onToggleSearch: () => void;
   onToggleUsers: () => void;
@@ -15,6 +17,7 @@ interface MessageAreaHeaderProps {
 
 export function MessageAreaHeader({
   displayRoomName,
+  displayRoomDescription,
   theme,
   showRoomMenu,
   hasOtherUnreadRooms,
@@ -23,10 +26,14 @@ export function MessageAreaHeader({
   onToggleRoomMenu,
   onCloseRoomMenu,
   onLeaveRoom,
+  onRequestEditRoom,
   onRequestDeleteRoom,
   onToggleSearch,
   onToggleUsers,
 }: MessageAreaHeaderProps) {
+  const normalizedDescription = displayRoomDescription?.trim() ?? "";
+  const hasDescription = normalizedDescription.length > 0;
+
   return (
     <div
       className="shrink-0 flex items-center justify-between gap-2 px-3 sm:px-5 min-w-0"
@@ -76,28 +83,50 @@ export function MessageAreaHeader({
         <div className="min-w-0 flex-1 overflow-hidden">
           {/* Room name — gradient for neon, solid glow for amber */}
           {theme === "neon" ? (
-            <h2
-              className="inline-flex items-center max-w-full font-bebas text-[24px] leading-none tracking-[0.11em] truncate gradient-text"
-              title={`#${displayRoomName}`}
-              style={{
-                backgroundImage:
-                  "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
-                filter: "drop-shadow(0 0 6px rgba(0, 240, 255, 0.27))",
-              }}
-            >
-              #{displayRoomName}
-            </h2>
+            <div className="flex flex-col items-start gap-0.5 min-w-0 sm:flex-row sm:items-center sm:gap-1.5">
+              <h2
+                className="inline-flex items-center min-w-0 max-w-full sm:max-w-[62%] md:max-w-[70%] font-bebas text-[clamp(18px,5.5vw,24px)] sm:text-[24px] leading-[0.95] tracking-[0.11em] truncate gradient-text"
+                title={`#${displayRoomName}`}
+                style={{
+                  backgroundImage:
+                    "linear-gradient(90deg, var(--color-primary), var(--color-secondary))",
+                  filter: "drop-shadow(0 0 6px rgba(0, 240, 255, 0.27))",
+                }}
+              >
+                #{displayRoomName}
+              </h2>
+              {hasDescription && (
+                <p
+                  className="w-full min-w-0 truncate font-mono text-[10px] sm:text-[11px] leading-none sm:flex-1"
+                  style={{ color: "var(--color-meta)" }}
+                  title={normalizedDescription}
+                >
+                  {normalizedDescription}
+                </p>
+              )}
+            </div>
           ) : (
-            <h2
-              className="inline-flex items-center max-w-full font-bebas text-[24px] leading-none tracking-[0.11em] truncate"
-              title={`#${displayRoomName}`}
-              style={{
-                color: "var(--color-primary)",
-                textShadow: "var(--glow-primary)",
-              }}
-            >
-              #{displayRoomName}
-            </h2>
+            <div className="flex flex-col items-start gap-0.5 min-w-0 sm:flex-row sm:items-center sm:gap-1.5">
+              <h2
+                className="inline-flex items-center min-w-0 max-w-full sm:max-w-[62%] md:max-w-[70%] font-bebas text-[clamp(18px,5.5vw,24px)] sm:text-[24px] leading-[0.95] tracking-[0.11em] truncate"
+                title={`#${displayRoomName}`}
+                style={{
+                  color: "var(--color-primary)",
+                  textShadow: "var(--glow-primary)",
+                }}
+              >
+                #{displayRoomName}
+              </h2>
+              {hasDescription && (
+                <p
+                  className="w-full min-w-0 truncate font-mono text-[10px] sm:text-[11px] leading-none sm:flex-1"
+                  style={{ color: "var(--color-meta)" }}
+                  title={normalizedDescription}
+                >
+                  {normalizedDescription}
+                </p>
+              )}
+            </div>
           )}
         </div>
 
@@ -142,6 +171,15 @@ export function MessageAreaHeader({
 
                 {isRoomOwner && (
                   <>
+                    <div style={{ borderTop: "1px solid var(--border-dim)", margin: "4px 0" }} />
+                    <button
+                      type="button"
+                      onClick={onRequestEditRoom}
+                      className="w-full px-4 py-2 text-left font-mono text-[12px] room-menu-item"
+                      style={{ color: "var(--color-text)" }}
+                    >
+                      Edit Room Details
+                    </button>
                     <div style={{ borderTop: "1px solid var(--border-dim)", margin: "4px 0" }} />
                     <button
                       type="button"

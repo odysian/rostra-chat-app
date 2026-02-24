@@ -20,6 +20,7 @@ Use this after agent sessions or before committing. Not every item applies to ev
 - [ ] **WebSocket auth:** New/changed WS routes still require token in query and reject with 1008 before accept.
 - [ ] **Message sanitization:** Message `content` is length-limited (1–1000) and stored/echoed as-is. No HTML/script stripping; UI renders as text only. If rendering changes, add sanitization.
 - [ ] **Room access:** Users must be a room member to subscribe (WS), send messages, or fetch messages. Membership is checked via `user_room` table. New endpoints that access room data should verify membership.
+- [ ] **Room metadata updates:** `PATCH /api/rooms/{room_id}` stays creator-only, enforces description validation (`max 255`, no newlines, trim/clear semantics), and emits `room_updated` for connected subscribers.
 - [ ] **Context jump authorization/scope:** `/rooms/{room_id}/messages/{message_id}/context` and `/rooms/{room_id}/messages/newer` enforce room membership and reject message IDs that are outside the requested room.
 - [ ] **File uploads:** None in the app. If added, validate type, size, and content per AGENTS.md.
 

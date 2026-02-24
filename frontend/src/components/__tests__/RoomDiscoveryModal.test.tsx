@@ -15,12 +15,14 @@ const roomsFixture: Room[] = [
   {
     id: 1,
     name: "General Discussion",
+    description: "General room for announcements",
     created_by: 1,
     created_at: "2024-01-01T00:00:00",
   },
   {
     id: 2,
     name: "Frontend Team",
+    description: null,
     created_by: 2,
     created_at: "2024-01-01T00:00:00",
   },
@@ -88,6 +90,8 @@ describe("RoomDiscoveryModal", () => {
     renderModal();
 
     expect(await screen.findByText("General-Discussion")).toBeInTheDocument();
+    expect(screen.getByText("General room for announcements")).toBeInTheDocument();
+    expect(screen.getByText("No description")).toBeInTheDocument();
     expect(screen.getByText("JOINED")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "JOIN" })).toBeInTheDocument();
   });

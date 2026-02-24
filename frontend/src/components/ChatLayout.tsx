@@ -191,6 +191,8 @@ export default function ChatLayout() {
     setUnreadCounts,
     setLastReadAtByRoomId,
     setOnlineUsersByRoom,
+    setSelectedRoom,
+    setRefreshTrigger,
     setTypingUsersByRoom,
     setWsError,
   });
@@ -282,6 +284,20 @@ export default function ChatLayout() {
     unsubscribeRoom(deletedRoomId);
     resetSelectionState();
     cleanupRoomState(deletedRoomId);
+    setRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleRoomMetadataUpdated = (room: Room) => {
+    setSelectedRoom((prev) => {
+      if (!prev || prev.id !== room.id) {
+        return prev;
+      }
+      return {
+        ...prev,
+        name: room.name,
+        description: room.description ?? null,
+      };
+    });
     setRefreshTrigger((prev) => prev + 1);
   };
 
@@ -472,6 +488,7 @@ export default function ChatLayout() {
           onToggleUsers={() => setRightPanel((prev) => prev === "users" ? "none" : "users")}
           onToggleSearch={() => setRightPanel((prev) => prev === "search" ? "none" : "search")}
           onRoomDeleted={handleRoomDeleted}
+          onRoomMetadataUpdated={handleRoomMetadataUpdated}
           onLeaveRoom={handleLeaveRoom}
           onBackToRooms={handleBackToRooms}
           typingUsernames={typingUsernames}

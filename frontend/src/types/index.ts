@@ -31,6 +31,7 @@ export interface AuthResponse {
 export interface Room {
   id: number;
   name: string;
+  description?: string | null;
   created_by: number;
   created_at: string;
   /** Membership read marker used for unread boundary placement in message view. */
@@ -168,6 +169,17 @@ export interface WSSubscribed {
   }>;
 }
 
+export interface WSRoomUpdated {
+  type: "room_updated";
+  room: {
+    id: number;
+    name: string;
+    description?: string | null;
+    created_by: number;
+    created_at: string;
+  };
+}
+
 export interface WSError {
   type: "error";
   message: string;
@@ -190,6 +202,7 @@ export type WebSocketMessage =
   | WSMessageReactionRemoved
   | WSUserJoined
   | WSUserLeft
+  | WSRoomUpdated
   | WSError
   | WSSubscribed
   | WSTypingIndicator;

@@ -123,6 +123,7 @@ vi.mock("../MessageArea", () => ({
   }: MessageAreaMockProps) => (
     <div>
       <div data-testid="selected-room-id">{selectedRoom?.id ?? "none"}</div>
+      <div data-testid="selected-room-name">{selectedRoom?.name ?? "none"}</div>
       <div data-testid="incoming-count">{incomingMessages.length}</div>
       <div data-testid="incoming-deletions-count">{incomingMessageDeletions.length}</div>
       <div data-testid="incoming-edits-count">{incomingMessageEdits.length}</div>
@@ -384,6 +385,33 @@ describe("ChatLayout", () => {
       },
     });
     expect(screen.getByTestId("incoming-reactions-count")).toHaveTextContent("1");
+  });
+
+  it("applies websocket room_updated to selected room metadata and refreshes room list", async () => {
+    render(<ChatLayout />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Room One" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-room-id")).toHaveTextContent("1");
+    });
+    expect(screen.getByTestId("selected-room-name")).toHaveTextContent(
+      "General Discussion",
+    );
+    expect(screen.getByTestId("refresh-trigger")).toHaveTextContent("0");
+
+    emitWsMessage({
+      type: "room_updated",
+      room: {
+        id: 1,
+        name: "Renamed Room",
+        description: "Updated room metadata",
+        created_by: 1,
+        created_at: "2024-01-01T00:00:00",
+      },
+    });
+
+    expect(screen.getByTestId("selected-room-name")).toHaveTextContent("Renamed Room");
+    expect(screen.getByTestId("refresh-trigger")).toHaveTextContent("1");
   });
 
   it("shows websocket errors and auto-clears the banner after four seconds", async () => {

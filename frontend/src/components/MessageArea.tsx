@@ -12,12 +12,13 @@ import type {
 } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { deleteRoom } from "../services/api";
+import { deleteRoom, updateRoom } from "../services/api";
 import { logError } from "../utils/logger";
 import { formatRoomNameForDisplay } from "../utils/roomNames";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { MessageAreaHeader } from "./message-area/MessageAreaHeader";
 import { DeleteRoomModal } from "./message-area/DeleteRoomModal";
+import { EditRoomMetadataModal } from "./message-area/EditRoomMetadataModal";
 
 interface MessageAreaProps {
   selectedRoom: Room | null;
@@ -37,6 +38,7 @@ interface MessageAreaProps {
   onToggleUsers: () => void;
   onToggleSearch: () => void;
   onRoomDeleted: () => void;
+  onRoomMetadataUpdated?: (room: Room) => void;
   onLeaveRoom: () => void;
   onBackToRooms: () => void;
   typingUsernames: string[];
@@ -63,6 +65,7 @@ export default function MessageArea({
   onToggleUsers,
   onToggleSearch,
   onRoomDeleted,
+  onRoomMetadataUpdated = () => {},
   onLeaveRoom,
   onBackToRooms,
   typingUsernames,
@@ -74,15 +77,25 @@ export default function MessageArea({
   const { theme } = useTheme();
   const [showRoomMenu, setShowRoomMenu] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditRoomModal, setShowEditRoomModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [savingRoomMetadata, setSavingRoomMetadata] = useState(false);
   // Inline error message for failed room deletion (avoid disruptive alerts)
   const [deleteError, setDeleteError] = useState("");
+  const [roomMetadataError, setRoomMetadataError] = useState("");
+  const [editRoomName, setEditRoomName] = useState("");
+  const [editRoomDescription, setEditRoomDescription] = useState("");
   // Incrementing this counter lets MessageList react to local sends and jump to latest.
   const [scrollToLatestSignal, setScrollToLatestSignal] = useState(0);
   const deleteModalRef = useRef<HTMLDivElement>(null);
+  const editRoomModalRef = useRef<HTMLDivElement>(null);
   const closeDeleteModal = useCallback(() => {
     setDeleteError("");
     setShowDeleteModal(false);
+  }, []);
+  const closeEditRoomModal = useCallback(() => {
+    setRoomMetadataError("");
+    setShowEditRoomModal(false);
   }, []);
 
   // Keyboard users should be able to dismiss the room options menu with Escape.
@@ -100,6 +113,7 @@ export default function MessageArea({
   }, [showRoomMenu]);
 
   useFocusTrap(deleteModalRef, showDeleteModal, closeDeleteModal);
+  useFocusTrap(editRoomModalRef, showEditRoomModal, closeEditRoomModal);
 
   // Keep tab flow optimized for send-first workflows:
   // input -> send -> back -> room menu -> search -> users.
@@ -186,6 +200,7 @@ export default function MessageArea({
 
   const isRoomOwner = user?.id === selectedRoom.created_by;
   const displayRoomName = formatRoomNameForDisplay(selectedRoom.name);
+  const displayRoomDescription = selectedRoom.description ?? null;
 
   // Format typing indicator text based on number of users
   const formatTypingText = (usernames: string[]): string => {
@@ -220,6 +235,35 @@ export default function MessageArea({
     }
   };
 
+  const handleSaveRoomMetadata = async () => {
+    if (!token) return;
+
+    setSavingRoomMetadata(true);
+    setRoomMetadataError("");
+    try {
+      const updatedRoom = await updateRoom(
+        selectedRoom.id,
+        {
+          name: editRoomName,
+          description: editRoomDescription,
+        },
+        token,
+      );
+      onRoomMetadataUpdated(updatedRoom);
+      setShowRoomMenu(false);
+      setShowEditRoomModal(false);
+    } catch (err) {
+      logError("Failed to update room metadata:", err);
+      setRoomMetadataError(
+        err instanceof Error
+          ? err.message
+          : "Failed to update room details. Please try again.",
+      );
+    } finally {
+      setSavingRoomMetadata(false);
+    }
+  };
+
   return (
     <div
       className="flex-1 flex flex-col min-h-0 min-w-0 overflow-hidden"
@@ -227,6 +271,7 @@ export default function MessageArea({
     >
       <MessageAreaHeader
         displayRoomName={displayRoomName}
+        displayRoomDescription={displayRoomDescription}
         theme={theme}
         showRoomMenu={showRoomMenu}
         hasOtherUnreadRooms={hasOtherUnreadRooms}
@@ -237,6 +282,13 @@ export default function MessageArea({
         onLeaveRoom={() => {
           setShowRoomMenu(false);
           onLeaveRoom();
+        }}
+        onRequestEditRoom={() => {
+          setShowRoomMenu(false);
+          setRoomMetadataError("");
+          setEditRoomName(selectedRoom.name);
+          setEditRoomDescription(selectedRoom.description ?? "");
+          setShowEditRoomModal(true);
         }}
         onRequestDeleteRoom={() => {
           setShowRoomMenu(false);
@@ -255,6 +307,19 @@ export default function MessageArea({
         modalRef={deleteModalRef}
         onCancel={closeDeleteModal}
         onConfirm={handleDeleteRoom}
+      />
+
+      <EditRoomMetadataModal
+        open={showEditRoomModal}
+        roomName={editRoomName}
+        roomDescription={editRoomDescription}
+        saving={savingRoomMetadata}
+        saveError={roomMetadataError}
+        modalRef={editRoomModalRef}
+        onNameChange={setEditRoomName}
+        onDescriptionChange={setEditRoomDescription}
+        onCancel={closeEditRoomModal}
+        onSave={handleSaveRoomMetadata}
       />
 
       <MessageList

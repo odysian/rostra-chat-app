@@ -304,6 +304,48 @@ If refresh-token auth is added later, define this section in a dedicated Spec an
 
 ---
 
+### PATCH /api/rooms/:id
+
+**Happy Path:**
+- `test_room_creator_updates_name_and_description_returns_200`
+  - Room creator updates room metadata with a single PATCH request
+  - Response returns updated `name` and `description`
+
+- `test_room_creator_clears_description_with_empty_string`
+  - Creator sends `description` that trims to empty
+  - Stored description becomes `null`
+
+- `test_room_update_emits_ws_room_updated_event`
+  - Successful metadata update emits `room_updated`
+  - Payload includes room id, name, and description
+
+**Authorization / Error Cases:**
+- `test_room_update_non_creator_returns_403`
+  - Non-creator cannot update room metadata
+
+- `test_room_update_nonexistent_room_returns_404`
+  - Unknown room id returns 404
+
+- `test_room_update_duplicate_name_returns_400`
+  - Updating to an existing room name is rejected
+
+**Validation Cases:**
+- `test_room_update_description_rejects_newlines`
+  - Description containing newline characters returns 422
+
+- `test_room_update_description_too_long_returns_422`
+  - Description longer than 255 chars returns 422
+
+- `test_room_update_requires_name_or_description`
+  - Empty JSON payload returns 422 because at least one updatable field is required
+
+**Rate Limit Cases:**
+- `test_room_update_rate_limit_20_per_minute`
+  - 21 PATCH attempts in one minute from same caller
+  - First 20 succeed, request 21 returns 429
+
+---
+
 ### POST /api/rooms/:id/join
 
 **Happy Path:**
