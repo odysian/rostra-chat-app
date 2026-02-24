@@ -180,6 +180,7 @@ See `docs/ARCHITECTURE.md` for the full directory tree with file-level detail. C
 - **API client and WebSocket service** → `src/services/`
 - **Shared TypeScript types** → `src/types/index.ts`
 - **Custom hooks** → `src/hooks/`
+- **Structure policy** → keep the current hybrid layout (`components/`, `hooks/`, `services/`) with feature-scoped subfolders where needed (for example `components/message-list/*`). Do not introduce a repo-wide `features/` + `shared/` migration unless explicitly scoped as its own task.
 
 ---
 
