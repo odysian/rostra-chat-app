@@ -10,6 +10,9 @@ interface MessageRowProps {
   headerTime: string;
   hoverTime: string;
   fullDateTime: string;
+  canDelete: boolean;
+  isDeleting: boolean;
+  onDeleteMessage: (messageId: number) => void;
 }
 
 export function MessageRow({
@@ -21,9 +24,13 @@ export function MessageRow({
   headerTime,
   hoverTime,
   fullDateTime,
+  canDelete,
+  isDeleting,
+  onDeleteMessage,
 }: MessageRowProps) {
   // Keep amber visuals cohesive by using per-user hues only in neon mode.
   const userColors = theme === "neon" ? getUserColorPalette(message.username) : null;
+  const isDeleted = Boolean(message.deleted_at);
 
   return (
     <div
@@ -101,15 +108,37 @@ export function MessageRow({
           </div>
         )}
 
-        <div
-          className={`font-mono break-words ${
-            isComfortableDensity
-              ? "text-[18px] leading-relaxed"
-              : "text-[15px] leading-normal"
-          } ${isGrouped ? "" : isComfortableDensity ? "mt-1" : "mt-0.5"}`}
-          style={{ color: "var(--color-msg-text)" }}
-        >
-          {message.content}
+        <div className="flex items-start justify-between gap-3">
+          <div
+            className={`font-mono break-words ${
+              isDeleted
+                ? isComfortableDensity
+                  ? "text-[13px] leading-normal"
+                  : "text-[12px] leading-normal"
+                : isComfortableDensity
+                  ? "text-[18px] leading-relaxed"
+                  : "text-[15px] leading-normal"
+            } ${isGrouped ? "" : isComfortableDensity ? "mt-1" : "mt-0.5"}`}
+            style={{ color: isDeleted ? "var(--color-meta)" : "var(--color-msg-text)" }}
+          >
+            {isDeleted ? "(deleted)" : message.content}
+          </div>
+          {canDelete && (
+            <button
+              type="button"
+              onClick={() => onDeleteMessage(message.id)}
+              disabled={isDeleting}
+              className="opacity-0 group-hover:opacity-100 transition-opacity font-mono text-[10px] tracking-[0.08em] px-2 py-1 border shrink-0"
+              style={{
+                color: "var(--color-meta)",
+                borderColor: "var(--border-dim)",
+                background: "transparent",
+              }}
+              aria-label={isDeleting ? "Deleting message" : "Delete message"}
+            >
+              {isDeleting ? "DELETING" : "DELETE"}
+            </button>
+          )}
         </div>
       </div>
     </div>

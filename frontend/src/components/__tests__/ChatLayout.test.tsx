@@ -37,6 +37,7 @@ type SidebarMockProps = {
 type MessageAreaMockProps = {
   selectedRoom: Room | null;
   incomingMessages: Array<{ id: number }>;
+  incomingMessageDeletions: Array<{ id: number }>;
   wsError?: string | null;
   onLeaveRoom: () => void;
   onRoomDeleted: () => void;
@@ -111,6 +112,7 @@ vi.mock("../MessageArea", () => ({
   default: ({
     selectedRoom,
     incomingMessages,
+    incomingMessageDeletions,
     wsError,
     onLeaveRoom,
     onRoomDeleted,
@@ -118,6 +120,7 @@ vi.mock("../MessageArea", () => ({
     <div>
       <div data-testid="selected-room-id">{selectedRoom?.id ?? "none"}</div>
       <div data-testid="incoming-count">{incomingMessages.length}</div>
+      <div data-testid="incoming-deletions-count">{incomingMessageDeletions.length}</div>
       <div data-testid="ws-error-text">{wsError ?? ""}</div>
       <button type="button" onClick={onLeaveRoom}>
         Leave Room
@@ -280,6 +283,36 @@ describe("ChatLayout", () => {
     });
 
     expect(latestSidebarProps?.unreadCounts[1]).toBe(1);
+  });
+
+  it("routes websocket message_deleted to selected-room deletion queue", async () => {
+    render(<ChatLayout />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Room One" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-room-id")).toHaveTextContent("1");
+    });
+
+    emitWsMessage({
+      type: "message_deleted",
+      message: {
+        id: 101,
+        room_id: 1,
+        deleted_at: "2024-01-01T00:00:00Z",
+      },
+    });
+    expect(screen.getByTestId("incoming-deletions-count")).toHaveTextContent("1");
+
+    emitWsMessage({
+      type: "message_deleted",
+      message: {
+        id: 102,
+        room_id: 2,
+        deleted_at: "2024-01-01T00:01:00Z",
+      },
+    });
+    // Non-selected room deletions are ignored in the selected-room queue.
+    expect(screen.getByTestId("incoming-deletions-count")).toHaveTextContent("1");
   });
 
   it("shows websocket errors and auto-clears the banner after four seconds", async () => {

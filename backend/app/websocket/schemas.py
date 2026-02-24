@@ -51,6 +51,7 @@ class WSMessage(BaseModel):
     username: str
     content: str
     created_at: datetime
+    deleted_at: datetime | None = None
 
 
 class WSSubscribed(BaseModel):
@@ -73,6 +74,21 @@ class WSNewMessage(BaseModel):
 
     type: Literal["new_message"]
     message: WSMessage
+
+
+class WSDeletedMessage(BaseModel):
+    """Minimal message payload for deletion broadcast."""
+
+    id: int
+    room_id: int
+    deleted_at: datetime
+
+
+class WSMessageDeleted(BaseModel):
+    """Server broadcasts message deletion state change."""
+
+    type: Literal["message_deleted"]
+    message: WSDeletedMessage
 
 
 class WSUserJoined(BaseModel):

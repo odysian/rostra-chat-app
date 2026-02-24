@@ -407,3 +407,15 @@ export async function sendMessage(
     },
   });
 }
+
+export async function deleteMessage(
+  messageId: number,
+  token: string,
+): Promise<void> {
+  return apiCall<void>(`/messages/${messageId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -91,6 +91,13 @@ async def get_message_in_room(
     return result.scalar_one_or_none()
 
 
+async def get_message_by_id(db: AsyncSession, message_id: int) -> Message | None:
+    """Get a single message by ID."""
+    stmt = select(Message).where(Message.id == message_id)
+    result = await db.execute(stmt)
+    return result.scalar_one_or_none()
+
+
 async def create_message(db: AsyncSession, message: MessageCreate, user_id: int):
     """
     Create a new message.
@@ -110,6 +117,15 @@ async def create_message(db: AsyncSession, message: MessageCreate, user_id: int)
     await db.commit()
     await db.refresh(db_message)
     return db_message
+
+
+async def soft_delete_message(db: AsyncSession, message: Message) -> Message:
+    """Soft-delete a message by scrubbing content and setting deleted_at."""
+    message.content = ""
+    message.deleted_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(message)
+    return message
 
 
 async def search_messages(
@@ -147,6 +163,7 @@ async def search_messages(
         .options(selectinload(Message.user))
         .where(
             Message.room_id == room_id,
+            Message.deleted_at.is_(None),
             Message.search_vector.op("@@")(ts_query),
         )
     )

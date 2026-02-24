@@ -78,6 +78,10 @@ export const handlers = [
     return new HttpResponse(null, { status: 204 });
   }),
 
+  http.delete("*/api/messages/:messageId", async () => {
+    return new HttpResponse(null, { status: 204 });
+  }),
+
   http.get("*/api/rooms/:roomId/messages", async () => {
     return HttpResponse.json({
       messages: defaultMessages,

@@ -17,6 +17,10 @@ interface MessageFeedContentProps {
   // Marker is resolved once at room-open; render path must stay read-only.
   newMessagesAnchorId: number | null;
   highlightedMessageId: number | null;
+  currentUserId: number | null;
+  roomCreatorId: number;
+  deletingMessageIds: number[];
+  onDeleteMessage: (messageId: number) => void;
 }
 
 export function MessageFeedContent({
@@ -25,6 +29,10 @@ export function MessageFeedContent({
   theme,
   newMessagesAnchorId,
   highlightedMessageId,
+  currentUserId,
+  roomCreatorId,
+  deletingMessageIds,
+  onDeleteMessage,
 }: MessageFeedContentProps) {
   const isComfortableDensity = density === "comfortable";
 
@@ -60,6 +68,11 @@ export function MessageFeedContent({
           minute: "2-digit",
         });
         const fullDateTime = getFullDateTime(isoDate);
+        const canDelete =
+          !message.deleted_at &&
+          currentUserId != null &&
+          (message.user_id === currentUserId || roomCreatorId === currentUserId);
+        const isDeleting = deletingMessageIds.includes(message.id);
 
         return (
           <div key={message.id}>
@@ -130,6 +143,9 @@ export function MessageFeedContent({
               headerTime={headerTime}
               hoverTime={hoverTime}
               fullDateTime={fullDateTime}
+              canDelete={canDelete}
+              isDeleting={isDeleting}
+              onDeleteMessage={onDeleteMessage}
             />
           </div>
         );

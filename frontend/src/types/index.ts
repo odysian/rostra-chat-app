@@ -47,6 +47,7 @@ export interface Message {
   username: string;
   content: string;
   created_at: string;
+  deleted_at?: string | null;
 }
 
 export interface PaginatedMessages {
@@ -81,6 +82,17 @@ export interface WSUserTyping {
 export interface WSNewMessage {
   type: "new_message";
   message: Message;
+}
+
+export interface WSDeletedMessagePayload {
+  id: number;
+  room_id: number;
+  deleted_at: string;
+}
+
+export interface WSMessageDeleted {
+  type: "message_deleted";
+  message: WSDeletedMessagePayload;
 }
 
 export interface WSUserJoined {
@@ -126,6 +138,7 @@ export interface WSTypingIndicator {
 
 export type WebSocketMessage =
   | WSNewMessage
+  | WSMessageDeleted
   | WSUserJoined
   | WSUserLeft
   | WSError

@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
 import type {
+  WSMessageDeleted,
   WSNewMessage,
   WSUserJoined,
   WSUserLeft,
@@ -10,6 +11,7 @@ import type {
 
 export type WebSocketMessage =
   | WSNewMessage
+  | WSMessageDeleted
   | WSUserJoined
   | WSUserLeft
   | WSError

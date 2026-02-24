@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import MessageList from "./MessageList";
 import MessageInput from "./MessageInput";
-import type { Message, MessageContextResponse, Room } from "../types";
+import type {
+  Message,
+  MessageContextResponse,
+  Room,
+  WSDeletedMessagePayload,
+} from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { deleteRoom } from "../services/api";
@@ -20,6 +25,8 @@ interface MessageAreaProps {
   hasOtherUnreadRooms?: boolean;
   incomingMessages: Message[];
   onIncomingMessagesProcessed: () => void;
+  incomingMessageDeletions?: WSDeletedMessagePayload[];
+  onIncomingMessageDeletionsProcessed?: () => void;
   onToggleUsers: () => void;
   onToggleSearch: () => void;
   onRoomDeleted: () => void;
@@ -40,6 +47,8 @@ export default function MessageArea({
   hasOtherUnreadRooms = false,
   incomingMessages,
   onIncomingMessagesProcessed,
+  incomingMessageDeletions = [],
+  onIncomingMessageDeletionsProcessed = () => {},
   onToggleUsers,
   onToggleSearch,
   onRoomDeleted,
@@ -240,12 +249,15 @@ export default function MessageArea({
       <MessageList
         key={selectedRoom.id}
         roomId={selectedRoom.id}
+        roomCreatorId={selectedRoom.created_by}
         density={density}
         messageViewMode={messageViewMode}
         messageContext={messageContext}
         lastReadAtSnapshot={roomOpenLastReadSnapshot}
         incomingMessages={incomingMessages}
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
+        incomingMessageDeletions={incomingMessageDeletions}
+        onIncomingMessageDeletionsProcessed={onIncomingMessageDeletionsProcessed}
         scrollToLatestSignal={scrollToLatestSignal}
         onExitContextMode={onExitContextMode}
       />

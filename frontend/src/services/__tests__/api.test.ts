@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { delay, http, HttpResponse } from "msw";
 import { server } from "../../test/mocks/server";
 import {
+  deleteMessage,
   deleteRoom,
   getMessageContext,
   getCurrentUser,
@@ -208,5 +209,13 @@ describe("api service", () => {
     );
 
     await expect(deleteRoom(1, "test-token")).resolves.toEqual({});
+  });
+
+  it("calls delete message endpoint and handles 204 no-content", async () => {
+    server.use(
+      http.delete("*/api/messages/:messageId", () => new HttpResponse(null, { status: 204 })),
+    );
+
+    await expect(deleteMessage(42, "test-token")).resolves.toEqual({});
   });
 });
