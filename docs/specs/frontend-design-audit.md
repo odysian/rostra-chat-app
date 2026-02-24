@@ -679,7 +679,49 @@ Implementation Ready Checklist (3.6):
 - `Locked`: room update endpoint rate limit is set to `20/minute`.
 - `Locked`: backend/frontend tests for all above are listed in `backend/TESTPLAN.md` and frontend test plan before implementation starts.
 
-### 3.7 Parking Lot (Defer)
+### 3.7 Message Row Action UX Sweep ✅ Completed 2026-02-24
+**Value:** Medium-high.
+
+How it works:
+1. Desktop keeps hover/focus discoverability with a single `...` trigger.
+2. Desktop `...` opens an anchored action shelf for reactions/edit/delete.
+3. Mobile opens message actions with long-press only.
+3. Mobile action surface uses a bottom sheet for larger touch targets.
+
+Frontend plan:
+- Replace inline text action labels (`REACT`/`EDIT`/`DELETE`) with menu-driven actions.
+- Remove fixed-width layout reservation for hidden action controls.
+- Add long-press trigger (`350ms`) for coarse pointer devices.
+- Add desktop hover/focus `...` trigger that opens the same action set in an anchored shelf.
+- Add mobile bottom-sheet action menu with quick reactions + edit/delete actions.
+- Keep existing delete confirmation modal and permission logic unchanged.
+
+Files expected:
+- `frontend/src/components/message-list/MessageRow.tsx`
+- `frontend/src/components/__tests__/MessageList.test.tsx`
+
+Tests:
+- Frontend: desktop `...` trigger opens actions wired through existing handlers.
+- Frontend: long-press opens mobile action sheet.
+- Frontend: coarse-pointer mode does not render a fallback `...` trigger.
+- Frontend: action-sheet reaction toggles call existing reaction endpoints.
+
+Locked decisions for implementation (3.7):
+- Mobile action surface is a bottom sheet.
+- Long-press threshold is `350ms`.
+- Desktop uses one hover/focus `...` trigger that opens an anchored action shelf.
+- Mobile has no fallback `...` trigger (long-press only).
+- Keep deleted rows non-reactable/non-editable and without action entry points.
+
+Implementation Ready Checklist (3.7):
+- `Locked`: desktop renders one hover/focus `...` trigger and shelf controls with explicit `aria-label`s.
+- `Locked`: hidden desktop action controls do not reserve fixed message-row width.
+- `Locked`: coarse-pointer long-press opens bottom-sheet actions.
+- `Locked`: coarse-pointer mode removes the fallback `...` trigger to reduce visual noise.
+- `Locked`: existing backend/API/WS contracts remain unchanged.
+- `Locked`: frontend tests for desktop + mobile interaction paths are added before implementation starts.
+
+### 3.8 Parking Lot (Defer)
 - URL permalink/deep-link route support (separate from internal jump, higher complexity).
 - User bio/status profile expansion (lower immediate UX value vs cost).
 
@@ -697,6 +739,7 @@ Use this section as the implementation gate. Detailed lock rationale and accepta
 | `3.4` Message Deletion | `Locked` | `2026-02-24` | Owner + room creator; authz-first before idempotent `204`; soft delete + content scrub; `(deleted)` muted tombstone in place; excluded from search; WS uses existing `{ type, message }` envelope; rate limit `20/minute`. |
 | `3.5` Message Reactions | `Locked` | `2026-02-22` | Allowlist `👍 👎 ❤️ 😂 🔥 👀 🎉`; multi-emoji per user (one per emoji); member-only; no deleted-message reactions; max 5 pills + `+N`; server-authoritative; rate limit `40/minute`. |
 | `3.6` Room Descriptions | `Locked` | `2026-02-22` | Creator-only single room `PATCH` for name+description; plain text max `255`; trim/no newlines; empty clears to null; header+discovery surfaces; mobile truncate + `...`; server-authoritative; rate limit `20/minute`. |
+| `3.7` Message Row Action UX Sweep | `Locked` | `2026-02-24` | Desktop hover/focus `...` opens anchored action shelf; no fixed action-width reservation; mobile long-press (`350ms`) with no fallback button; bottom-sheet action menu; no backend/API/WS changes. |
 
 Lock maintenance rule:
 - If a lock changes, update both this matrix and the corresponding `Locked decisions` + `Implementation Ready Checklist` in the feature section.
@@ -715,7 +758,8 @@ Lock maintenance rule:
 9. Phase 3.4 deletion.
 10. Phase 3.5 reactions.
 11. Phase 3.6 room descriptions.
-12. Parking lot items only with explicit product demand.
+12. Phase 3.7 message row action UX sweep.
+13. Parking lot items only with explicit product demand.
 
 ---
 
