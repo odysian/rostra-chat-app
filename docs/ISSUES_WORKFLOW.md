@@ -24,6 +24,7 @@ This repository uses GitHub issues as the execution control plane.
 5. Tasks are PR-sized; in this workflow PR-sized usually means end-to-end feature delivery.
 6. Phase 3/backend-coupled work requires Decision Locks checked before implementation begins.
 7. After major refactors, open one docs-only Task for readability hardening (comments + `docs/PATTERNS.md` updates), with no behavior changes.
+8. For `single` and `gated` modes, create a dedicated branch for the Task issue before implementation (for example: `task-123-short-name`).
 
 ## Execution Modes (Choose Before Opening Issues)
 

@@ -824,6 +824,7 @@ Canonical execution rules live in `docs/ISSUES_WORKFLOW.md`.
 - Default sizing is 1 feature -> 1 Task -> 1 PR unless split criteria apply.
 - GitHub issues are source of truth for execution (`TASKS.md` is scratchpad only).
 - PRs close Task issues, and Specs close after all child Tasks are done.
+- For `single` and `gated` modes, create a dedicated Task branch before implementation.
 - Backend-coupled work requires Decision Locks before implementation.
 - After major refactors, open one docs-only Task for readability hardening (comments + `docs/PATTERNS.md` updates), with no behavior changes.
 
