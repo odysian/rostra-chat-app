@@ -1531,6 +1531,318 @@ async def test_delete_message_rate_limit_20_per_minute(
 
 
 # ============================================================================
+# POST /api/messages/:message_id/reactions
+# DELETE /api/messages/:message_id/reactions/:emoji
+# ============================================================================
+
+
+async def test_add_reaction_member_succeeds_and_returns_summary(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Room member can add allowlisted reaction and receive updated summary."""
+    user_data = await create_user(email="reactmember@test.com", username="reactmember")
+    token = user_data["access_token"]
+    room = await create_room(token, "Reaction Room")
+    room_id = room["id"]
+    message = await create_message(token, room_id, "React to this")
+
+    add_response = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "👍"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert add_response.status_code == 200
+    add_payload = add_response.json()
+
+    assert add_payload["message_id"] == message["id"]
+    assert add_payload["room_id"] == room_id
+    assert add_payload["reactions"] == [
+        {"emoji": "👍", "count": 1, "reacted_by_me": True}
+    ]
+
+    history_response = await client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert history_response.status_code == 200
+    history_message = history_response.json()["messages"][0]
+    assert history_message["reactions"] == [
+        {"emoji": "👍", "count": 1, "reacted_by_me": True}
+    ]
+
+
+async def test_add_reaction_non_allowlisted_emoji_returns_422(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Emoji outside the allowlist is rejected."""
+    user_data = await create_user(email="reactbademoji@test.com", username="reactbademoji")
+    token = user_data["access_token"]
+    room = await create_room(token, "Bad Emoji Reaction Room")
+    room_id = room["id"]
+    message = await create_message(token, room_id, "No custom emoji in v1")
+
+    response = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "😎"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 422
+
+
+async def test_add_reaction_not_room_member_returns_403(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Users outside room membership cannot react."""
+    owner = await create_user(email="reactowner@test.com", username="reactowner")
+    owner_token = owner["access_token"]
+    outsider = await create_user(email="reactoutsider@test.com", username="reactoutsider")
+    outsider_token = outsider["access_token"]
+
+    room = await create_room(owner_token, "Reaction Membership Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Members only reactions")
+
+    response = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "🔥"},
+        headers={"Authorization": f"Bearer {outsider_token}"},
+    )
+    assert response.status_code == 403
+
+
+async def test_remove_reaction_only_owns_row(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Caller can only remove reactions they own."""
+    owner = await create_user(email="reactowner2@test.com", username="reactowner2")
+    owner_token = owner["access_token"]
+    member = await create_user(email="reactmember2@test.com", username="reactmember2")
+    member_token = member["access_token"]
+
+    room = await create_room(owner_token, "Reaction Ownership Room")
+    room_id = room["id"]
+    join_response = await client.post(
+        f"/api/rooms/{room_id}/join",
+        headers={"Authorization": f"Bearer {member_token}"},
+    )
+    assert join_response.status_code == 200
+
+    message = await create_message(owner_token, room_id, "Owner reaction row")
+    add_response = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "❤️"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert add_response.status_code == 200
+
+    remove_response = await client.delete(
+        f"/api/messages/{message['id']}/reactions/%E2%9D%A4%EF%B8%8F",
+        headers={"Authorization": f"Bearer {member_token}"},
+    )
+    assert remove_response.status_code == 404
+
+
+async def test_duplicate_same_emoji_reaction_same_user_does_not_create_second_row(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Duplicate same-emoji reactions by same user keep aggregate count at one."""
+    user_data = await create_user(email="reactdup@test.com", username="reactdup")
+    token = user_data["access_token"]
+    room = await create_room(token, "Reaction Duplicate Room")
+    room_id = room["id"]
+    message = await create_message(token, room_id, "Duplicate reaction target")
+
+    first_add = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "👀"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    second_add = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "👀"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert first_add.status_code == 200
+    assert second_add.status_code == 200
+    assert second_add.json()["reactions"] == [
+        {"emoji": "👀", "count": 1, "reacted_by_me": True}
+    ]
+
+
+async def test_reaction_summary_sorted_by_count_then_allowlist_order(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Summary order is count desc with allowlist-order tie break."""
+    owner = await create_user(email="reactsortowner@test.com", username="reactsortowner")
+    owner_token = owner["access_token"]
+    member_a = await create_user(email="reactsorta@test.com", username="reactsorta")
+    member_a_token = member_a["access_token"]
+    member_b = await create_user(email="reactsortb@test.com", username="reactsortb")
+    member_b_token = member_b["access_token"]
+
+    room = await create_room(owner_token, "Reaction Sort Room")
+    room_id = room["id"]
+    for member_token in (member_a_token, member_b_token):
+        join_response = await client.post(
+            f"/api/rooms/{room_id}/join",
+            headers={"Authorization": f"Bearer {member_token}"},
+        )
+        assert join_response.status_code == 200
+
+    message = await create_message(owner_token, room_id, "Sort reactions")
+
+    for token, emojis in (
+        (owner_token, ("👍", "❤️", "😂")),
+        (member_a_token, ("👍", "❤️", "😂")),
+        (member_b_token, ("👍",)),
+    ):
+        for emoji in emojis:
+            add_response = await client.post(
+                f"/api/messages/{message['id']}/reactions",
+                json={"emoji": emoji},
+                headers={"Authorization": f"Bearer {token}"},
+            )
+            assert add_response.status_code == 200
+
+    history_response = await client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert history_response.status_code == 200
+    reactions = history_response.json()["messages"][0]["reactions"]
+    assert [reaction["emoji"] for reaction in reactions] == ["👍", "❤️", "😂"]
+    assert [reaction["count"] for reaction in reactions] == [3, 2, 2]
+
+
+async def test_deleted_message_cannot_be_reacted_to_and_reactions_are_removed(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Deleted messages reject reactions and expose empty reaction summaries."""
+    user_data = await create_user(email="reactdelete@test.com", username="reactdelete")
+    token = user_data["access_token"]
+    room = await create_room(token, "Reaction Delete Room")
+    room_id = room["id"]
+    message = await create_message(token, room_id, "Delete with reactions")
+
+    add_response = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "🎉"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert add_response.status_code == 200
+
+    delete_response = await client.delete(
+        f"/api/messages/{message['id']}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert delete_response.status_code == 204
+
+    react_deleted_response = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "🎉"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert react_deleted_response.status_code == 409
+
+    history_response = await client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert history_response.status_code == 200
+    deleted_message = history_response.json()["messages"][0]
+    assert deleted_message["deleted_at"] is not None
+    assert deleted_message["reactions"] == []
+
+
+async def test_reaction_endpoints_emit_ws_events_with_expected_payload(
+    monkeypatch,
+    client: AsyncClient,
+    create_user,
+    create_room,
+    create_message,
+):
+    """Reaction add/remove emit ws payload with required deterministic fields."""
+    user_data = await create_user(email="reactws@test.com", username="reactws")
+    token = user_data["access_token"]
+    room = await create_room(token, "Reaction WS Room")
+    room_id = room["id"]
+    message = await create_message(token, room_id, "Emit reaction events")
+
+    captured: list[tuple[int, dict]] = []
+
+    async def fake_broadcast(room_id: int, payload: dict, exclude=None):  # noqa: ANN001
+        captured.append((room_id, payload))
+
+    monkeypatch.setattr(
+        "app.api.messages.manager.broadcast_to_room",
+        fake_broadcast,
+    )
+
+    add_response = await client.post(
+        f"/api/messages/{message['id']}/reactions",
+        json={"emoji": "😂"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    remove_response = await client.delete(
+        f"/api/messages/{message['id']}/reactions/%F0%9F%98%82",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert add_response.status_code == 200
+    assert remove_response.status_code == 200
+    assert len(captured) == 2
+
+    added_room_id, added_payload = captured[0]
+    removed_room_id, removed_payload = captured[1]
+    assert added_room_id == room_id
+    assert removed_room_id == room_id
+    assert added_payload["type"] == "reaction_added"
+    assert removed_payload["type"] == "reaction_removed"
+    assert added_payload["reaction"] == {
+        "room_id": room_id,
+        "message_id": message["id"],
+        "emoji": "😂",
+        "user_id": user_data["user"]["id"],
+        "count": 1,
+    }
+    assert removed_payload["reaction"] == {
+        "room_id": room_id,
+        "message_id": message["id"],
+        "emoji": "😂",
+        "user_id": user_data["user"]["id"],
+        "count": 0,
+    }
+
+
+async def test_reaction_rate_limit_40_per_minute(
+    enable_rate_limiting,  # noqa: ARG001
+    client: AsyncClient,
+    create_user,
+    create_room,
+    create_message,
+):
+    """Reaction endpoint family allows 40/minute and rejects request 41."""
+    user_data = await create_user(email="reactratelimit@test.com", username="reactratelimit")
+    token = user_data["access_token"]
+    room = await create_room(token, "Reaction Rate Limit Room")
+    room_id = room["id"]
+    message = await create_message(token, room_id, "Rate limit reaction target")
+
+    status_codes: list[int] = []
+    for _ in range(41):
+        response = await client.post(
+            f"/api/messages/{message['id']}/reactions",
+            json={"emoji": "🔥"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        status_codes.append(response.status_code)
+
+    assert status_codes.count(200) == 40
+    assert status_codes[-1] == 429
+
+
+# ============================================================================
 # GET /api/rooms/:id/messages/:message_id/context
 # GET /api/rooms/:id/messages/newer
 # ============================================================================

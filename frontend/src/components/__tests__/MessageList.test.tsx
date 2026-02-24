@@ -9,6 +9,8 @@ const mockGetRoomMessages = vi.fn();
 const mockGetRoomMessagesNewer = vi.fn();
 const mockDeleteMessage = vi.fn();
 const mockEditMessage = vi.fn();
+const mockAddMessageReaction = vi.fn();
+const mockRemoveMessageReaction = vi.fn();
 const mockOnIncomingMessagesProcessed = vi.fn();
 
 vi.mock("../../context/AuthContext", () => ({
@@ -34,6 +36,8 @@ vi.mock("../../services/api", () => ({
   getRoomMessagesNewer: (...args: unknown[]) => mockGetRoomMessagesNewer(...args),
   deleteMessage: (...args: unknown[]) => mockDeleteMessage(...args),
   editMessage: (...args: unknown[]) => mockEditMessage(...args),
+  addMessageReaction: (...args: unknown[]) => mockAddMessageReaction(...args),
+  removeMessageReaction: (...args: unknown[]) => mockRemoveMessageReaction(...args),
 }));
 
 function makeMessage(params: {
@@ -95,6 +99,8 @@ describe("MessageList", () => {
     mockGetRoomMessagesNewer.mockReset();
     mockDeleteMessage.mockReset();
     mockEditMessage.mockReset();
+    mockAddMessageReaction.mockReset();
+    mockRemoveMessageReaction.mockReset();
     mockOnIncomingMessagesProcessed.mockReset();
     mockDeleteMessage.mockResolvedValue({});
     mockEditMessage.mockImplementation(
@@ -108,6 +114,16 @@ describe("MessageList", () => {
           editedAt: "2024-01-01T10:01:00Z",
         }),
     );
+    mockAddMessageReaction.mockResolvedValue({
+      message_id: 1,
+      room_id: 1,
+      reactions: [{ emoji: "👍", count: 1, reacted_by_me: true }],
+    });
+    mockRemoveMessageReaction.mockResolvedValue({
+      message_id: 1,
+      room_id: 1,
+      reactions: [],
+    });
   });
 
   it("shows loading state while initial fetch is pending", async () => {
@@ -221,6 +237,75 @@ describe("MessageList", () => {
     expect(screen.queryByText("Original deleted content")).not.toBeInTheDocument();
   });
 
+  it("renders one reaction-menu trigger for active messages and hides it for deleted rows", async () => {
+    const activeMessage = makeMessage({
+      id: 8,
+      username: "alice",
+      content: "Active row",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+    const deletedMessage = makeMessage({
+      id: 9,
+      username: "bob",
+      content: "Deleted row content",
+      createdAt: "2024-01-01T10:01:00Z",
+      deletedAt: "2024-01-01T10:02:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [deletedMessage, activeMessage],
+      next_cursor: null,
+    });
+
+    renderMessageList();
+    await screen.findByText("Active row");
+
+    const menuButtons = screen.getAllByRole("button", { name: "Open reaction menu" });
+    expect(menuButtons).toHaveLength(1);
+  });
+
+  it("toggles reactions via add/remove endpoints and applies server response", async () => {
+    const user = userEvent.setup();
+    const message = makeMessage({
+      id: 10,
+      userId: 2,
+      username: "bob",
+      content: "Toggle reactions here",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [message],
+      next_cursor: null,
+    });
+    mockAddMessageReaction.mockResolvedValueOnce({
+      message_id: 10,
+      room_id: 1,
+      reactions: [{ emoji: "👍", count: 1, reacted_by_me: true }],
+    });
+    mockRemoveMessageReaction.mockResolvedValueOnce({
+      message_id: 10,
+      room_id: 1,
+      reactions: [],
+    });
+
+    renderMessageList();
+    await screen.findByText("Toggle reactions here");
+
+    await user.click(screen.getByRole("button", { name: "Open reaction menu" }));
+    await user.click(screen.getByRole("button", { name: "Add 👍 reaction" }));
+    await waitFor(() => {
+      expect(mockAddMessageReaction).toHaveBeenCalledWith(10, "👍", "test-token");
+    });
+    expect(screen.getByRole("button", { name: "Toggle 👍 reaction" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Open reaction menu" }));
+    await user.click(screen.getByRole("button", { name: "Remove 👍 reaction" }));
+    await waitFor(() => {
+      expect(mockRemoveMessageReaction).toHaveBeenCalledWith(10, "👍", "test-token");
+    });
+  });
+
   it("applies websocket deletion updates in place without removing the row", async () => {
     const first = makeMessage({
       id: 1,
@@ -316,6 +401,48 @@ describe("MessageList", () => {
     ).toBeTruthy();
     expect(screen.queryByText("Second message")).not.toBeInTheDocument();
     expect(screen.getByText("(edited)")).toBeInTheDocument();
+  });
+
+  it("applies websocket reaction updates in place", async () => {
+    const message = makeMessage({
+      id: 20,
+      username: "alice",
+      content: "Reaction target",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [message],
+      next_cursor: null,
+    });
+
+    const { rerender } = renderMessageList();
+    await screen.findByText("Reaction target");
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        incomingMessages={[]}
+        incomingMessageReactions={[
+          {
+            type: "reaction_added",
+            reaction: {
+              room_id: 1,
+              message_id: 20,
+              emoji: "🔥",
+              user_id: 9,
+              count: 1,
+            },
+          },
+        ]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        onIncomingMessageReactionsProcessed={vi.fn()}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    expect(await screen.findByRole("button", { name: "Toggle 🔥 reaction" })).toBeInTheDocument();
   });
 
   it("shows in-app delete confirmation modal and calls delete API on confirm", async () => {

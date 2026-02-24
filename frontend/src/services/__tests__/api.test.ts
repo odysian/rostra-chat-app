@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { delay, http, HttpResponse } from "msw";
 import { server } from "../../test/mocks/server";
 import {
+  addMessageReaction,
   deleteMessage,
   deleteRoom,
   getMessageContext,
@@ -9,6 +10,7 @@ import {
   getRoomMessages,
   getRoomMessagesNewer,
   login,
+  removeMessageReaction,
   setUnauthorizedHandler,
 } from "../api";
 
@@ -217,5 +219,46 @@ describe("api service", () => {
     );
 
     await expect(deleteMessage(42, "test-token")).resolves.toEqual({});
+  });
+
+  it("calls add reaction endpoint and returns updated summary payload", async () => {
+    server.use(
+      http.post("*/api/messages/:messageId/reactions", () =>
+        HttpResponse.json({
+          message_id: 42,
+          room_id: 7,
+          reactions: [{ emoji: "👍", count: 1, reacted_by_me: true }],
+        }),
+      ),
+    );
+
+    await expect(
+      addMessageReaction(42, "👍", "test-token"),
+    ).resolves.toEqual({
+      message_id: 42,
+      room_id: 7,
+      reactions: [{ emoji: "👍", count: 1, reacted_by_me: true }],
+    });
+  });
+
+  it("calls remove reaction endpoint with encoded emoji", async () => {
+    server.use(
+      http.delete("*/api/messages/:messageId/reactions/:emoji", ({ params }) => {
+        expect(params.emoji).toBe("❤️");
+        return HttpResponse.json({
+          message_id: 42,
+          room_id: 7,
+          reactions: [],
+        });
+      }),
+    );
+
+    await expect(
+      removeMessageReaction(42, "❤️", "test-token"),
+    ).resolves.toEqual({
+      message_id: 42,
+      room_id: 7,
+      reactions: [],
+    });
   });
 });

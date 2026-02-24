@@ -39,6 +39,7 @@ type MessageAreaMockProps = {
   incomingMessages: Array<{ id: number }>;
   incomingMessageDeletions: Array<{ id: number }>;
   incomingMessageEdits: Array<{ id: number }>;
+  incomingMessageReactions: Array<{ type: string; reaction: { message_id: number } }>;
   wsError?: string | null;
   onLeaveRoom: () => void;
   onRoomDeleted: () => void;
@@ -115,6 +116,7 @@ vi.mock("../MessageArea", () => ({
     incomingMessages,
     incomingMessageDeletions,
     incomingMessageEdits,
+    incomingMessageReactions,
     wsError,
     onLeaveRoom,
     onRoomDeleted,
@@ -124,6 +126,7 @@ vi.mock("../MessageArea", () => ({
       <div data-testid="incoming-count">{incomingMessages.length}</div>
       <div data-testid="incoming-deletions-count">{incomingMessageDeletions.length}</div>
       <div data-testid="incoming-edits-count">{incomingMessageEdits.length}</div>
+      <div data-testid="incoming-reactions-count">{incomingMessageReactions.length}</div>
       <div data-testid="ws-error-text">{wsError ?? ""}</div>
       <button type="button" onClick={onLeaveRoom}>
         Leave Room
@@ -348,6 +351,39 @@ describe("ChatLayout", () => {
     });
     // Non-selected room edits are ignored in the selected-room queue.
     expect(screen.getByTestId("incoming-edits-count")).toHaveTextContent("1");
+  });
+
+  it("routes websocket reaction events to selected-room reaction queue", async () => {
+    render(<ChatLayout />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Room One" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-room-id")).toHaveTextContent("1");
+    });
+
+    emitWsMessage({
+      type: "reaction_added",
+      reaction: {
+        room_id: 1,
+        message_id: 301,
+        emoji: "👍",
+        user_id: 8,
+        count: 1,
+      },
+    });
+    expect(screen.getByTestId("incoming-reactions-count")).toHaveTextContent("1");
+
+    emitWsMessage({
+      type: "reaction_removed",
+      reaction: {
+        room_id: 2,
+        message_id: 301,
+        emoji: "👍",
+        user_id: 8,
+        count: 0,
+      },
+    });
+    expect(screen.getByTestId("incoming-reactions-count")).toHaveTextContent("1");
   });
 
   it("shows websocket errors and auto-clears the banner after four seconds", async () => {

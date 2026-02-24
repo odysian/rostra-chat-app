@@ -22,6 +22,11 @@ class User(Base):
 
     # Relationships
     messages = relationship("Message", back_populates="user")
+    message_reactions = relationship(
+        "MessageReaction",
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
     rooms = relationship("Room", back_populates="creator")
     user_rooms = relationship(
         "UserRoom", back_populates="user", cascade="all, delete-orphan"

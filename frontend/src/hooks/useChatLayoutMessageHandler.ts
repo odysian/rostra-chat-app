@@ -12,6 +12,8 @@ import type {
   Room,
   WSDeletedMessagePayload,
   WSEditedMessagePayload,
+  WSMessageReactionAdded,
+  WSMessageReactionRemoved,
 } from "../types";
 
 /**
@@ -35,6 +37,9 @@ interface UseChatLayoutMessageHandlerParams {
   setIncomingMessagesForRoom: Dispatch<SetStateAction<Message[]>>;
   setIncomingMessageDeletionsForRoom: Dispatch<SetStateAction<WSDeletedMessagePayload[]>>;
   setIncomingMessageEditsForRoom: Dispatch<SetStateAction<WSEditedMessagePayload[]>>;
+  setIncomingMessageReactionsForRoom: Dispatch<
+    SetStateAction<Array<WSMessageReactionAdded | WSMessageReactionRemoved>>
+  >;
   setUnreadCounts: Dispatch<SetStateAction<Record<number, number>>>;
   setLastReadAtByRoomId: Dispatch<SetStateAction<Record<number, string | null>>>;
   setOnlineUsersByRoom: Dispatch<SetStateAction<Record<number, OnlineUser[]>>>;
@@ -51,6 +56,7 @@ export function useChatLayoutMessageHandler({
   setIncomingMessagesForRoom,
   setIncomingMessageDeletionsForRoom,
   setIncomingMessageEditsForRoom,
+  setIncomingMessageReactionsForRoom,
   setUnreadCounts,
   setLastReadAtByRoomId,
   setOnlineUsersByRoom,
@@ -71,6 +77,8 @@ export function useChatLayoutMessageHandler({
         message.type === "message_deleted" ||
         message.type === "message_edited"
           ? message.message.room_id
+          : message.type === "reaction_added" || message.type === "reaction_removed"
+            ? message.reaction.room_id
           : "room_id" in message
             ? message.room_id
             : null;
@@ -127,6 +135,16 @@ export function useChatLayoutMessageHandler({
         if (messageRoomId === selectedRoomRef.current?.id) {
           // Keep edit updates queued so MessageList mutates rows in place.
           setIncomingMessageEditsForRoom((prev) => [...prev, message.message]);
+        }
+        return;
+      }
+
+      if (
+        (message.type === "reaction_added" || message.type === "reaction_removed") &&
+        messageRoomId != null
+      ) {
+        if (messageRoomId === selectedRoomRef.current?.id) {
+          setIncomingMessageReactionsForRoom((prev) => [...prev, message]);
         }
         return;
       }
@@ -199,6 +217,7 @@ export function useChatLayoutMessageHandler({
     setIncomingMessagesForRoom,
     setIncomingMessageDeletionsForRoom,
     setIncomingMessageEditsForRoom,
+    setIncomingMessageReactionsForRoom,
     setLastReadAtByRoomId,
     setOnlineUsersByRoom,
     setTypingUsersByRoom,

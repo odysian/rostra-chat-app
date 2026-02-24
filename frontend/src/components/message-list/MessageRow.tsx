@@ -1,6 +1,7 @@
-import { useEffect, useRef, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { getUserColorPalette } from "../../utils/userColors";
-import type { Message } from "../../types";
+import type { Message, ReactionEmoji } from "../../types";
+import { REACTION_ALLOWLIST, sortReactions } from "./reactionConfig";
 
 interface MessageRowProps {
   message: Message;
@@ -15,17 +16,20 @@ interface MessageRowProps {
   editedFullDateTime: string;
   canEdit: boolean;
   canDelete: boolean;
+  canReact: boolean;
   isEditing: boolean;
   isDeleting: boolean;
   isSavingEdit: boolean;
   editDraft: string;
   editError: string;
+  pendingReactionKeys: string[];
   onStartEdit: (messageId: number, content: string) => void;
   onEditDraftChange: (value: string) => void;
   onEditKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
   onCancelEdit: () => void;
   onSaveEdit: () => void;
   onDeleteMessage: (messageId: number) => void;
+  onToggleReaction: (messageId: number, emoji: ReactionEmoji, reactedByMe: boolean) => void;
 }
 
 export function MessageRow({
@@ -41,23 +45,32 @@ export function MessageRow({
   editedFullDateTime,
   canEdit,
   canDelete,
+  canReact,
   isEditing,
   isDeleting,
   isSavingEdit,
   editDraft,
   editError,
+  pendingReactionKeys,
   onStartEdit,
   onEditDraftChange,
   onEditKeyDown,
   onCancelEdit,
   onSaveEdit,
   onDeleteMessage,
+  onToggleReaction,
 }: MessageRowProps) {
   // Keep amber visuals cohesive by using per-user hues only in neon mode.
   const userColors = theme === "neon" ? getUserColorPalette(message.username) : null;
   const isDeleted = Boolean(message.deleted_at);
   const isEdited = Boolean(message.edited_at);
+  const reactions = sortReactions(message.reactions ?? []);
+  const visibleReactions = reactions.slice(0, 5);
+  const overflowReactionsCount = Math.max(0, reactions.length - visibleReactions.length);
   const editTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const [reactionMenuOpen, setReactionMenuOpen] = useState(false);
+
+  const getReactionKey = (emoji: ReactionEmoji): string => `${message.id}:${emoji}`;
 
   useEffect(() => {
     if (!isEditing) return;
@@ -69,6 +82,8 @@ export function MessageRow({
     textarea.focus();
     textarea.setSelectionRange(cursorAtEnd, cursorAtEnd);
   }, [isEditing]);
+
+  const reactionMenuVisible = reactionMenuOpen && !isEditing && !isDeleted;
 
   return (
     <div
@@ -240,11 +255,118 @@ export function MessageRow({
                     (edited)
                   </span>
                 )}
+                {reactions.length > 0 && (
+                  <div className="mt-2 flex items-center gap-1 flex-wrap">
+                    {visibleReactions.map((reaction) => (
+                      <button
+                        key={reaction.emoji}
+                        type="button"
+                        disabled={pendingReactionKeys.includes(getReactionKey(reaction.emoji))}
+                        onClick={() =>
+                          onToggleReaction(
+                            message.id,
+                            reaction.emoji,
+                            reaction.reacted_by_me,
+                          )
+                        }
+                        className="font-mono text-[10px] px-2 py-0.5 border transition-colors"
+                        style={{
+                          color: reaction.reacted_by_me
+                            ? "var(--color-primary)"
+                            : "var(--color-meta)",
+                          borderColor: reaction.reacted_by_me
+                            ? "var(--color-primary)"
+                            : "var(--border-dim)",
+                          background: reaction.reacted_by_me
+                            ? "color-mix(in srgb, var(--color-primary) 10%, transparent)"
+                            : "transparent",
+                        }}
+                        aria-label={`Toggle ${reaction.emoji} reaction`}
+                      >
+                        {reaction.emoji} {reaction.count}
+                      </button>
+                    ))}
+                    {overflowReactionsCount > 0 && (
+                      <span
+                        className="font-mono text-[10px] px-2 py-0.5 border"
+                        style={{
+                          color: "var(--color-meta)",
+                          borderColor: "var(--border-dim)",
+                        }}
+                        aria-label={`${overflowReactionsCount} more reactions`}
+                      >
+                        +{overflowReactionsCount}
+                      </span>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </div>
-          {!isEditing && (canEdit || canDelete) && (
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          {!isEditing && (canEdit || canDelete || canReact) && (
+            <div className="relative flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              {canReact && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setReactionMenuOpen((prev) => !prev)}
+                    className="font-mono text-[10px] tracking-[0.08em] px-2 py-1 border"
+                    style={{
+                      color: "var(--color-meta)",
+                      borderColor: "var(--border-dim)",
+                      background: "transparent",
+                    }}
+                    aria-label={reactionMenuVisible ? "Close reaction menu" : "Open reaction menu"}
+                  >
+                    REACT
+                  </button>
+                  {reactionMenuVisible && (
+                    <div
+                      className="absolute right-0 top-full mt-1 z-10 p-1.5 border flex items-center gap-1"
+                      style={{
+                        background: "var(--bg-panel)",
+                        borderColor: "var(--border-dim)",
+                      }}
+                    >
+                      {REACTION_ALLOWLIST.map((emoji) => {
+                        const matchingReaction = reactions.find(
+                          (reaction) => reaction.emoji === emoji,
+                        );
+                        const reactedByMe = matchingReaction?.reacted_by_me ?? false;
+                        const reactionPending = pendingReactionKeys.includes(getReactionKey(emoji));
+
+                        return (
+                          <button
+                            key={emoji}
+                            type="button"
+                            disabled={reactionPending}
+                            onClick={() => {
+                              onToggleReaction(message.id, emoji, reactedByMe);
+                              setReactionMenuOpen(false);
+                            }}
+                            className="font-mono text-[12px] px-1.5 py-0.5 border transition-colors"
+                            style={{
+                              color: reactedByMe ? "var(--color-primary)" : "var(--color-meta)",
+                              borderColor: reactedByMe
+                                ? "var(--color-primary)"
+                                : "var(--border-dim)",
+                              background: reactedByMe
+                                ? "color-mix(in srgb, var(--color-primary) 10%, transparent)"
+                                : "transparent",
+                              opacity: reactionPending ? 0.55 : 1,
+                            }}
+                            aria-label={
+                              reactedByMe ? `Remove ${emoji} reaction` : `Add ${emoji} reaction`
+                            }
+                          >
+                            {emoji}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
               {canEdit && (
                 <button
                   type="button"

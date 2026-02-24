@@ -4,10 +4,18 @@ import { useTheme } from "../context/ThemeContext";
 import type {
   Message,
   MessageContextResponse,
+  ReactionEmoji,
   WSDeletedMessagePayload,
   WSEditedMessagePayload,
+  WSMessageReactionAdded,
+  WSMessageReactionRemoved,
 } from "../types";
-import { deleteMessage, editMessage } from "../services/api";
+import {
+  addMessageReaction,
+  deleteMessage,
+  editMessage,
+  removeMessageReaction,
+} from "../services/api";
 import { logError } from "../utils/logger";
 import { MessageFeedContent } from "./message-list/MessageFeedContent";
 import { DeleteMessageModal } from "./message-list/DeleteMessageModal";
@@ -27,6 +35,8 @@ interface MessageListProps {
   onIncomingMessageDeletionsProcessed?: () => void;
   incomingMessageEdits?: WSEditedMessagePayload[];
   onIncomingMessageEditsProcessed?: () => void;
+  incomingMessageReactions?: Array<WSMessageReactionAdded | WSMessageReactionRemoved>;
+  onIncomingMessageReactionsProcessed?: () => void;
   scrollToLatestSignal?: number;
   onExitContextMode?: () => void;
 }
@@ -44,6 +54,8 @@ export default function MessageList({
   onIncomingMessageDeletionsProcessed,
   incomingMessageEdits = [],
   onIncomingMessageEditsProcessed,
+  incomingMessageReactions = [],
+  onIncomingMessageReactionsProcessed,
   scrollToLatestSignal = 0,
   onExitContextMode,
 }: MessageListProps) {
@@ -56,6 +68,7 @@ export default function MessageList({
   const [editDraft, setEditDraft] = useState("");
   const [editError, setEditError] = useState("");
   const [savingMessageIds, setSavingMessageIds] = useState<number[]>([]);
+  const [pendingReactionKeys, setPendingReactionKeys] = useState<string[]>([]);
   const deleteModalRef = useRef<HTMLDivElement>(null);
   const {
     messages,
@@ -71,6 +84,7 @@ export default function MessageList({
     showContextLiveIndicator,
     jumpToLatest,
     applyMessageEdit,
+    applyMessageReactions,
     scrollContainerRef,
     sentinelRef,
     bottomSentinelRef,
@@ -89,6 +103,8 @@ export default function MessageList({
     onIncomingMessageDeletionsProcessed,
     incomingMessageEdits,
     onIncomingMessageEditsProcessed,
+    incomingMessageReactions,
+    onIncomingMessageReactionsProcessed,
     scrollToLatestSignal,
     onExitContextMode,
   });
@@ -160,6 +176,31 @@ export default function MessageList({
       }
     },
     [closeEditMode, handleSaveEdit],
+  );
+
+  const handleToggleReaction = useCallback(
+    async (messageId: number, emoji: ReactionEmoji, reactedByMe: boolean) => {
+      if (!token) return;
+
+      const reactionKey = `${messageId}:${emoji}`;
+      if (pendingReactionKeys.includes(reactionKey)) return;
+
+      setPendingReactionKeys((prev) =>
+        prev.includes(reactionKey) ? prev : [...prev, reactionKey],
+      );
+
+      try {
+        const response = reactedByMe
+          ? await removeMessageReaction(messageId, emoji, token)
+          : await addMessageReaction(messageId, emoji, token);
+        applyMessageReactions(messageId, response.reactions);
+      } catch (err) {
+        logError("Failed to toggle reaction:", err);
+      } finally {
+        setPendingReactionKeys((prev) => prev.filter((key) => key !== reactionKey));
+      }
+    },
+    [applyMessageReactions, pendingReactionKeys, token],
   );
 
   const handleConfirmDelete = useCallback(async () => {
@@ -280,12 +321,14 @@ export default function MessageList({
           editDraft={editDraft}
           editError={editError}
           savingMessageIds={savingMessageIds}
+          pendingReactionKeys={pendingReactionKeys}
           onDeleteMessage={handleDeleteMessage}
           onStartEdit={handleStartEdit}
           onEditDraftChange={setEditDraft}
           onEditKeyDown={handleEditKeyDown}
           onCancelEdit={closeEditMode}
           onSaveEdit={() => void handleSaveEdit()}
+          onToggleReaction={handleToggleReaction}
         />
 
         {isLoadingNewer && (
