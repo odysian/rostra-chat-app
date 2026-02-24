@@ -12,6 +12,7 @@ class Room(Base):
     # Columns
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, index=True)
     name: Mapped[str] = mapped_column(String, index=True, unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_by: Mapped[int] = mapped_column(
         BigInteger,
         ForeignKey("users.id", ondelete="CASCADE"),

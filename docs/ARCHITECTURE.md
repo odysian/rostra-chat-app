@@ -69,7 +69,7 @@ All tables are in schema **rostra**.
 | Table       | Columns | Description |
 |------------|---------|-------------|
 | **users**  | `id` (PK), `username`, `email`, `hashed_password`, `created_at` | User accounts; username and email unique. |
-| **rooms**  | `id` (PK), `name`, `created_by` (FK → users.id), `created_at` | Chat rooms; name unique. |
+| **rooms**  | `id` (PK), `name`, `description` (nullable), `created_by` (FK → users.id), `created_at` | Chat rooms; name unique; optional plain-text description for room metadata surfaces. |
 | **messages** | `id` (PK), `room_id` (FK → rooms.id), `user_id` (FK → users.id), `content`, `created_at`, `edited_at` (nullable), `deleted_at` (nullable), `search_vector` (generated tsvector) | One message per row. Message edits update `content` and set `edited_at` while preserving `created_at`. Soft deletion sets `deleted_at` and scrubs `content` to empty string while preserving row position in history. `search_vector` is a stored generated column: `to_tsvector('english', content)`. |
 | **message_reactions** | `id` (PK), `message_id` (FK → messages.id ON DELETE CASCADE), `user_id` (FK → users.id ON DELETE CASCADE), `emoji`, `created_at` | Stores one emoji reaction row per `(message_id, user_id, emoji)`. Supports multiple different emojis per user on the same message while preventing same-emoji duplicates. |
 | **user_room** | `id` (PK), `user_id` (FK → users.id ON DELETE CASCADE), `room_id` (FK → rooms.id ON DELETE CASCADE), `last_read_at`, `joined_at` | Per-user read state per room; unique on (user_id, room_id). |
@@ -117,8 +117,9 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 |--------|-------------------|------|-------------|
 | GET    | /rooms            | Yes  | List rooms the current user is a member of. Each room includes membership `last_read_at` (nullable ISO timestamp). Query: `include_unread=true` also includes `unread_count` per room (Redis cache with PG fallback). |
 | GET    | /rooms/discover   | Yes  | List all public rooms for discovery (includes rooms user has not joined). **Rate limited: 30/min.** |
-| POST   | /rooms            | Yes  | Body: `RoomCreate` (name, 3–50 chars). Creates room; creator is automatically added as first member. 400 if name exists. |
+| POST   | /rooms            | Yes  | Body: `RoomCreate` (name 3–50 chars, optional `description` plain text max 255, no newlines). Creates room; creator is automatically added as first member. 400 if name exists. |
 | GET    | /rooms/{room_id}  | Yes  | Get one room. 403 if not a member. 404 if not found. |
+| PATCH  | /rooms/{room_id}  | Yes  | Creator-only room metadata update endpoint. Body: `RoomUpdate` with at least one of `name` (3–50) or `description` (optional plain text max 255, no newlines). Description trims; empty-after-trim clears to `null`. Broadcasts `room_updated` event. **Rate limited: 20/min.** |
 | POST   | /rooms/{room_id}/join | Yes | Join a room (add membership). 409 if already a member. 404 if room not found. **Rate limited: 10/min.** |
 | POST   | /rooms/{room_id}/leave | Yes | Leave a room. 403 if user is room creator (creators must delete, not leave). 404 if not found. **Rate limited: 10/min.** |
 | PATCH  | /rooms/{room_id}/read | Yes | Mark room as read for current user (updates last_read_at, resets Redis cache). 403 if not a member. 404 if room not found. Returns `{ status, room_id, last_read_at }`. |
@@ -160,6 +161,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 - `{ "type": "message_deleted", "message": { id, room_id, deleted_at } }`
 - `{ "type": "reaction_added", "reaction": { room_id, message_id, emoji, user_id, count } }`
 - `{ "type": "reaction_removed", "reaction": { room_id, message_id, emoji, user_id, count } }`
+- `{ "type": "room_updated", "room": { id, name, description, created_by, created_at } }`
 - `{ "type": "user_joined", "room_id": int, "user": { id, username } }`
 - `{ "type": "user_left", "room_id": int, "user": { id, username } }`
 - `{ "type": "typing_indicator", "room_id": int, "user": { id, username } }`
@@ -180,6 +182,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Message history | REST for history, WS for live | Messages loaded via paginated GET endpoint; new messages pushed via WebSocket; no WS history replay. |
 | Message editing model | Owner-only PATCH + in-place WS update | PATCH `/messages/{id}` trims content, rejects no-op edits (`409`), blocks deleted-row edits, stamps `edited_at`, and broadcasts `message_edited` for in-place client updates without reordering. |
 | Message reactions model | Explicit add/remove endpoints + server-authoritative WS deltas | Reactions use allowlist `👍 👎 ❤️ 😂 🔥 👀 🎉`, unique `(message_id, user_id, emoji)` rows, member-only authz, and no optimistic final-state assumption on client. Deleted messages are non-reactable and soft-delete clears stored reactions. |
+| Room metadata updates | Creator-only PATCH + server-authoritative WS propagation | `PATCH /rooms/{id}` updates `name`/`description` with trim+validation; emits `room_updated` so connected clients refresh without reload. |
 | Async everywhere | AsyncSession, async CRUD, asyncpg | All endpoints use `async def`, all DB operations use `await`. WebSocket handlers create short-lived `AsyncSessionLocal()` sessions per message (like mini HTTP requests). |
 | Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
 | Message deletion model | Soft delete + scrub | DELETE `/messages/{id}` keeps row in place, sets `deleted_at`, and scrubs `content` to empty string. Search excludes soft-deleted rows; authorized repeat delete is idempotent (204). |

@@ -257,6 +257,20 @@ export async function createRoom(name: string, token: string): Promise<Room> {
   });
 }
 
+export async function updateRoom(
+  roomId: number,
+  updates: { name?: string; description?: string | null },
+  token: string,
+): Promise<Room> {
+  return apiCall<Room>(`/rooms/${roomId}`, {
+    method: "PATCH",
+    body: JSON.stringify(updates),
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 export async function deleteRoom(roomId: number, token: string): Promise<void> {
   return apiCall<void>(`/rooms/${roomId}`, {
     method: "DELETE",

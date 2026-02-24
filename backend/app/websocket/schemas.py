@@ -132,6 +132,23 @@ class WSMessageReactionRemoved(BaseModel):
     reaction: WSReactionMessage
 
 
+class WSRoomMetadata(BaseModel):
+    """Room metadata payload for realtime room updates."""
+
+    id: int
+    name: str
+    description: str | None = None
+    created_by: int
+    created_at: datetime
+
+
+class WSRoomUpdated(BaseModel):
+    """Server broadcasts room metadata updates."""
+
+    type: Literal["room_updated"]
+    room: WSRoomMetadata
+
+
 class WSUserJoined(BaseModel):
     """Server notifies that user joined room"""
 

@@ -616,7 +616,7 @@ Implementation Ready Checklist (3.5):
 - `Locked`: reaction rate limit is set to `40/minute`.
 - `Locked`: backend/frontend tests for the above are listed in `backend/TESTPLAN.md` and frontend test plan before implementation starts.
 
-### 3.6 Room Descriptions (Optional)
+### 3.6 Room Descriptions (Optional) ✅ Completed 2026-02-24
 **Value:** Medium.
 
 How it works:

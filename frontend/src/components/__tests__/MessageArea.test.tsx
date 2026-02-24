@@ -6,10 +6,12 @@ import MessageArea from "../MessageArea";
 import type { Message, Room } from "../../types";
 
 const mockDeleteRoom = vi.fn();
+const mockUpdateRoom = vi.fn();
 const mockOnIncomingMessagesProcessed = vi.fn();
 const mockOnToggleUsers = vi.fn();
 const mockOnToggleSearch = vi.fn();
 const mockOnRoomDeleted = vi.fn();
+const mockOnRoomMetadataUpdated = vi.fn();
 const mockOnLeaveRoom = vi.fn();
 const mockOnBackToRooms = vi.fn();
 const mockOnDismissWsError = vi.fn();
@@ -38,6 +40,7 @@ vi.mock("../../context/ThemeContext", () => ({
 
 vi.mock("../../services/api", () => ({
   deleteRoom: (...args: unknown[]) => mockDeleteRoom(...args),
+  updateRoom: (...args: unknown[]) => mockUpdateRoom(...args),
 }));
 
 vi.mock("../MessageList", () => ({
@@ -67,6 +70,7 @@ function renderMessageArea(overrides?: Partial<ComponentProps<typeof MessageArea
       onToggleUsers={mockOnToggleUsers}
       onToggleSearch={mockOnToggleSearch}
       onRoomDeleted={mockOnRoomDeleted}
+      onRoomMetadataUpdated={mockOnRoomMetadataUpdated}
       onLeaveRoom={mockOnLeaveRoom}
       onBackToRooms={mockOnBackToRooms}
       typingUsernames={[]}
@@ -80,10 +84,12 @@ function renderMessageArea(overrides?: Partial<ComponentProps<typeof MessageArea
 describe("MessageArea", () => {
   beforeEach(() => {
     mockDeleteRoom.mockReset();
+    mockUpdateRoom.mockReset();
     mockOnIncomingMessagesProcessed.mockReset();
     mockOnToggleUsers.mockReset();
     mockOnToggleSearch.mockReset();
     mockOnRoomDeleted.mockReset();
+    mockOnRoomMetadataUpdated.mockReset();
     mockOnLeaveRoom.mockReset();
     mockOnBackToRooms.mockReset();
     mockOnDismissWsError.mockReset();
@@ -108,7 +114,37 @@ describe("MessageArea", () => {
     await user.click(screen.getByTitle("Room options"));
 
     expect(screen.getByRole("button", { name: "Leave Room" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Room Details" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Delete Room" })).toBeInTheDocument();
+  });
+
+  it("renders room description in a subordinate header style", () => {
+    renderMessageArea({
+      selectedRoom: {
+        ...selectedRoom,
+        description: "A short room description",
+      },
+    });
+
+    const description = screen.getByText("A short room description");
+    expect(description).toBeInTheDocument();
+    expect(description).toHaveClass("text-[10px]");
+  });
+
+  it("uses single-line truncation with full text available in title", () => {
+    const fullDescription =
+      "This room description is intentionally long so it should be constrained by the header container and stay single-line.";
+
+    renderMessageArea({
+      selectedRoom: {
+        ...selectedRoom,
+        description: fullDescription,
+      },
+    });
+
+    const description = screen.getByTitle(fullDescription);
+    expect(description).toBeInTheDocument();
+    expect(description).toHaveClass("truncate");
   });
 
   it("calls mobile back callback from header button", async () => {
@@ -193,6 +229,46 @@ describe("MessageArea", () => {
     });
     expect(mockDeleteRoom).toHaveBeenCalledWith(10, "test-token");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("updates room metadata via creator edit modal", async () => {
+    const user = userEvent.setup();
+    mockUpdateRoom.mockResolvedValueOnce({
+      ...selectedRoom,
+      name: "Renamed Room",
+      description: "Updated description",
+    });
+
+    renderMessageArea({
+      selectedRoom: {
+        ...selectedRoom,
+        description: "Original description",
+      },
+    });
+
+    await user.click(screen.getByRole("button", { name: "Room options" }));
+    await user.click(screen.getByRole("button", { name: "Edit Room Details" }));
+
+    const nameInput = screen.getByLabelText("ROOM NAME");
+    const descriptionInput = screen.getByLabelText("DESCRIPTION (OPTIONAL)");
+    await user.clear(nameInput);
+    await user.type(nameInput, "Renamed Room");
+    await user.clear(descriptionInput);
+    await user.type(descriptionInput, "Updated description");
+    await user.click(screen.getByRole("button", { name: "SAVE" }));
+
+    await waitFor(() => {
+      expect(mockUpdateRoom).toHaveBeenCalledWith(
+        10,
+        {
+          name: "Renamed Room",
+          description: "Updated description",
+        },
+        "test-token",
+      );
+    });
+    expect(mockOnRoomMetadataUpdated).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("heading", { name: "Edit Room Details" })).not.toBeInTheDocument();
   });
 
   it("shows inline delete error on API failure", async () => {

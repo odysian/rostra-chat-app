@@ -33,6 +33,24 @@ async def test_create_room_with_valid_name_returns_201(client: AsyncClient, crea
     assert data["created_by"] == user_data["user"]["id"]
 
 
+async def test_create_room_accepts_optional_description(
+    client: AsyncClient, create_user
+):
+    """Room creation accepts optional plain-text descriptions."""
+    user_data = await create_user(email="roomdesccreate@test.com", username="roomdesccreate")
+    token = user_data["access_token"]
+
+    response = await client.post(
+        "/api/rooms",
+        json={"name": "Described Room", "description": "Room summary"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+
+    assert response.status_code == 201
+    payload = response.json()
+    assert payload["description"] == "Room summary"
+
+
 async def test_creator_automatically_added_as_room_member(client: AsyncClient, create_user):
     """Creator is automatically added as room member."""
     user_data = await create_user()
@@ -489,6 +507,213 @@ async def test_get_nonexistent_room_returns_404(client: AsyncClient, create_user
     assert response.status_code == 404
     error_detail = response.json()["detail"].lower()
     assert "not found" in error_detail or "room" in error_detail
+
+
+# ============================================================================
+# PATCH /api/rooms/:id
+# ============================================================================
+
+
+async def test_room_creator_updates_name_and_description_returns_200(
+    client: AsyncClient, create_user, create_room
+):
+    """Room creator can update room name and description in one request."""
+    owner = await create_user(email="roomowner@test.com", username="roomowner")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Before Name")
+
+    response = await client.patch(
+        f"/api/rooms/{room['id']}",
+        json={"name": "After Name", "description": "Room purpose text"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["name"] == "After Name"
+    assert payload["description"] == "Room purpose text"
+
+
+async def test_room_creator_clears_description_with_empty_string(
+    client: AsyncClient, create_user, create_room
+):
+    """Empty descriptions are normalized to null on patch."""
+    owner = await create_user(email="roomclear@test.com", username="roomclear")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Clear Description Room")
+
+    set_description = await client.patch(
+        f"/api/rooms/{room['id']}",
+        json={"description": "To be cleared"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert set_description.status_code == 200
+    assert set_description.json()["description"] == "To be cleared"
+
+    clear_description = await client.patch(
+        f"/api/rooms/{room['id']}",
+        json={"description": "   "},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert clear_description.status_code == 200
+    assert clear_description.json()["description"] is None
+
+
+async def test_room_update_emits_ws_room_updated_event(
+    monkeypatch,
+    client: AsyncClient,
+    create_user,
+    create_room,
+):
+    """Successful room metadata update emits room_updated payload."""
+    owner = await create_user(email="roomwsemit@test.com", username="roomwsemit")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "WS Room")
+
+    captured: list[tuple[int, dict]] = []
+
+    async def fake_broadcast(room_id: int, payload: dict, exclude=None):  # noqa: ANN001
+        captured.append((room_id, payload))
+
+    monkeypatch.setattr(
+        "app.api.rooms.manager.broadcast_to_room",
+        fake_broadcast,
+    )
+
+    response = await client.patch(
+        f"/api/rooms/{room['id']}",
+        json={"description": "Realtime metadata update"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 200
+    assert len(captured) == 1
+
+    broadcast_room_id, payload = captured[0]
+    assert broadcast_room_id == room["id"]
+    assert payload["type"] == "room_updated"
+    assert payload["room"]["id"] == room["id"]
+    assert payload["room"]["description"] == "Realtime metadata update"
+
+
+async def test_room_update_non_creator_returns_403(
+    client: AsyncClient, create_user, create_room
+):
+    """Only room creators can patch room metadata."""
+    owner = await create_user(email="creatorx@test.com", username="creatorx")
+    owner_token = owner["access_token"]
+    outsider = await create_user(email="outsiderx@test.com", username="outsiderx")
+    outsider_token = outsider["access_token"]
+    room = await create_room(owner_token, "Creator Locked Room")
+
+    response = await client.patch(
+        f"/api/rooms/{room['id']}",
+        json={"description": "Nope"},
+        headers={"Authorization": f"Bearer {outsider_token}"},
+    )
+
+    assert response.status_code == 403
+
+
+async def test_room_update_nonexistent_room_returns_404(client: AsyncClient, create_user):
+    """Patching unknown room id returns 404."""
+    owner = await create_user(email="roommissing@test.com", username="roommissing")
+    owner_token = owner["access_token"]
+
+    response = await client.patch(
+        "/api/rooms/999999",
+        json={"description": "desc"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 404
+
+
+async def test_room_update_duplicate_name_returns_400(
+    client: AsyncClient, create_user, create_room
+):
+    """Renaming to an existing room name is rejected."""
+    owner = await create_user(email="namedupe@test.com", username="namedupe")
+    owner_token = owner["access_token"]
+    first_room = await create_room(owner_token, "Primary Room")
+    await create_room(owner_token, "Existing Room")
+
+    response = await client.patch(
+        f"/api/rooms/{first_room['id']}",
+        json={"name": "Existing Room"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 400
+
+
+async def test_room_update_description_rejects_newlines(
+    client: AsyncClient, create_user, create_room
+):
+    """Description must be plain single-line text in v1."""
+    owner = await create_user(email="roomnewline@test.com", username="roomnewline")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Newline Room")
+
+    response = await client.patch(
+        f"/api/rooms/{room['id']}",
+        json={"description": "line one\nline two"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 422
+
+
+async def test_room_update_description_too_long_returns_422(
+    client: AsyncClient, create_user, create_room
+):
+    """Description longer than 255 chars is rejected."""
+    owner = await create_user(email="roomlongdesc@test.com", username="roomlongdesc")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Long Desc Room")
+
+    response = await client.patch(
+        f"/api/rooms/{room['id']}",
+        json={"description": "x" * 256},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 422
+
+
+async def test_room_update_requires_name_or_description(
+    client: AsyncClient, create_user, create_room
+):
+    """Patch payload must include at least one updatable field."""
+    owner = await create_user(email="roomempty@test.com", username="roomempty")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Empty Payload Room")
+
+    response = await client.patch(
+        f"/api/rooms/{room['id']}",
+        json={},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 422
+
+
+async def test_room_update_rate_limit_20_per_minute(
+    enable_rate_limiting,  # noqa: ARG001
+    client: AsyncClient,
+    create_user,
+    create_room,
+):
+    """Room metadata patch is limited to 20 requests/minute per caller."""
+    owner = await create_user(email="roomratelimit@test.com", username="roomratelimit")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Rate Limited Room")
+
+    status_codes: list[int] = []
+    for i in range(21):
+        response = await client.patch(
+            f"/api/rooms/{room['id']}",
+            json={"description": f"desc-{i}"},
+            headers={"Authorization": f"Bearer {owner_token}"},
+        )
+        status_codes.append(response.status_code)
+
+    assert status_codes.count(200) == 20
+    assert status_codes[-1] == 429
 
 
 # ============================================================================

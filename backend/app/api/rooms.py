@@ -11,8 +11,10 @@ from app.core.rate_limit import limiter
 from app.crud import room as room_crud
 from app.crud import user_room as user_room_crud
 from app.models.user import User
-from app.schemas.room import RoomCreate, RoomReadResponse, RoomResponse
+from app.schemas.room import RoomCreate, RoomReadResponse, RoomResponse, RoomUpdate
 from app.services.cache_service import UnreadCountCache
+from app.websocket.connection_manager import manager
+from app.websocket.schemas import WSRoomMetadata, WSRoomUpdated
 
 router = APIRouter()
 
@@ -65,6 +67,7 @@ async def get_rooms(
             RoomResponse(
                 id=cast(int, room.id),
                 name=cast(str, room.name),
+                description=cast(str | None, room.description),
                 created_by=cast(int, room.created_by),
                 created_at=cast(datetime, room.created_at),
                 last_read_at=cast(datetime | None, last_read_at),
@@ -78,6 +81,7 @@ async def get_rooms(
         RoomResponse(
             id=cast(int, room.id),
             name=cast(str, room.name),
+            description=cast(str | None, room.description),
             created_by=cast(int, room.created_by),
             created_at=cast(datetime, room.created_at),
             last_read_at=cast(datetime | None, last_read_at),
@@ -132,6 +136,66 @@ async def get_room(
         )
 
     return room
+
+
+@router.patch("/{room_id}", response_model=RoomResponse)
+@limiter.limit("20/minute")
+async def update_room_metadata(
+    request: Request,
+    room_id: int,
+    room_update: RoomUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Update room metadata (name/description).
+
+    Only room creators can modify metadata.
+    """
+    room = await room_crud.get_room_by_id(db, room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
+
+    if room.created_by != current_user.id:  # type: ignore
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only room creator can update this room",
+        )
+
+    updates = room_update.model_dump(exclude_unset=True)
+    if "name" in updates:
+        existing_room = await room_crud.get_room_by_name(db, cast(str, updates["name"]))
+        if existing_room and existing_room.id != room_id:  # type: ignore
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Room name already exists",
+            )
+
+    updated_room = await room_crud.update_room_metadata(db, room, updates)
+
+    await manager.broadcast_to_room(
+        room_id,
+        WSRoomUpdated(
+            type="room_updated",
+            room=WSRoomMetadata(
+                id=cast(int, updated_room.id),
+                name=cast(str, updated_room.name),
+                description=cast(str | None, updated_room.description),
+                created_by=cast(int, updated_room.created_by),
+                created_at=cast(datetime, updated_room.created_at),
+            ),
+        ).model_dump(mode="json"),
+    )
+
+    logger.info(
+        "Room metadata updated: room_id=%s by user_id=%s",
+        room_id,
+        current_user.id,
+    )
+
+    return updated_room
 
 
 @router.patch(

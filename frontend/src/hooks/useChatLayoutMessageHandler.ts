@@ -43,6 +43,8 @@ interface UseChatLayoutMessageHandlerParams {
   setUnreadCounts: Dispatch<SetStateAction<Record<number, number>>>;
   setLastReadAtByRoomId: Dispatch<SetStateAction<Record<number, string | null>>>;
   setOnlineUsersByRoom: Dispatch<SetStateAction<Record<number, OnlineUser[]>>>;
+  setSelectedRoom: Dispatch<SetStateAction<Room | null>>;
+  setRefreshTrigger: Dispatch<SetStateAction<number>>;
   setTypingUsersByRoom: Dispatch<SetStateAction<TypingUsersByRoom>>;
   setWsError: Dispatch<SetStateAction<string | null>>;
 }
@@ -60,6 +62,8 @@ export function useChatLayoutMessageHandler({
   setUnreadCounts,
   setLastReadAtByRoomId,
   setOnlineUsersByRoom,
+  setSelectedRoom,
+  setRefreshTrigger,
   setTypingUsersByRoom,
   setWsError,
 }: UseChatLayoutMessageHandlerParams): void {
@@ -77,6 +81,8 @@ export function useChatLayoutMessageHandler({
         message.type === "message_deleted" ||
         message.type === "message_edited"
           ? message.message.room_id
+          : message.type === "room_updated"
+            ? message.room.id
           : message.type === "reaction_added" || message.type === "reaction_removed"
             ? message.reaction.room_id
           : "room_id" in message
@@ -146,6 +152,22 @@ export function useChatLayoutMessageHandler({
         if (messageRoomId === selectedRoomRef.current?.id) {
           setIncomingMessageReactionsForRoom((prev) => [...prev, message]);
         }
+        return;
+      }
+
+      if (message.type === "room_updated") {
+        setSelectedRoom((prev) => {
+          if (!prev || prev.id !== message.room.id) {
+            return prev;
+          }
+          return {
+            ...prev,
+            name: message.room.name,
+            description: message.room.description ?? null,
+          };
+        });
+        // Sidebar and discovery surfaces source room metadata from API; refresh keeps them in sync.
+        setRefreshTrigger((prev) => prev + 1);
         return;
       }
 
@@ -220,6 +242,8 @@ export function useChatLayoutMessageHandler({
     setIncomingMessageReactionsForRoom,
     setLastReadAtByRoomId,
     setOnlineUsersByRoom,
+    setRefreshTrigger,
+    setSelectedRoom,
     setTypingUsersByRoom,
     setUnreadCounts,
     setWsError,
