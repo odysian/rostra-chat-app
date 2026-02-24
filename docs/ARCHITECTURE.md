@@ -70,7 +70,7 @@ All tables are in schema **rostra**.
 |------------|---------|-------------|
 | **users**  | `id` (PK), `username`, `email`, `hashed_password`, `created_at` | User accounts; username and email unique. |
 | **rooms**  | `id` (PK), `name`, `created_by` (FK → users.id), `created_at` | Chat rooms; name unique. |
-| **messages** | `id` (PK), `room_id` (FK → rooms.id), `user_id` (FK → users.id), `content`, `created_at`, `search_vector` (generated tsvector) | One message per row. `search_vector` is a stored generated column: `to_tsvector('english', content)`. |
+| **messages** | `id` (PK), `room_id` (FK → rooms.id), `user_id` (FK → users.id), `content`, `created_at`, `deleted_at` (nullable), `search_vector` (generated tsvector) | One message per row. Soft deletion sets `deleted_at` and scrubs `content` to empty string while preserving row position in history. `search_vector` is a stored generated column: `to_tsvector('english', content)`. |
 | **user_room** | `id` (PK), `user_id` (FK → users.id ON DELETE CASCADE), `room_id` (FK → rooms.id ON DELETE CASCADE), `last_read_at`, `joined_at` | Per-user read state per room; unique on (user_id, room_id). |
 
 ### Relationships
@@ -124,11 +124,12 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 
 | Method | Path                     | Auth | Description |
 |--------|--------------------------|------|-------------|
-| GET    | /rooms/{room_id}/messages/search | Yes | Full-text search within a room. Query: `q` (1–200 chars, required), `limit` (1–50, default 20), `cursor` (opaque string). Uses Postgres `plainto_tsquery` with `'english'` config (stemming, stop word removal). Returns `PaginatedMessages { messages, next_cursor }` ordered by recency. 403 if not a room member. 404 if room not found. 422 if `q` missing/invalid. 400 if cursor malformed. |
+| GET    | /rooms/{room_id}/messages/search | Yes | Full-text search within a room. Query: `q` (1–200 chars, required), `limit` (1–50, default 20), `cursor` (opaque string). Uses Postgres `plainto_tsquery` with `'english'` config (stemming, stop word removal). Soft-deleted rows (`deleted_at IS NOT NULL`) are excluded. Returns `PaginatedMessages { messages, next_cursor }` ordered by recency. 403 if not a room member. 404 if room not found. 422 if `q` missing/invalid. 400 if cursor malformed. |
 | GET    | /rooms/{room_id}/messages | Yes  | Cursor-paginated message history. Query: `cursor` (opaque string), `limit` (1–100, default 50). Returns `PaginatedMessages { messages, next_cursor }`. `next_cursor` is null when no older messages exist. 403 if not a room member. 400 if cursor is malformed. 404 if room not found. |
 | GET    | /rooms/{room_id}/messages/newer | Yes | Context-mode newer pagination. Query: `cursor` (required opaque string), `limit` (1–100, default 50). Returns `PaginatedMessages { messages, next_cursor }` in ascending order (oldest->newest) for append-at-bottom behavior. 403 if not a room member. 400 if cursor malformed. 404 if room not found. |
 | GET    | /rooms/{room_id}/messages/{message_id}/context | Yes | Jump-to-message context window. Query: `before` (0–100, default 25), `after` (0–100, default 25). Returns `MessageContextResponse { messages, target_message_id, older_cursor, newer_cursor }` with messages ordered oldest->newest. Cursors represent strict keyset boundaries for loading older/newer pages around the anchor. 403 if not a room member. 404 if room or target message-in-room not found. |
 | POST   | /messages                | Yes  | Body: `MessageCreate` (room_id, content 1–1000 chars). Creates message as current user. 403 if not a room member. 404 if room not found. |
+| DELETE | /messages/{message_id}   | Yes  | Soft-delete message. Authorization: message owner OR room creator, with authz check before idempotency response. Behavior: set `deleted_at`, scrub `content` to empty string, keep row in timeline. Returns 204 for successful deletes and for already-deleted messages when caller is authorized. Broadcasts `message_deleted` event. **Rate limited: 20/min.** |
 
 ### WebSocket
 
@@ -147,7 +148,8 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 
 - `{ "type": "subscribed", "room_id": int, "online_users": [{ "id", "username" }] }`
 - `{ "type": "unsubscribed", "room_id": int }`
-- `{ "type": "new_message", "message": { id, room_id, user_id, username, content, created_at } }`
+- `{ "type": "new_message", "message": { id, room_id, user_id, username, content, created_at, deleted_at? } }`
+- `{ "type": "message_deleted", "message": { id, room_id, deleted_at } }`
 - `{ "type": "user_joined", "room_id": int, "user": { id, username } }`
 - `{ "type": "user_left", "room_id": int, "user": { id, username } }`
 - `{ "type": "typing_indicator", "room_id": int, "user": { id, username } }`
@@ -168,6 +170,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Message history | REST for history, WS for live | Messages loaded via paginated GET endpoint; new messages pushed via WebSocket; no WS history replay. |
 | Async everywhere | AsyncSession, async CRUD, asyncpg | All endpoints use `async def`, all DB operations use `await`. WebSocket handlers create short-lived `AsyncSessionLocal()` sessions per message (like mini HTTP requests). |
 | Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
+| Message deletion model | Soft delete + scrub | DELETE `/messages/{id}` keeps row in place, sets `deleted_at`, and scrubs `content` to empty string. Search excludes soft-deleted rows; authorized repeat delete is idempotent (204). |
 | WS rate limiting | In-memory fixed-window in ConnectionManager | `check_message_rate(user_id, max_per_minute=30)` — per-user 60s window tracked in `_message_counts` dict. Checked before DB session is opened for `send_message`. Cleaned up on disconnect. |
 | API docs exposure | OpenAPI/Swagger/ReDoc enabled only in debug mode | `main.py` gates `openapi_url`, `docs_url`, and `redoc_url` behind `settings.DEBUG`; production defaults to disabled to reduce endpoint discovery exposure. |
 | Frontend auth persistence | Token in localStorage (current implementation) | AuthContext stores token in localStorage; 401 from API triggers redirect to /login via `setUnauthorizedHandler`. Production hardening may prefer httpOnly cookie-based sessions or equivalent. |

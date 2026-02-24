@@ -29,6 +29,7 @@ class MessageResponse(BaseModel):
     username: str
     content: str
     created_at: datetime
+    deleted_at: datetime | None = None
 
 
 class PaginatedMessages(BaseModel):

@@ -2,7 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { getRoomMessages, getRoomMessagesNewer } from "../services/api";
 import { logError } from "../utils/logger";
-import type { Message, MessageContextResponse } from "../types";
+import type {
+  Message,
+  MessageContextResponse,
+  WSDeletedMessagePayload,
+} from "../types";
 import {
   capturePrependAnchor,
   findFirstUnreadMessageId,
@@ -31,6 +35,8 @@ interface UseMessageFeedLifecycleParams {
   lastReadAtSnapshot: string | null;
   incomingMessages: Message[];
   onIncomingMessagesProcessed?: () => void;
+  incomingMessageDeletions: WSDeletedMessagePayload[];
+  onIncomingMessageDeletionsProcessed?: () => void;
   scrollToLatestSignal: number;
   onExitContextMode?: () => void;
 }
@@ -68,6 +74,8 @@ export function useMessageFeedLifecycle({
   lastReadAtSnapshot,
   incomingMessages,
   onIncomingMessagesProcessed,
+  incomingMessageDeletions,
+  onIncomingMessageDeletionsProcessed,
   scrollToLatestSignal,
   onExitContextMode,
 }: UseMessageFeedLifecycleParams): UseMessageFeedLifecycleResult {
@@ -436,6 +444,41 @@ export function useMessageFeedLifecycle({
     newerCursor,
     onIncomingMessagesProcessed,
   ]);
+
+  useEffect(() => {
+    if (incomingMessageDeletions.length === 0) return;
+
+    const deletionsById = new Map(
+      incomingMessageDeletions.map((deletion) => [deletion.id, deletion]),
+    );
+
+    setMessages((prev) =>
+      prev.map((item) => {
+        if ("type" in item) return item;
+        const deletion = deletionsById.get(item.id);
+        if (!deletion) return item;
+        return {
+          ...item,
+          content: "",
+          deleted_at: deletion.deleted_at,
+        };
+      }),
+    );
+
+    setContextLiveMessages((prev) =>
+      prev.map((item) => {
+        const deletion = deletionsById.get(item.id);
+        if (!deletion) return item;
+        return {
+          ...item,
+          content: "",
+          deleted_at: deletion.deleted_at,
+        };
+      }),
+    );
+
+    onIncomingMessageDeletionsProcessed?.();
+  }, [incomingMessageDeletions, onIncomingMessageDeletionsProcessed]);
 
   const showContextLiveIndicator =
     messageViewMode === "context" && contextLiveMessages.length > 0;

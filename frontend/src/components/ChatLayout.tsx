@@ -14,7 +14,13 @@ import {
   clearRoomScopedState,
   resetSelectedRoomState,
 } from "./chat-layout/chatLayoutRoomState";
-import type { Message, MessageContextResponse, OnlineUser, Room } from "../types";
+import type {
+  Message,
+  MessageContextResponse,
+  OnlineUser,
+  Room,
+  WSDeletedMessagePayload,
+} from "../types";
 
 // Keep a bounded subscription set so unread updates stay real-time without
 // subscribing to every discovered room in large workspaces.
@@ -74,6 +80,10 @@ export default function ChatLayout() {
   const [lastReadAtByRoomId, setLastReadAtByRoomId] = useState<Record<number, string | null>>({});
   /** New messages for the selected room delivered via WebSocket (each processed then cleared so none are dropped) */
   const [incomingMessagesForRoom, setIncomingMessagesForRoom] = useState<Message[]>([]);
+  /** Message deletions for the selected room delivered via WebSocket (processed then cleared). */
+  const [incomingMessageDeletionsForRoom, setIncomingMessageDeletionsForRoom] = useState<
+    WSDeletedMessagePayload[]
+  >([]);
   /** Snapshot of selected room's last_read_at at room-open time (used for stable new-message divider placement). */
   const [roomOpenLastReadSnapshot, setRoomOpenLastReadSnapshot] = useState<string | null>(null);
   /** Error message when leave room fails (e.g. creator cannot leave) */
@@ -164,6 +174,7 @@ export default function ChatLayout() {
     tokenRef,
     typingTimeoutsRef,
     setIncomingMessagesForRoom,
+    setIncomingMessageDeletionsForRoom,
     setUnreadCounts,
     setLastReadAtByRoomId,
     setOnlineUsersByRoom,
@@ -183,6 +194,7 @@ export default function ChatLayout() {
       setRoomOpenLastReadSnapshot,
       setIncomingMessagesForRoom,
     });
+    setIncomingMessageDeletionsForRoom([]);
   };
 
   const cleanupRoomState = (roomId: number) => {
@@ -214,6 +226,7 @@ export default function ChatLayout() {
     );
     // MessageList owns replaying queued WS messages; reset queue per room switch.
     setIncomingMessagesForRoom([]);
+    setIncomingMessageDeletionsForRoom([]);
     setSidebarOpen(false);
 
     if (token) {
@@ -296,6 +309,8 @@ export default function ChatLayout() {
     setOnlineUsersByRoom({});
     setLastReadAtByRoomId({});
     setUnreadCounts({});
+    setIncomingMessagesForRoom([]);
+    setIncomingMessageDeletionsForRoom([]);
     logout(true);
   };
 
@@ -313,6 +328,10 @@ export default function ChatLayout() {
 
   const handleIncomingMessagesProcessed = () => {
     setIncomingMessagesForRoom([]);
+  };
+
+  const handleIncomingMessageDeletionsProcessed = () => {
+    setIncomingMessageDeletionsForRoom([]);
   };
 
   const handleOpenMessageContext = (context: MessageContextResponse) => {
@@ -417,6 +436,8 @@ export default function ChatLayout() {
           hasOtherUnreadRooms={hasOtherUnreadRooms}
           incomingMessages={incomingMessagesForRoom}
           onIncomingMessagesProcessed={handleIncomingMessagesProcessed}
+          incomingMessageDeletions={incomingMessageDeletionsForRoom}
+          onIncomingMessageDeletionsProcessed={handleIncomingMessageDeletionsProcessed}
           onToggleUsers={() => setRightPanel((prev) => prev === "users" ? "none" : "users")}
           onToggleSearch={() => setRightPanel((prev) => prev === "search" ? "none" : "search")}
           onRoomDeleted={handleRoomDeleted}

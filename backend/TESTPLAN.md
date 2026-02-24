@@ -533,6 +533,49 @@ If refresh-token auth is added later, define this section in a dedicated Spec an
 
 ---
 
+### DELETE /api/messages/:message_id
+
+**Happy Path:**
+- `test_delete_message_owner_soft_deletes_and_returns_204`
+  - Message owner deletes their message
+  - Endpoint returns 204
+  - Message row remains in DB with `deleted_at` set and `content=""`
+
+- `test_delete_message_room_creator_can_delete_other_user_message`
+  - Room creator deletes another member's message
+  - Endpoint returns 204
+  - Row is soft-deleted (no hard delete)
+
+- `test_delete_message_authorized_repeat_delete_returns_204`
+  - Authorized caller deletes the same message twice
+  - Both calls return 204 (idempotent for authorized callers)
+
+**Error Cases:**
+- `test_delete_message_non_owner_non_creator_returns_403`
+  - Room member who is neither message owner nor room creator attempts delete
+  - Assert 403 Forbidden
+
+- `test_delete_message_not_room_member_returns_403`
+  - User outside room membership attempts delete
+  - Assert 403 Forbidden
+
+- `test_delete_message_nonexistent_returns_404`
+  - Delete unknown message ID
+  - Assert 404
+
+**Security Cases:**
+- `test_delete_message_authz_checked_before_idempotency`
+  - Message is already soft-deleted by an authorized user
+  - Unauthorized caller then attempts delete
+  - Assert 403 (not 204), proving authz-first check order
+
+**Rate Limit Cases:**
+- `test_delete_message_rate_limit_20_per_minute`
+  - Perform 21 delete requests within one minute from same client
+  - First 20 return 204, request 21 returns 429
+
+---
+
 ### GET /api/rooms/:id/messages/search
 
 **Happy Path:**
@@ -570,6 +613,11 @@ If refresh-token auth is added later, define this section in a dedicated Spec an
 - `test_search_messages_respects_room_boundary`
   - Create matching messages in Room A and Room B
   - Search in Room A only returns Room A's messages
+
+- `test_search_messages_excludes_soft_deleted_rows`
+  - Create matching messages
+  - Soft-delete one of them
+  - Search omits deleted row
 
 - `test_search_messages_pagination_with_cursor`
   - Create enough matching messages to exceed one page

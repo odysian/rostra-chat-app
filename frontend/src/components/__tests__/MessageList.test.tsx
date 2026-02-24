@@ -7,6 +7,7 @@ import type { Message } from "../../types";
 
 const mockGetRoomMessages = vi.fn();
 const mockGetRoomMessagesNewer = vi.fn();
+const mockDeleteMessage = vi.fn();
 const mockOnIncomingMessagesProcessed = vi.fn();
 
 vi.mock("../../context/AuthContext", () => ({
@@ -30,6 +31,7 @@ vi.mock("../../context/ThemeContext", () => ({
 vi.mock("../../services/api", () => ({
   getRoomMessages: (...args: unknown[]) => mockGetRoomMessages(...args),
   getRoomMessagesNewer: (...args: unknown[]) => mockGetRoomMessagesNewer(...args),
+  deleteMessage: (...args: unknown[]) => mockDeleteMessage(...args),
 }));
 
 function makeMessage(params: {
@@ -38,6 +40,7 @@ function makeMessage(params: {
   content: string;
   createdAt: string;
   userId?: number;
+  deletedAt?: string | null;
 }): Message {
   return {
     id: params.id,
@@ -46,6 +49,7 @@ function makeMessage(params: {
     username: params.username,
     content: params.content,
     created_at: params.createdAt,
+    deleted_at: params.deletedAt,
   };
 }
 
@@ -85,7 +89,9 @@ describe("MessageList", () => {
   beforeEach(() => {
     mockGetRoomMessages.mockReset();
     mockGetRoomMessagesNewer.mockReset();
+    mockDeleteMessage.mockReset();
     mockOnIncomingMessagesProcessed.mockReset();
+    mockDeleteMessage.mockResolvedValue({});
   });
 
   it("shows loading state while initial fetch is pending", async () => {
@@ -177,6 +183,120 @@ describe("MessageList", () => {
     const row = container.querySelector<HTMLElement>("[data-chat-message='true']");
     expect(row).not.toBeNull();
     expect(row?.getAttribute("data-message-id")).toBe("41");
+  });
+
+  it("renders deleted messages as muted tombstones", async () => {
+    const deletedMessage = makeMessage({
+      id: 7,
+      username: "alice",
+      content: "Original deleted content",
+      createdAt: "2024-01-01T10:00:00Z",
+      deletedAt: "2024-01-01T10:05:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [deletedMessage],
+      next_cursor: null,
+    });
+
+    renderMessageList();
+
+    await screen.findByText("(deleted)");
+    expect(screen.queryByText("Original deleted content")).not.toBeInTheDocument();
+  });
+
+  it("applies websocket deletion updates in place without removing the row", async () => {
+    const first = makeMessage({
+      id: 1,
+      username: "alice",
+      content: "First message",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+    const second = makeMessage({
+      id: 2,
+      username: "bob",
+      content: "Second message",
+      createdAt: "2024-01-01T10:01:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [second, first],
+      next_cursor: null,
+    });
+
+    const { rerender } = renderMessageList();
+    await screen.findByText("First message");
+    expect(screen.getByText("Second message")).toBeInTheDocument();
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        incomingMessages={[]}
+        incomingMessageDeletions={[
+          { id: second.id, room_id: 1, deleted_at: "2024-01-01T10:02:00Z" },
+        ]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        onIncomingMessageDeletionsProcessed={vi.fn()}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    await screen.findByText("(deleted)");
+    expect(screen.queryByText("Second message")).not.toBeInTheDocument();
+    expect(screen.getByText("First message")).toBeInTheDocument();
+  });
+
+  it("shows in-app delete confirmation modal and calls delete API on confirm", async () => {
+    const user = userEvent.setup();
+    const ownMessage = makeMessage({
+      id: 55,
+      userId: 1,
+      username: "alice",
+      content: "Delete me",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [ownMessage],
+      next_cursor: null,
+    });
+
+    renderMessageList();
+    await screen.findByText("Delete me");
+
+    await user.click(screen.getByRole("button", { name: "Delete message" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByText("Delete Message?")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "DELETE MESSAGE" }));
+
+    expect(mockDeleteMessage).toHaveBeenCalledWith(55, "test-token");
+  });
+
+  it("closes delete confirmation modal on cancel without deleting", async () => {
+    const user = userEvent.setup();
+    const ownMessage = makeMessage({
+      id: 56,
+      userId: 1,
+      username: "alice",
+      content: "Cancel delete",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [ownMessage],
+      next_cursor: null,
+    });
+
+    renderMessageList();
+    await screen.findByText("Cancel delete");
+
+    await user.click(screen.getByRole("button", { name: "Delete message" }));
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "CANCEL" }));
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(mockDeleteMessage).not.toHaveBeenCalled();
   });
 
   it("shows TODAY and older date divider labels", async () => {

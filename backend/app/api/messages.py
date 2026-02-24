@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_user
@@ -17,6 +17,8 @@ from app.schemas.message import (
     PaginatedMessages,
 )
 from app.utils.cursor import decode_cursor, encode_cursor
+from app.websocket.connection_manager import manager
+from app.websocket.schemas import WSDeletedMessage, WSMessageDeleted
 
 router = APIRouter()
 
@@ -98,6 +100,7 @@ async def search_room_messages(
         msg_user_id: int = msg.user_id  # type: ignore[assignment]
         msg_content: str = msg.content  # type: ignore[assignment]
         msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
         msg_username: str = msg.user.username  # type: ignore[union-attr]
 
         response_messages.append(
@@ -108,6 +111,7 @@ async def search_room_messages(
                 username=msg_username,
                 content=msg_content,
                 created_at=msg_created_at,
+                deleted_at=msg_deleted_at,
             )
         )
 
@@ -198,6 +202,7 @@ async def get_room_messages(
         msg_user_id: int = msg.user_id  # type: ignore[assignment]
         msg_content: str = msg.content  # type: ignore[assignment]
         msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
         msg_username: str = msg.user.username  # type: ignore[union-attr]
 
         response_messages.append(
@@ -208,6 +213,7 @@ async def get_room_messages(
                 username=msg_username,
                 content=msg_content,
                 created_at=msg_created_at,
+                deleted_at=msg_deleted_at,
             )
         )
 
@@ -273,6 +279,7 @@ async def get_room_messages_newer(
         msg_user_id: int = msg.user_id  # type: ignore[assignment]
         msg_content: str = msg.content  # type: ignore[assignment]
         msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
         msg_username: str = msg.user.username  # type: ignore[union-attr]
 
         response_messages.append(
@@ -283,6 +290,7 @@ async def get_room_messages_newer(
                 username=msg_username,
                 content=msg_content,
                 created_at=msg_created_at,
+                deleted_at=msg_deleted_at,
             )
         )
 
@@ -362,6 +370,7 @@ async def get_room_message_context(
         msg_user_id: int = msg.user_id  # type: ignore[assignment]
         msg_content: str = msg.content  # type: ignore[assignment]
         msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
         msg_username: str = msg.user.username  # type: ignore[union-attr]
 
         response_messages.append(
@@ -372,6 +381,7 @@ async def get_room_message_context(
                 username=msg_username,
                 content=msg_content,
                 created_at=msg_created_at,
+                deleted_at=msg_deleted_at,
             )
         )
 
@@ -435,4 +445,69 @@ async def create_message(
         username=current_user.username,
         content=db_message.content,
         created_at=db_message.created_at,
+        deleted_at=db_message.deleted_at,
     )
+
+
+@router.delete("/messages/{message_id}", status_code=status.HTTP_204_NO_CONTENT)
+@limiter.limit("20/minute")
+async def delete_message(
+    request: Request,
+    message_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Soft-delete a message when caller is owner or room creator."""
+    db_message = await message_crud.get_message_by_id(db, message_id)
+    if not db_message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Message not found"
+        )
+
+    message_room_id: int = db_message.room_id  # type: ignore[assignment]
+    message_owner_id: int = db_message.user_id  # type: ignore[assignment]
+
+    room = await room_crud.get_room_by_id(db, message_room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Room not found"
+        )
+
+    membership = await user_room_crud.get_user_room(db, current_user.id, message_room_id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="Not a member of this room"
+        )
+
+    room_creator_id: int = room.created_by  # type: ignore[assignment]
+    current_user_id: int = current_user.id
+    can_delete = (
+        current_user_id == message_owner_id or current_user_id == room_creator_id
+    )
+    if not can_delete:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not allowed to delete this message",
+        )
+
+    message_deleted_at: datetime | None = db_message.deleted_at  # type: ignore[assignment]
+    if message_deleted_at is None:
+        deleted_message = await message_crud.soft_delete_message(db, db_message)
+        deleted_message_id: int = deleted_message.id  # type: ignore[assignment]
+        deleted_message_room_id: int = deleted_message.room_id  # type: ignore[assignment]
+        deleted_message_deleted_at: datetime = deleted_message.deleted_at  # type: ignore[assignment]
+
+        payload = WSMessageDeleted(
+            type="message_deleted",
+            message=WSDeletedMessage(
+                id=deleted_message_id,
+                room_id=deleted_message_room_id,
+                deleted_at=deleted_message_deleted_at,
+            ),
+        )
+        await manager.broadcast_to_room(
+            deleted_message_room_id,
+            payload.model_dump(mode="json"),
+        )
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1019,6 +1019,271 @@ async def test_pagination_stable_with_concurrent_inserts(
 
 
 # ============================================================================
+# DELETE /api/messages/:message_id
+# ============================================================================
+
+
+async def test_delete_message_owner_soft_deletes_and_returns_204(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Owner delete is soft-delete (content scrub + deleted_at) with 204 response."""
+    owner = await create_user(email="deleteowner@test.com", username="deleteowner")
+    owner_token = owner["access_token"]
+
+    room = await create_room(owner_token, "Delete Room")
+    room_id = room["id"]
+    keep_message = await create_message(owner_token, room_id, "Keep this message")
+    delete_message = await create_message(owner_token, room_id, "Delete this message")
+
+    response = await client.delete(
+        f"/api/messages/{delete_message['id']}",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+
+    assert response.status_code == 204
+    assert response.text == ""
+
+    history = await client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert history.status_code == 200
+    messages = history.json()["messages"]
+
+    # Row is still present and ordering remains unchanged (newest first).
+    assert [msg["id"] for msg in messages] == [delete_message["id"], keep_message["id"]]
+
+    deleted_row = next(msg for msg in messages if msg["id"] == delete_message["id"])
+    assert deleted_row["content"] == ""
+    assert deleted_row["deleted_at"] is not None
+
+
+async def test_delete_message_room_creator_can_delete_other_user_message(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Room creator can delete another member's message."""
+    creator = await create_user(email="creator@test.com", username="creator")
+    creator_token = creator["access_token"]
+    member = await create_user(email="member@test.com", username="member")
+    member_token = member["access_token"]
+
+    room = await create_room(creator_token, "Creator Delete Room")
+    room_id = room["id"]
+
+    join_response = await client.post(
+        f"/api/rooms/{room_id}/join",
+        headers={"Authorization": f"Bearer {member_token}"},
+    )
+    assert join_response.status_code == 200
+
+    member_message = await create_message(member_token, room_id, "Creator can delete me")
+
+    delete_response = await client.delete(
+        f"/api/messages/{member_message['id']}",
+        headers={"Authorization": f"Bearer {creator_token}"},
+    )
+    assert delete_response.status_code == 204
+
+    history = await client.get(
+        f"/api/rooms/{room_id}/messages",
+        headers={"Authorization": f"Bearer {creator_token}"},
+    )
+    assert history.status_code == 200
+    deleted_row = history.json()["messages"][0]
+    assert deleted_row["id"] == member_message["id"]
+    assert deleted_row["content"] == ""
+    assert deleted_row["deleted_at"] is not None
+
+
+async def test_delete_message_non_owner_non_creator_returns_403(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Room members who are neither owner nor creator cannot delete."""
+    creator = await create_user(email="creatora@test.com", username="creatora")
+    creator_token = creator["access_token"]
+    owner = await create_user(email="ownera@test.com", username="ownera")
+    owner_token = owner["access_token"]
+    other_member = await create_user(email="othera@test.com", username="othera")
+    other_member_token = other_member["access_token"]
+
+    room = await create_room(creator_token, "Forbidden Delete Room")
+    room_id = room["id"]
+
+    for token in (owner_token, other_member_token):
+        join_response = await client.post(
+            f"/api/rooms/{room_id}/join",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert join_response.status_code == 200
+
+    owner_message = await create_message(owner_token, room_id, "Only owner or creator can delete")
+
+    response = await client.delete(
+        f"/api/messages/{owner_message['id']}",
+        headers={"Authorization": f"Bearer {other_member_token}"},
+    )
+    assert response.status_code == 403
+
+
+async def test_delete_message_not_room_member_returns_403(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Users outside room membership cannot delete room messages."""
+    owner = await create_user(email="ownerb@test.com", username="ownerb")
+    owner_token = owner["access_token"]
+    outsider = await create_user(email="outsiderb@test.com", username="outsiderb")
+    outsider_token = outsider["access_token"]
+
+    room = await create_room(owner_token, "Membership Delete Room")
+    room_id = room["id"]
+    owner_message = await create_message(owner_token, room_id, "Outsider cannot delete this")
+
+    response = await client.delete(
+        f"/api/messages/{owner_message['id']}",
+        headers={"Authorization": f"Bearer {outsider_token}"},
+    )
+    assert response.status_code == 403
+
+
+async def test_delete_message_nonexistent_returns_404(
+    client: AsyncClient, create_user
+):
+    """Deleting unknown message ID returns 404."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    response = await client.delete(
+        "/api/messages/999999",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
+
+
+async def test_delete_message_authorized_repeat_delete_returns_204(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Authorized caller can repeat delete and still receive 204 (idempotent)."""
+    owner = await create_user(email="ownerc@test.com", username="ownerc")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Idempotent Delete Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Delete me twice")
+
+    first_response = await client.delete(
+        f"/api/messages/{message['id']}",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    second_response = await client.delete(
+        f"/api/messages/{message['id']}",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+
+    assert first_response.status_code == 204
+    assert second_response.status_code == 204
+
+
+async def test_delete_message_authz_checked_before_idempotency(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Unauthorized callers still get 403 after a message is already soft-deleted."""
+    creator = await create_user(email="creatord@test.com", username="creatord")
+    creator_token = creator["access_token"]
+    owner = await create_user(email="ownerd@test.com", username="ownerd")
+    owner_token = owner["access_token"]
+    other_member = await create_user(email="otherd@test.com", username="otherd")
+    other_member_token = other_member["access_token"]
+
+    room = await create_room(creator_token, "Authz First Room")
+    room_id = room["id"]
+
+    for token in (owner_token, other_member_token):
+        join_response = await client.post(
+            f"/api/rooms/{room_id}/join",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert join_response.status_code == 200
+
+    message = await create_message(owner_token, room_id, "Delete then probe authz")
+
+    owner_delete = await client.delete(
+        f"/api/messages/{message['id']}",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert owner_delete.status_code == 204
+
+    unauthorized_delete = await client.delete(
+        f"/api/messages/{message['id']}",
+        headers={"Authorization": f"Bearer {other_member_token}"},
+    )
+    assert unauthorized_delete.status_code == 403
+
+
+async def test_delete_message_emits_ws_event_with_expected_payload(
+    monkeypatch,
+    client: AsyncClient,
+    create_user,
+    create_room,
+    create_message,
+):
+    """Successful delete emits message_deleted with {type, message} envelope."""
+    owner = await create_user(email="wsemitter@test.com", username="wsemitter")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "WS Delete Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Emit delete event")
+
+    captured: list[tuple[int, dict]] = []
+
+    async def fake_broadcast(room_id: int, payload: dict, exclude=None):  # noqa: ANN001
+        captured.append((room_id, payload))
+
+    monkeypatch.setattr(
+        "app.api.messages.manager.broadcast_to_room",
+        fake_broadcast,
+    )
+
+    response = await client.delete(
+        f"/api/messages/{message['id']}",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 204
+    assert len(captured) == 1
+
+    broadcast_room_id, payload = captured[0]
+    assert broadcast_room_id == room_id
+    assert payload["type"] == "message_deleted"
+    assert payload["message"]["id"] == message["id"]
+    assert payload["message"]["room_id"] == room_id
+    assert payload["message"]["deleted_at"] is not None
+
+
+async def test_delete_message_rate_limit_20_per_minute(
+    enable_rate_limiting,  # noqa: ARG001
+    client: AsyncClient,
+    create_user,
+    create_room,
+    create_message,
+):
+    """Delete endpoint allows 20/minute and rejects the 21st request with 429."""
+    user_data = await create_user(email="ratelimit@test.com", username="ratelimit")
+    token = user_data["access_token"]
+    room = await create_room(token, "Delete Rate Limit Room")
+    room_id = room["id"]
+    target_message = await create_message(token, room_id, "Rate limit target message")
+
+    status_codes: list[int] = []
+    for _ in range(21):
+        response = await client.delete(
+            f"/api/messages/{target_message['id']}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        status_codes.append(response.status_code)
+
+    assert status_codes.count(204) == 20
+    assert status_codes[-1] == 429
+
+
+# ============================================================================
 # GET /api/rooms/:id/messages/:message_id/context
 # GET /api/rooms/:id/messages/newer
 # ============================================================================
@@ -1391,6 +1656,35 @@ async def test_search_messages_respects_room_boundary(
     # Only the Room Alpha message should appear
     assert len(data["messages"]) == 1
     assert data["messages"][0]["room_id"] == room_a["id"]
+
+
+async def test_search_messages_excludes_soft_deleted_rows(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Soft-deleted rows are excluded from full-text search results."""
+    user_data = await create_user(email="searchdeleted@test.com", username="searchdeleted")
+    token = user_data["access_token"]
+    room = await create_room(token, "Search Deleted Room")
+    room_id = room["id"]
+
+    deleted_target = await create_message(token, room_id, "deploy target to remove")
+    visible_target = await create_message(token, room_id, "deploy target to keep")
+
+    delete_response = await client.delete(
+        f"/api/messages/{deleted_target['id']}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert delete_response.status_code == 204
+
+    search_response = await client.get(
+        f"/api/rooms/{room_id}/messages/search?q=deploy",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert search_response.status_code == 200
+
+    result_ids = [message["id"] for message in search_response.json()["messages"]]
+    assert visible_target["id"] in result_ids
+    assert deleted_target["id"] not in result_ids
 
 
 async def test_search_messages_pagination_with_cursor(

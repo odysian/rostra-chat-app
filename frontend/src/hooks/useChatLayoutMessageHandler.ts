@@ -6,7 +6,7 @@ import {
 } from "react";
 import type { WebSocketMessage } from "../context/WebSocketContext";
 import { markRoomRead } from "../services/api";
-import type { Message, OnlineUser, Room } from "../types";
+import type { Message, OnlineUser, Room, WSDeletedMessagePayload } from "../types";
 
 /**
  * Owns ChatLayout's websocket event policy.
@@ -27,6 +27,7 @@ interface UseChatLayoutMessageHandlerParams {
   tokenRef: MutableRefObject<string | null>;
   typingTimeoutsRef: MutableRefObject<Set<ReturnType<typeof setTimeout>>>;
   setIncomingMessagesForRoom: Dispatch<SetStateAction<Message[]>>;
+  setIncomingMessageDeletionsForRoom: Dispatch<SetStateAction<WSDeletedMessagePayload[]>>;
   setUnreadCounts: Dispatch<SetStateAction<Record<number, number>>>;
   setLastReadAtByRoomId: Dispatch<SetStateAction<Record<number, string | null>>>;
   setOnlineUsersByRoom: Dispatch<SetStateAction<Record<number, OnlineUser[]>>>;
@@ -41,6 +42,7 @@ export function useChatLayoutMessageHandler({
   tokenRef,
   typingTimeoutsRef,
   setIncomingMessagesForRoom,
+  setIncomingMessageDeletionsForRoom,
   setUnreadCounts,
   setLastReadAtByRoomId,
   setOnlineUsersByRoom,
@@ -57,7 +59,7 @@ export function useChatLayoutMessageHandler({
       }
 
       const messageRoomId =
-        message.type === "new_message"
+        message.type === "new_message" || message.type === "message_deleted"
           ? message.message.room_id
           : "room_id" in message
             ? message.room_id
@@ -100,6 +102,14 @@ export function useChatLayoutMessageHandler({
           return { ...prev, [messageRoomId]: updated };
         });
 
+        return;
+      }
+
+      if (message.type === "message_deleted" && messageRoomId != null) {
+        if (messageRoomId === selectedRoomRef.current?.id) {
+          // Keep deletion updates queued so MessageList mutates rows in place.
+          setIncomingMessageDeletionsForRoom((prev) => [...prev, message.message]);
+        }
         return;
       }
 
@@ -169,6 +179,7 @@ export function useChatLayoutMessageHandler({
     registerMessageHandler,
     selectedRoomRef,
     setIncomingMessagesForRoom,
+    setIncomingMessageDeletionsForRoom,
     setLastReadAtByRoomId,
     setOnlineUsersByRoom,
     setTypingUsersByRoom,
