@@ -1,3 +1,4 @@
+import type { KeyboardEvent } from "react";
 import type { Message } from "../../types";
 import {
   getDateLabel,
@@ -20,7 +21,16 @@ interface MessageFeedContentProps {
   currentUserId: number | null;
   roomCreatorId: number;
   deletingMessageIds: number[];
+  editingMessageId: number | null;
+  editDraft: string;
+  editError: string;
+  savingMessageIds: number[];
   onDeleteMessage: (messageId: number) => void;
+  onStartEdit: (messageId: number, content: string) => void;
+  onEditDraftChange: (value: string) => void;
+  onEditKeyDown: (event: KeyboardEvent<HTMLTextAreaElement>) => void;
+  onCancelEdit: () => void;
+  onSaveEdit: () => void;
 }
 
 export function MessageFeedContent({
@@ -32,7 +42,16 @@ export function MessageFeedContent({
   currentUserId,
   roomCreatorId,
   deletingMessageIds,
+  editingMessageId,
+  editDraft,
+  editError,
+  savingMessageIds,
   onDeleteMessage,
+  onStartEdit,
+  onEditDraftChange,
+  onEditKeyDown,
+  onCancelEdit,
+  onSaveEdit,
 }: MessageFeedContentProps) {
   const isComfortableDensity = density === "comfortable";
 
@@ -72,7 +91,17 @@ export function MessageFeedContent({
           !message.deleted_at &&
           currentUserId != null &&
           (message.user_id === currentUserId || roomCreatorId === currentUserId);
+        const canEdit =
+          !message.deleted_at && currentUserId != null && message.user_id === currentUserId;
         const isDeleting = deletingMessageIds.includes(message.id);
+        const isEditing = editingMessageId === message.id;
+        const isSavingEdit = savingMessageIds.includes(message.id);
+        const editedHoverTime = message.edited_at
+          ? getMessageTime(normalizeToUtcIso(message.edited_at))
+          : "";
+        const editedFullDateTime = message.edited_at
+          ? getFullDateTime(normalizeToUtcIso(message.edited_at))
+          : "";
 
         return (
           <div key={message.id}>
@@ -143,8 +172,20 @@ export function MessageFeedContent({
               headerTime={headerTime}
               hoverTime={hoverTime}
               fullDateTime={fullDateTime}
+              editedHoverTime={editedHoverTime}
+              editedFullDateTime={editedFullDateTime}
+              canEdit={canEdit}
               canDelete={canDelete}
+              isEditing={isEditing}
               isDeleting={isDeleting}
+              isSavingEdit={isSavingEdit}
+              editDraft={editDraft}
+              editError={isEditing ? editError : ""}
+              onStartEdit={onStartEdit}
+              onEditDraftChange={onEditDraftChange}
+              onEditKeyDown={onEditKeyDown}
+              onCancelEdit={onCancelEdit}
+              onSaveEdit={onSaveEdit}
               onDeleteMessage={onDeleteMessage}
             />
           </div>

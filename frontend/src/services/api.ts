@@ -408,6 +408,20 @@ export async function sendMessage(
   });
 }
 
+export async function editMessage(
+  messageId: number,
+  content: string,
+  token: string,
+): Promise<Message> {
+  return apiCall<Message>(`/messages/${messageId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ content }),
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+}
+
 export async function deleteMessage(
   messageId: number,
   token: string,

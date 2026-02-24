@@ -38,6 +38,7 @@ type MessageAreaMockProps = {
   selectedRoom: Room | null;
   incomingMessages: Array<{ id: number }>;
   incomingMessageDeletions: Array<{ id: number }>;
+  incomingMessageEdits: Array<{ id: number }>;
   wsError?: string | null;
   onLeaveRoom: () => void;
   onRoomDeleted: () => void;
@@ -113,6 +114,7 @@ vi.mock("../MessageArea", () => ({
     selectedRoom,
     incomingMessages,
     incomingMessageDeletions,
+    incomingMessageEdits,
     wsError,
     onLeaveRoom,
     onRoomDeleted,
@@ -121,6 +123,7 @@ vi.mock("../MessageArea", () => ({
       <div data-testid="selected-room-id">{selectedRoom?.id ?? "none"}</div>
       <div data-testid="incoming-count">{incomingMessages.length}</div>
       <div data-testid="incoming-deletions-count">{incomingMessageDeletions.length}</div>
+      <div data-testid="incoming-edits-count">{incomingMessageEdits.length}</div>
       <div data-testid="ws-error-text">{wsError ?? ""}</div>
       <button type="button" onClick={onLeaveRoom}>
         Leave Room
@@ -313,6 +316,38 @@ describe("ChatLayout", () => {
     });
     // Non-selected room deletions are ignored in the selected-room queue.
     expect(screen.getByTestId("incoming-deletions-count")).toHaveTextContent("1");
+  });
+
+  it("routes websocket message_edited to selected-room edit queue", async () => {
+    render(<ChatLayout />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Select Room One" }));
+    await waitFor(() => {
+      expect(screen.getByTestId("selected-room-id")).toHaveTextContent("1");
+    });
+
+    emitWsMessage({
+      type: "message_edited",
+      message: {
+        id: 103,
+        room_id: 1,
+        content: "Updated content",
+        edited_at: "2024-01-01T00:02:00Z",
+      },
+    });
+    expect(screen.getByTestId("incoming-edits-count")).toHaveTextContent("1");
+
+    emitWsMessage({
+      type: "message_edited",
+      message: {
+        id: 104,
+        room_id: 2,
+        content: "Other room update",
+        edited_at: "2024-01-01T00:03:00Z",
+      },
+    });
+    // Non-selected room edits are ignored in the selected-room queue.
+    expect(screen.getByTestId("incoming-edits-count")).toHaveTextContent("1");
   });
 
   it("shows websocket errors and auto-clears the banner after four seconds", async () => {

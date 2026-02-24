@@ -533,6 +533,55 @@ If refresh-token auth is added later, define this section in a dedicated Spec an
 
 ---
 
+### PATCH /api/messages/:message_id
+
+**Happy Path:**
+- `test_edit_message_owner_updates_content_and_sets_edited_at`
+  - Message owner edits their message
+  - Endpoint returns 200 with updated content
+  - `edited_at` is set and `created_at` remains unchanged
+
+- `test_edit_message_emits_ws_event_with_expected_payload`
+  - Successful edit emits `message_edited` with `{type, message}` envelope
+  - Payload message includes `id`, `room_id`, `content`, and `edited_at`
+
+**Error Cases:**
+- `test_edit_message_non_owner_returns_403`
+  - Member who is not the message owner cannot edit
+  - Assert 403 Forbidden
+
+- `test_edit_message_not_room_member_returns_403`
+  - User outside room membership cannot edit a room message
+  - Assert 403 Forbidden
+
+- `test_edit_message_nonexistent_returns_404`
+  - Edit unknown message ID
+  - Assert 404
+
+- `test_edit_message_noop_after_trim_returns_409`
+  - Edited content matches stored content after trim
+  - Assert 409 Conflict
+
+- `test_edit_message_deleted_message_returns_409`
+  - Attempt to edit soft-deleted message
+  - Assert 409 Conflict
+
+**Validation Cases:**
+- `test_edit_message_with_only_whitespace_returns_422`
+  - Content trims to empty string
+  - Assert 422 validation failure
+
+- `test_edit_message_too_long_returns_422`
+  - Content exceeds 1000 characters
+  - Assert 422 validation failure
+
+**Rate Limit Cases:**
+- `test_edit_message_rate_limit_20_per_minute`
+  - Perform 21 edit requests within one minute from same client
+  - First 20 return 200, request 21 returns 429
+
+---
+
 ### DELETE /api/messages/:message_id
 
 **Happy Path:**

@@ -70,7 +70,7 @@ All tables are in schema **rostra**.
 |------------|---------|-------------|
 | **users**  | `id` (PK), `username`, `email`, `hashed_password`, `created_at` | User accounts; username and email unique. |
 | **rooms**  | `id` (PK), `name`, `created_by` (FK → users.id), `created_at` | Chat rooms; name unique. |
-| **messages** | `id` (PK), `room_id` (FK → rooms.id), `user_id` (FK → users.id), `content`, `created_at`, `deleted_at` (nullable), `search_vector` (generated tsvector) | One message per row. Soft deletion sets `deleted_at` and scrubs `content` to empty string while preserving row position in history. `search_vector` is a stored generated column: `to_tsvector('english', content)`. |
+| **messages** | `id` (PK), `room_id` (FK → rooms.id), `user_id` (FK → users.id), `content`, `created_at`, `edited_at` (nullable), `deleted_at` (nullable), `search_vector` (generated tsvector) | One message per row. Message edits update `content` and set `edited_at` while preserving `created_at`. Soft deletion sets `deleted_at` and scrubs `content` to empty string while preserving row position in history. `search_vector` is a stored generated column: `to_tsvector('english', content)`. |
 | **user_room** | `id` (PK), `user_id` (FK → users.id ON DELETE CASCADE), `room_id` (FK → rooms.id ON DELETE CASCADE), `last_read_at`, `joined_at` | Per-user read state per room; unique on (user_id, room_id). |
 
 ### Relationships
@@ -129,6 +129,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | GET    | /rooms/{room_id}/messages/newer | Yes | Context-mode newer pagination. Query: `cursor` (required opaque string), `limit` (1–100, default 50). Returns `PaginatedMessages { messages, next_cursor }` in ascending order (oldest->newest) for append-at-bottom behavior. 403 if not a room member. 400 if cursor malformed. 404 if room not found. |
 | GET    | /rooms/{room_id}/messages/{message_id}/context | Yes | Jump-to-message context window. Query: `before` (0–100, default 25), `after` (0–100, default 25). Returns `MessageContextResponse { messages, target_message_id, older_cursor, newer_cursor }` with messages ordered oldest->newest. Cursors represent strict keyset boundaries for loading older/newer pages around the anchor. 403 if not a room member. 404 if room or target message-in-room not found. |
 | POST   | /messages                | Yes  | Body: `MessageCreate` (room_id, content 1–1000 chars). Creates message as current user. 403 if not a room member. 404 if room not found. |
+| PATCH  | /messages/{message_id}   | Yes  | Edit message content. Authorization: message owner only. Body: `MessageUpdate` (content 1–1000 chars, trimmed). Rejects no-op edits after trimming (409) and edits to deleted messages (409). Returns updated `MessageResponse` including `edited_at`. Broadcasts `message_edited` event. **Rate limited: 20/min.** |
 | DELETE | /messages/{message_id}   | Yes  | Soft-delete message. Authorization: message owner OR room creator, with authz check before idempotency response. Behavior: set `deleted_at`, scrub `content` to empty string, keep row in timeline. Returns 204 for successful deletes and for already-deleted messages when caller is authorized. Broadcasts `message_deleted` event. **Rate limited: 20/min.** |
 
 ### WebSocket
@@ -148,7 +149,8 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 
 - `{ "type": "subscribed", "room_id": int, "online_users": [{ "id", "username" }] }`
 - `{ "type": "unsubscribed", "room_id": int }`
-- `{ "type": "new_message", "message": { id, room_id, user_id, username, content, created_at, deleted_at? } }`
+- `{ "type": "new_message", "message": { id, room_id, user_id, username, content, created_at, edited_at?, deleted_at? } }`
+- `{ "type": "message_edited", "message": { id, room_id, content, edited_at } }`
 - `{ "type": "message_deleted", "message": { id, room_id, deleted_at } }`
 - `{ "type": "user_joined", "room_id": int, "user": { id, username } }`
 - `{ "type": "user_left", "room_id": int, "user": { id, username } }`
@@ -168,6 +170,7 @@ Base URL: `{API_URL}/api` (e.g. `http://localhost:8000/api`). Auth where require
 | Message pagination | Cursor-based (keyset pagination) | `(created_at, id)` cursor encoded as base64 JSON. Composite index `(room_id, created_at DESC, id DESC)` for efficient seeks. `limit + 1` pattern detects `has_more` without a separate COUNT query. |
 | Jump-to-message context | Two-phase context contract (`context` + `newer`) | `/messages/{id}/context` returns anchored window + `older_cursor`/`newer_cursor`; `/messages/newer` pages forward in ascending order. Keeps existing history/search contracts unchanged while enabling bidirectional context mode. |
 | Message history | REST for history, WS for live | Messages loaded via paginated GET endpoint; new messages pushed via WebSocket; no WS history replay. |
+| Message editing model | Owner-only PATCH + in-place WS update | PATCH `/messages/{id}` trims content, rejects no-op edits (`409`), blocks deleted-row edits, stamps `edited_at`, and broadcasts `message_edited` for in-place client updates without reordering. |
 | Async everywhere | AsyncSession, async CRUD, asyncpg | All endpoints use `async def`, all DB operations use `await`. WebSocket handlers create short-lived `AsyncSessionLocal()` sessions per message (like mini HTTP requests). |
 | Rate limiting | slowapi on abuse-prone endpoints | Register (5/min), login (10/min), join/leave (10/min), discover (30/min). Disabled in tests via high limits in conftest. |
 | Message deletion model | Soft delete + scrub | DELETE `/messages/{id}` keeps row in place, sets `deleted_at`, and scrubs `content` to empty string. Search excludes soft-deleted rows; authorized repeat delete is idempotent (204). |
