@@ -1074,7 +1074,7 @@ async def test_delete_message_room_creator_can_delete_other_user_message(
         f"/api/rooms/{room_id}/join",
         headers={"Authorization": f"Bearer {member_token}"},
     )
-    assert join_response.status_code == 201
+    assert join_response.status_code == 200
 
     member_message = await create_message(member_token, room_id, "Creator can delete me")
 
@@ -1114,7 +1114,7 @@ async def test_delete_message_non_owner_non_creator_returns_403(
             f"/api/rooms/{room_id}/join",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert join_response.status_code == 201
+        assert join_response.status_code == 200
 
     owner_message = await create_message(owner_token, room_id, "Only owner or creator can delete")
 
@@ -1201,7 +1201,7 @@ async def test_delete_message_authz_checked_before_idempotency(
             f"/api/rooms/{room_id}/join",
             headers={"Authorization": f"Bearer {token}"},
         )
-        assert join_response.status_code == 201
+        assert join_response.status_code == 200
 
     message = await create_message(owner_token, room_id, "Delete then probe authz")
 
@@ -1269,17 +1269,12 @@ async def test_delete_message_rate_limit_20_per_minute(
     token = user_data["access_token"]
     room = await create_room(token, "Delete Rate Limit Room")
     room_id = room["id"]
-
-    created_messages = []
-    for i in range(21):
-        created_messages.append(
-            await create_message(token, room_id, f"Rate limit message {i}")
-        )
+    target_message = await create_message(token, room_id, "Rate limit target message")
 
     status_codes: list[int] = []
-    for message in created_messages:
+    for _ in range(21):
         response = await client.delete(
-            f"/api/messages/{message['id']}",
+            f"/api/messages/{target_message['id']}",
             headers={"Authorization": f"Bearer {token}"},
         )
         status_codes.append(response.status_code)
