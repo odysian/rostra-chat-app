@@ -25,6 +25,9 @@ class Message(Base):
     deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    edited_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Postgres generated column: auto-maintained tsvector for full-text search.
     # Computed(..., persisted=True) tells SQLAlchemy this is a STORED generated column,

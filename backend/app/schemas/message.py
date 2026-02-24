@@ -18,6 +18,20 @@ class MessageCreate(BaseModel):
         return v
 
 
+class MessageUpdate(BaseModel):
+    """Schema for editing a message."""
+
+    content: str = Field(min_length=1, max_length=1000)
+
+    @field_validator("content", mode="before")
+    @classmethod
+    def trim_whitespace(cls, v: str) -> str:
+        """Trim whitespace from message content before validation."""
+        if isinstance(v, str):
+            return v.strip()
+        return v
+
+
 class MessageResponse(BaseModel):
     """Schema for message in responses"""
 
@@ -29,6 +43,7 @@ class MessageResponse(BaseModel):
     username: str
     content: str
     created_at: datetime
+    edited_at: datetime | None = None
     deleted_at: datetime | None = None
 
 

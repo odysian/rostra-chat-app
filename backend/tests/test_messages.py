@@ -1019,6 +1019,253 @@ async def test_pagination_stable_with_concurrent_inserts(
 
 
 # ============================================================================
+# PATCH /api/messages/:message_id
+# ============================================================================
+
+
+async def test_edit_message_owner_updates_content_and_sets_edited_at(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Owner can edit message content; response includes edited_at."""
+    owner = await create_user(email="editowner@test.com", username="editowner")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Edit Room")
+    room_id = room["id"]
+    original = await create_message(owner_token, room_id, "Original content")
+
+    response = await client.patch(
+        f"/api/messages/{original['id']}",
+        json={"content": "Updated content"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == original["id"]
+    assert data["content"] == "Updated content"
+    # Accept equivalent UTC formats from serializer ("Z" vs "+00:00").
+    assert data["created_at"].replace("Z", "+00:00") == original["created_at"].replace(
+        "Z",
+        "+00:00",
+    )
+    assert data["edited_at"] is not None
+    assert data["deleted_at"] is None
+
+
+async def test_edit_message_non_owner_returns_403(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Room members cannot edit messages they do not own."""
+    creator = await create_user(email="editcreator@test.com", username="editcreator")
+    creator_token = creator["access_token"]
+    owner = await create_user(email="editmember@test.com", username="editmember")
+    owner_token = owner["access_token"]
+    other_member = await create_user(email="editother@test.com", username="editother")
+    other_member_token = other_member["access_token"]
+
+    room = await create_room(creator_token, "Edit Forbidden Room")
+    room_id = room["id"]
+
+    for token in (owner_token, other_member_token):
+        join_response = await client.post(
+            f"/api/rooms/{room_id}/join",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert join_response.status_code == 200
+
+    owner_message = await create_message(owner_token, room_id, "Only owner can edit")
+
+    response = await client.patch(
+        f"/api/messages/{owner_message['id']}",
+        json={"content": "Unauthorized edit"},
+        headers={"Authorization": f"Bearer {other_member_token}"},
+    )
+    assert response.status_code == 403
+
+
+async def test_edit_message_not_room_member_returns_403(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Users outside room membership cannot edit room messages."""
+    owner = await create_user(email="editownerb@test.com", username="editownerb")
+    owner_token = owner["access_token"]
+    outsider = await create_user(email="editoutsider@test.com", username="editoutsider")
+    outsider_token = outsider["access_token"]
+
+    room = await create_room(owner_token, "Edit Membership Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Outsider cannot edit this")
+
+    response = await client.patch(
+        f"/api/messages/{message['id']}",
+        json={"content": "Bad edit"},
+        headers={"Authorization": f"Bearer {outsider_token}"},
+    )
+    assert response.status_code == 403
+
+
+async def test_edit_message_nonexistent_returns_404(
+    client: AsyncClient, create_user
+):
+    """Editing unknown message ID returns 404."""
+    user_data = await create_user()
+    token = user_data["access_token"]
+
+    response = await client.patch(
+        "/api/messages/999999",
+        json={"content": "No message"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert response.status_code == 404
+
+
+async def test_edit_message_noop_after_trim_returns_409(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """No-op edits after trim are rejected with conflict."""
+    owner = await create_user(email="editnoop@test.com", username="editnoop")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Edit Noop Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Same content")
+
+    response = await client.patch(
+        f"/api/messages/{message['id']}",
+        json={"content": "   Same content   "},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 409
+
+
+async def test_edit_message_deleted_message_returns_409(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Soft-deleted messages cannot be edited."""
+    owner = await create_user(email="editdeleted@test.com", username="editdeleted")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Edit Deleted Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Delete before edit")
+
+    delete_response = await client.delete(
+        f"/api/messages/{message['id']}",
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert delete_response.status_code == 204
+
+    edit_response = await client.patch(
+        f"/api/messages/{message['id']}",
+        json={"content": "Should not edit"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert edit_response.status_code == 409
+
+
+async def test_edit_message_with_only_whitespace_returns_422(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Whitespace-only content is rejected after trim."""
+    owner = await create_user(email="editwhitespace@test.com", username="editwhitespace")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Edit Validation Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Needs valid edit")
+
+    response = await client.patch(
+        f"/api/messages/{message['id']}",
+        json={"content": "   "},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 422
+
+
+async def test_edit_message_too_long_returns_422(
+    client: AsyncClient, create_user, create_room, create_message
+):
+    """Content longer than 1000 chars is rejected."""
+    owner = await create_user(email="editlong@test.com", username="editlong")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "Edit Long Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Short")
+
+    response = await client.patch(
+        f"/api/messages/{message['id']}",
+        json={"content": "x" * 1001},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 422
+
+
+async def test_edit_message_emits_ws_event_with_expected_payload(
+    monkeypatch,
+    client: AsyncClient,
+    create_user,
+    create_room,
+    create_message,
+):
+    """Successful edit emits message_edited with {type, message} envelope."""
+    owner = await create_user(email="wsemitteredit@test.com", username="wsemitteredit")
+    owner_token = owner["access_token"]
+    room = await create_room(owner_token, "WS Edit Room")
+    room_id = room["id"]
+    message = await create_message(owner_token, room_id, "Emit edit event")
+
+    captured: list[tuple[int, dict]] = []
+
+    async def fake_broadcast(room_id: int, payload: dict, exclude=None):  # noqa: ANN001
+        captured.append((room_id, payload))
+
+    monkeypatch.setattr(
+        "app.api.messages.manager.broadcast_to_room",
+        fake_broadcast,
+    )
+
+    response = await client.patch(
+        f"/api/messages/{message['id']}",
+        json={"content": "Edited content"},
+        headers={"Authorization": f"Bearer {owner_token}"},
+    )
+    assert response.status_code == 200
+    assert len(captured) == 1
+
+    broadcast_room_id, payload = captured[0]
+    assert broadcast_room_id == room_id
+    assert payload["type"] == "message_edited"
+    assert payload["message"]["id"] == message["id"]
+    assert payload["message"]["room_id"] == room_id
+    assert payload["message"]["content"] == "Edited content"
+    assert payload["message"]["edited_at"] is not None
+
+
+async def test_edit_message_rate_limit_20_per_minute(
+    enable_rate_limiting,  # noqa: ARG001
+    client: AsyncClient,
+    create_user,
+    create_room,
+    create_message,
+):
+    """Edit endpoint allows 20/minute and rejects the 21st request with 429."""
+    user_data = await create_user(email="editratelimit@test.com", username="editratelimit")
+    token = user_data["access_token"]
+    room = await create_room(token, "Edit Rate Limit Room")
+    room_id = room["id"]
+    target_message = await create_message(token, room_id, "Rate limit target message")
+
+    status_codes: list[int] = []
+    for i in range(21):
+        response = await client.patch(
+            f"/api/messages/{target_message['id']}",
+            json={"content": f"Edited content {i}"},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        status_codes.append(response.status_code)
+
+    assert status_codes.count(200) == 20
+    assert status_codes[-1] == 429
+
+
+# ============================================================================
 # DELETE /api/messages/:message_id
 # ============================================================================
 

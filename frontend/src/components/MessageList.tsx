@@ -1,12 +1,13 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useRef, useState, type KeyboardEvent } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import type {
   Message,
   MessageContextResponse,
   WSDeletedMessagePayload,
+  WSEditedMessagePayload,
 } from "../types";
-import { deleteMessage } from "../services/api";
+import { deleteMessage, editMessage } from "../services/api";
 import { logError } from "../utils/logger";
 import { MessageFeedContent } from "./message-list/MessageFeedContent";
 import { DeleteMessageModal } from "./message-list/DeleteMessageModal";
@@ -24,6 +25,8 @@ interface MessageListProps {
   onIncomingMessagesProcessed?: () => void;
   incomingMessageDeletions?: WSDeletedMessagePayload[];
   onIncomingMessageDeletionsProcessed?: () => void;
+  incomingMessageEdits?: WSEditedMessagePayload[];
+  onIncomingMessageEditsProcessed?: () => void;
   scrollToLatestSignal?: number;
   onExitContextMode?: () => void;
 }
@@ -39,6 +42,8 @@ export default function MessageList({
   onIncomingMessagesProcessed,
   incomingMessageDeletions = [],
   onIncomingMessageDeletionsProcessed,
+  incomingMessageEdits = [],
+  onIncomingMessageEditsProcessed,
   scrollToLatestSignal = 0,
   onExitContextMode,
 }: MessageListProps) {
@@ -47,6 +52,10 @@ export default function MessageList({
   const [deletingMessageIds, setDeletingMessageIds] = useState<number[]>([]);
   const [pendingDeleteMessageId, setPendingDeleteMessageId] = useState<number | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [editError, setEditError] = useState("");
+  const [savingMessageIds, setSavingMessageIds] = useState<number[]>([]);
   const deleteModalRef = useRef<HTMLDivElement>(null);
   const {
     messages,
@@ -61,6 +70,7 @@ export default function MessageList({
     showJumpToLatest,
     showContextLiveIndicator,
     jumpToLatest,
+    applyMessageEdit,
     scrollContainerRef,
     sentinelRef,
     bottomSentinelRef,
@@ -77,6 +87,8 @@ export default function MessageList({
     onIncomingMessagesProcessed,
     incomingMessageDeletions,
     onIncomingMessageDeletionsProcessed,
+    incomingMessageEdits,
+    onIncomingMessageEditsProcessed,
     scrollToLatestSignal,
     onExitContextMode,
   });
@@ -95,6 +107,60 @@ export default function MessageList({
     setDeleteError("");
     setPendingDeleteMessageId(messageId);
   }, []);
+
+  const closeEditMode = useCallback(() => {
+    setEditingMessageId(null);
+    setEditDraft("");
+    setEditError("");
+  }, []);
+
+  const handleStartEdit = useCallback((messageId: number, content: string) => {
+    setEditingMessageId(messageId);
+    setEditDraft(content);
+    setEditError("");
+  }, []);
+
+  const handleSaveEdit = useCallback(async () => {
+    if (!token || editingMessageId == null) return;
+    if (savingMessageIds.includes(editingMessageId)) return;
+
+    setSavingMessageIds((prev) =>
+      prev.includes(editingMessageId) ? prev : [...prev, editingMessageId],
+    );
+
+    try {
+      const updatedMessage = await editMessage(editingMessageId, editDraft, token);
+      applyMessageEdit(
+        updatedMessage.id,
+        updatedMessage.content,
+        updatedMessage.edited_at ?? null,
+      );
+      closeEditMode();
+    } catch (err) {
+      logError("Failed to edit message:", err);
+      setEditError(
+        err instanceof Error ? err.message : "Failed to edit message. Please try again.",
+      );
+    } finally {
+      setSavingMessageIds((prev) => prev.filter((id) => id !== editingMessageId));
+    }
+  }, [applyMessageEdit, closeEditMode, editDraft, editingMessageId, savingMessageIds, token]);
+
+  const handleEditKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        closeEditMode();
+        return;
+      }
+
+      if (event.key === "Enter" && !event.shiftKey) {
+        event.preventDefault();
+        void handleSaveEdit();
+      }
+    },
+    [closeEditMode, handleSaveEdit],
+  );
 
   const handleConfirmDelete = useCallback(async () => {
     if (!token || pendingDeleteMessageId == null) return;
@@ -210,7 +276,16 @@ export default function MessageList({
           currentUserId={user?.id ?? null}
           roomCreatorId={roomCreatorId}
           deletingMessageIds={deletingMessageIds}
+          editingMessageId={editingMessageId}
+          editDraft={editDraft}
+          editError={editError}
+          savingMessageIds={savingMessageIds}
           onDeleteMessage={handleDeleteMessage}
+          onStartEdit={handleStartEdit}
+          onEditDraftChange={setEditDraft}
+          onEditKeyDown={handleEditKeyDown}
+          onCancelEdit={closeEditMode}
+          onSaveEdit={() => void handleSaveEdit()}
         />
 
         {isLoadingNewer && (

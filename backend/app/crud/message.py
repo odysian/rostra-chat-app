@@ -128,6 +128,19 @@ async def soft_delete_message(db: AsyncSession, message: Message) -> Message:
     return message
 
 
+async def edit_message_content(
+    db: AsyncSession,
+    message: Message,
+    content: str,
+) -> Message:
+    """Update message content and stamp edited_at."""
+    message.content = content
+    message.edited_at = datetime.now(UTC)
+    await db.commit()
+    await db.refresh(message)
+    return message
+
+
 async def search_messages(
     db: AsyncSession,
     room_id: int,

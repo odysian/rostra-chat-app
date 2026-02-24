@@ -20,6 +20,7 @@ import type {
   OnlineUser,
   Room,
   WSDeletedMessagePayload,
+  WSEditedMessagePayload,
 } from "../types";
 
 // Keep a bounded subscription set so unread updates stay real-time without
@@ -83,6 +84,10 @@ export default function ChatLayout() {
   /** Message deletions for the selected room delivered via WebSocket (processed then cleared). */
   const [incomingMessageDeletionsForRoom, setIncomingMessageDeletionsForRoom] = useState<
     WSDeletedMessagePayload[]
+  >([]);
+  /** Message edits for the selected room delivered via WebSocket (processed then cleared). */
+  const [incomingMessageEditsForRoom, setIncomingMessageEditsForRoom] = useState<
+    WSEditedMessagePayload[]
   >([]);
   /** Snapshot of selected room's last_read_at at room-open time (used for stable new-message divider placement). */
   const [roomOpenLastReadSnapshot, setRoomOpenLastReadSnapshot] = useState<string | null>(null);
@@ -175,6 +180,7 @@ export default function ChatLayout() {
     typingTimeoutsRef,
     setIncomingMessagesForRoom,
     setIncomingMessageDeletionsForRoom,
+    setIncomingMessageEditsForRoom,
     setUnreadCounts,
     setLastReadAtByRoomId,
     setOnlineUsersByRoom,
@@ -195,6 +201,7 @@ export default function ChatLayout() {
       setIncomingMessagesForRoom,
     });
     setIncomingMessageDeletionsForRoom([]);
+    setIncomingMessageEditsForRoom([]);
   };
 
   const cleanupRoomState = (roomId: number) => {
@@ -227,6 +234,7 @@ export default function ChatLayout() {
     // MessageList owns replaying queued WS messages; reset queue per room switch.
     setIncomingMessagesForRoom([]);
     setIncomingMessageDeletionsForRoom([]);
+    setIncomingMessageEditsForRoom([]);
     setSidebarOpen(false);
 
     if (token) {
@@ -311,6 +319,7 @@ export default function ChatLayout() {
     setUnreadCounts({});
     setIncomingMessagesForRoom([]);
     setIncomingMessageDeletionsForRoom([]);
+    setIncomingMessageEditsForRoom([]);
     logout(true);
   };
 
@@ -332,6 +341,10 @@ export default function ChatLayout() {
 
   const handleIncomingMessageDeletionsProcessed = () => {
     setIncomingMessageDeletionsForRoom([]);
+  };
+
+  const handleIncomingMessageEditsProcessed = () => {
+    setIncomingMessageEditsForRoom([]);
   };
 
   const handleOpenMessageContext = (context: MessageContextResponse) => {
@@ -438,6 +451,8 @@ export default function ChatLayout() {
           onIncomingMessagesProcessed={handleIncomingMessagesProcessed}
           incomingMessageDeletions={incomingMessageDeletionsForRoom}
           onIncomingMessageDeletionsProcessed={handleIncomingMessageDeletionsProcessed}
+          incomingMessageEdits={incomingMessageEditsForRoom}
+          onIncomingMessageEditsProcessed={handleIncomingMessageEditsProcessed}
           onToggleUsers={() => setRightPanel((prev) => prev === "users" ? "none" : "users")}
           onToggleSearch={() => setRightPanel((prev) => prev === "search" ? "none" : "search")}
           onRoomDeleted={handleRoomDeleted}

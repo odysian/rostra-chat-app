@@ -14,11 +14,17 @@ from app.schemas.message import (
     MessageContextResponse,
     MessageCreate,
     MessageResponse,
+    MessageUpdate,
     PaginatedMessages,
 )
 from app.utils.cursor import decode_cursor, encode_cursor
 from app.websocket.connection_manager import manager
-from app.websocket.schemas import WSDeletedMessage, WSMessageDeleted
+from app.websocket.schemas import (
+    WSDeletedMessage,
+    WSEditedMessage,
+    WSMessageDeleted,
+    WSMessageEdited,
+)
 
 router = APIRouter()
 
@@ -100,6 +106,7 @@ async def search_room_messages(
         msg_user_id: int = msg.user_id  # type: ignore[assignment]
         msg_content: str = msg.content  # type: ignore[assignment]
         msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
         msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
         msg_username: str = msg.user.username  # type: ignore[union-attr]
 
@@ -111,6 +118,7 @@ async def search_room_messages(
                 username=msg_username,
                 content=msg_content,
                 created_at=msg_created_at,
+                edited_at=msg_edited_at,
                 deleted_at=msg_deleted_at,
             )
         )
@@ -202,6 +210,7 @@ async def get_room_messages(
         msg_user_id: int = msg.user_id  # type: ignore[assignment]
         msg_content: str = msg.content  # type: ignore[assignment]
         msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
         msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
         msg_username: str = msg.user.username  # type: ignore[union-attr]
 
@@ -213,6 +222,7 @@ async def get_room_messages(
                 username=msg_username,
                 content=msg_content,
                 created_at=msg_created_at,
+                edited_at=msg_edited_at,
                 deleted_at=msg_deleted_at,
             )
         )
@@ -279,6 +289,7 @@ async def get_room_messages_newer(
         msg_user_id: int = msg.user_id  # type: ignore[assignment]
         msg_content: str = msg.content  # type: ignore[assignment]
         msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
         msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
         msg_username: str = msg.user.username  # type: ignore[union-attr]
 
@@ -290,6 +301,7 @@ async def get_room_messages_newer(
                 username=msg_username,
                 content=msg_content,
                 created_at=msg_created_at,
+                edited_at=msg_edited_at,
                 deleted_at=msg_deleted_at,
             )
         )
@@ -370,6 +382,7 @@ async def get_room_message_context(
         msg_user_id: int = msg.user_id  # type: ignore[assignment]
         msg_content: str = msg.content  # type: ignore[assignment]
         msg_created_at: datetime = msg.created_at  # type: ignore[assignment]
+        msg_edited_at: datetime | None = msg.edited_at  # type: ignore[assignment]
         msg_deleted_at: datetime | None = msg.deleted_at  # type: ignore[assignment]
         msg_username: str = msg.user.username  # type: ignore[union-attr]
 
@@ -381,6 +394,7 @@ async def get_room_message_context(
                 username=msg_username,
                 content=msg_content,
                 created_at=msg_created_at,
+                edited_at=msg_edited_at,
                 deleted_at=msg_deleted_at,
             )
         )
@@ -445,7 +459,96 @@ async def create_message(
         username=current_user.username,
         content=db_message.content,
         created_at=db_message.created_at,
+        edited_at=db_message.edited_at,
         deleted_at=db_message.deleted_at,
+    )
+
+
+@router.patch("/messages/{message_id}", response_model=MessageResponse)
+@limiter.limit("20/minute")
+async def edit_message(
+    request: Request,
+    message_id: int,
+    message: MessageUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Edit message content when caller is the message owner."""
+    db_message = await message_crud.get_message_by_id(db, message_id)
+    if not db_message:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Message not found",
+        )
+
+    message_room_id: int = db_message.room_id  # type: ignore[assignment]
+    message_owner_id: int = db_message.user_id  # type: ignore[assignment]
+    message_deleted_at: datetime | None = db_message.deleted_at  # type: ignore[assignment]
+    current_user_id: int = current_user.id
+
+    membership = await user_room_crud.get_user_room(db, current_user_id, message_room_id)
+    if not membership:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not a member of this room",
+        )
+
+    if current_user_id != message_owner_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not allowed to edit this message",
+        )
+
+    if message_deleted_at is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Cannot edit a deleted message",
+        )
+
+    message_content: str = db_message.content  # type: ignore[assignment]
+    if message.content == message_content:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Edited content must be different",
+        )
+
+    updated_message = await message_crud.edit_message_content(
+        db,
+        db_message,
+        message.content,
+    )
+
+    updated_message_id: int = updated_message.id  # type: ignore[assignment]
+    updated_room_id: int = updated_message.room_id  # type: ignore[assignment]
+    updated_content: str = updated_message.content  # type: ignore[assignment]
+    updated_created_at: datetime = updated_message.created_at  # type: ignore[assignment]
+    updated_edited_at: datetime = updated_message.edited_at  # type: ignore[assignment]
+    updated_deleted_at: datetime | None = updated_message.deleted_at  # type: ignore[assignment]
+    updated_user_id: int = updated_message.user_id  # type: ignore[assignment]
+
+    payload = WSMessageEdited(
+        type="message_edited",
+        message=WSEditedMessage(
+            id=updated_message_id,
+            room_id=updated_room_id,
+            content=updated_content,
+            edited_at=updated_edited_at,
+        ),
+    )
+    await manager.broadcast_to_room(
+        updated_room_id,
+        payload.model_dump(mode="json"),
+    )
+
+    return MessageResponse(
+        id=updated_message_id,
+        room_id=updated_room_id,
+        user_id=updated_user_id,
+        username=current_user.username,
+        content=updated_content,
+        created_at=updated_created_at,
+        edited_at=updated_edited_at,
+        deleted_at=updated_deleted_at,
     )
 
 

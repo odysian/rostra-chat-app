@@ -6,6 +6,7 @@ import type {
   Message,
   MessageContextResponse,
   WSDeletedMessagePayload,
+  WSEditedMessagePayload,
 } from "../types";
 import {
   capturePrependAnchor,
@@ -37,6 +38,8 @@ interface UseMessageFeedLifecycleParams {
   onIncomingMessagesProcessed?: () => void;
   incomingMessageDeletions: WSDeletedMessagePayload[];
   onIncomingMessageDeletionsProcessed?: () => void;
+  incomingMessageEdits: WSEditedMessagePayload[];
+  onIncomingMessageEditsProcessed?: () => void;
   scrollToLatestSignal: number;
   onExitContextMode?: () => void;
 }
@@ -54,6 +57,11 @@ interface UseMessageFeedLifecycleResult {
   showJumpToLatest: boolean;
   showContextLiveIndicator: boolean;
   jumpToLatest: () => void;
+  applyMessageEdit: (
+    messageId: number,
+    content: string,
+    editedAt: string | null,
+  ) => void;
   scrollContainerRef: RefObject<HTMLDivElement | null>;
   sentinelRef: RefObject<HTMLDivElement | null>;
   bottomSentinelRef: RefObject<HTMLDivElement | null>;
@@ -76,6 +84,8 @@ export function useMessageFeedLifecycle({
   onIncomingMessagesProcessed,
   incomingMessageDeletions,
   onIncomingMessageDeletionsProcessed,
+  incomingMessageEdits,
+  onIncomingMessageEditsProcessed,
   scrollToLatestSignal,
   onExitContextMode,
 }: UseMessageFeedLifecycleParams): UseMessageFeedLifecycleResult {
@@ -480,8 +490,61 @@ export function useMessageFeedLifecycle({
     onIncomingMessageDeletionsProcessed?.();
   }, [incomingMessageDeletions, onIncomingMessageDeletionsProcessed]);
 
+  useEffect(() => {
+    if (incomingMessageEdits.length === 0) return;
+
+    const editsById = new Map(incomingMessageEdits.map((edit) => [edit.id, edit]));
+
+    setMessages((prev) =>
+      prev.map((item) => {
+        if ("type" in item) return item;
+        const edit = editsById.get(item.id);
+        if (!edit) return item;
+        return {
+          ...item,
+          content: edit.content,
+          edited_at: edit.edited_at,
+        };
+      }),
+    );
+
+    setContextLiveMessages((prev) =>
+      prev.map((item) => {
+        const edit = editsById.get(item.id);
+        if (!edit) return item;
+        return {
+          ...item,
+          content: edit.content,
+          edited_at: edit.edited_at,
+        };
+      }),
+    );
+
+    onIncomingMessageEditsProcessed?.();
+  }, [incomingMessageEdits, onIncomingMessageEditsProcessed]);
+
   const showContextLiveIndicator =
     messageViewMode === "context" && contextLiveMessages.length > 0;
+
+  const applyMessageEdit = useCallback(
+    (messageId: number, content: string, editedAt: string | null) => {
+      setMessages((prev) =>
+        prev.map((item) => {
+          if ("type" in item) return item;
+          if (item.id !== messageId) return item;
+          return { ...item, content, edited_at: editedAt };
+        }),
+      );
+
+      setContextLiveMessages((prev) =>
+        prev.map((item) => {
+          if (item.id !== messageId) return item;
+          return { ...item, content, edited_at: editedAt };
+        }),
+      );
+    },
+    [],
+  );
 
   return {
     messages,
@@ -496,6 +559,7 @@ export function useMessageFeedLifecycle({
     showJumpToLatest,
     showContextLiveIndicator,
     jumpToLatest,
+    applyMessageEdit,
     scrollContainerRef,
     sentinelRef,
     bottomSentinelRef,

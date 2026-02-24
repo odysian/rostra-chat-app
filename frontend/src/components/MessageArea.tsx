@@ -6,6 +6,7 @@ import type {
   MessageContextResponse,
   Room,
   WSDeletedMessagePayload,
+  WSEditedMessagePayload,
 } from "../types";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -27,6 +28,8 @@ interface MessageAreaProps {
   onIncomingMessagesProcessed: () => void;
   incomingMessageDeletions?: WSDeletedMessagePayload[];
   onIncomingMessageDeletionsProcessed?: () => void;
+  incomingMessageEdits?: WSEditedMessagePayload[];
+  onIncomingMessageEditsProcessed?: () => void;
   onToggleUsers: () => void;
   onToggleSearch: () => void;
   onRoomDeleted: () => void;
@@ -49,6 +52,8 @@ export default function MessageArea({
   onIncomingMessagesProcessed,
   incomingMessageDeletions = [],
   onIncomingMessageDeletionsProcessed = () => {},
+  incomingMessageEdits = [],
+  onIncomingMessageEditsProcessed = () => {},
   onToggleUsers,
   onToggleSearch,
   onRoomDeleted,
@@ -258,6 +263,8 @@ export default function MessageArea({
         onIncomingMessagesProcessed={onIncomingMessagesProcessed}
         incomingMessageDeletions={incomingMessageDeletions}
         onIncomingMessageDeletionsProcessed={onIncomingMessageDeletionsProcessed}
+        incomingMessageEdits={incomingMessageEdits}
+        onIncomingMessageEditsProcessed={onIncomingMessageEditsProcessed}
         scrollToLatestSignal={scrollToLatestSignal}
         onExitContextMode={onExitContextMode}
       />

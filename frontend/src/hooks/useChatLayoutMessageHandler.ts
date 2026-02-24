@@ -6,7 +6,13 @@ import {
 } from "react";
 import type { WebSocketMessage } from "../context/WebSocketContext";
 import { markRoomRead } from "../services/api";
-import type { Message, OnlineUser, Room, WSDeletedMessagePayload } from "../types";
+import type {
+  Message,
+  OnlineUser,
+  Room,
+  WSDeletedMessagePayload,
+  WSEditedMessagePayload,
+} from "../types";
 
 /**
  * Owns ChatLayout's websocket event policy.
@@ -28,6 +34,7 @@ interface UseChatLayoutMessageHandlerParams {
   typingTimeoutsRef: MutableRefObject<Set<ReturnType<typeof setTimeout>>>;
   setIncomingMessagesForRoom: Dispatch<SetStateAction<Message[]>>;
   setIncomingMessageDeletionsForRoom: Dispatch<SetStateAction<WSDeletedMessagePayload[]>>;
+  setIncomingMessageEditsForRoom: Dispatch<SetStateAction<WSEditedMessagePayload[]>>;
   setUnreadCounts: Dispatch<SetStateAction<Record<number, number>>>;
   setLastReadAtByRoomId: Dispatch<SetStateAction<Record<number, string | null>>>;
   setOnlineUsersByRoom: Dispatch<SetStateAction<Record<number, OnlineUser[]>>>;
@@ -43,6 +50,7 @@ export function useChatLayoutMessageHandler({
   typingTimeoutsRef,
   setIncomingMessagesForRoom,
   setIncomingMessageDeletionsForRoom,
+  setIncomingMessageEditsForRoom,
   setUnreadCounts,
   setLastReadAtByRoomId,
   setOnlineUsersByRoom,
@@ -59,7 +67,9 @@ export function useChatLayoutMessageHandler({
       }
 
       const messageRoomId =
-        message.type === "new_message" || message.type === "message_deleted"
+        message.type === "new_message" ||
+        message.type === "message_deleted" ||
+        message.type === "message_edited"
           ? message.message.room_id
           : "room_id" in message
             ? message.room_id
@@ -109,6 +119,14 @@ export function useChatLayoutMessageHandler({
         if (messageRoomId === selectedRoomRef.current?.id) {
           // Keep deletion updates queued so MessageList mutates rows in place.
           setIncomingMessageDeletionsForRoom((prev) => [...prev, message.message]);
+        }
+        return;
+      }
+
+      if (message.type === "message_edited" && messageRoomId != null) {
+        if (messageRoomId === selectedRoomRef.current?.id) {
+          // Keep edit updates queued so MessageList mutates rows in place.
+          setIncomingMessageEditsForRoom((prev) => [...prev, message.message]);
         }
         return;
       }
@@ -180,6 +198,7 @@ export function useChatLayoutMessageHandler({
     selectedRoomRef,
     setIncomingMessagesForRoom,
     setIncomingMessageDeletionsForRoom,
+    setIncomingMessageEditsForRoom,
     setLastReadAtByRoomId,
     setOnlineUsersByRoom,
     setTypingUsersByRoom,

@@ -8,6 +8,7 @@ import type { Message } from "../../types";
 const mockGetRoomMessages = vi.fn();
 const mockGetRoomMessagesNewer = vi.fn();
 const mockDeleteMessage = vi.fn();
+const mockEditMessage = vi.fn();
 const mockOnIncomingMessagesProcessed = vi.fn();
 
 vi.mock("../../context/AuthContext", () => ({
@@ -32,6 +33,7 @@ vi.mock("../../services/api", () => ({
   getRoomMessages: (...args: unknown[]) => mockGetRoomMessages(...args),
   getRoomMessagesNewer: (...args: unknown[]) => mockGetRoomMessagesNewer(...args),
   deleteMessage: (...args: unknown[]) => mockDeleteMessage(...args),
+  editMessage: (...args: unknown[]) => mockEditMessage(...args),
 }));
 
 function makeMessage(params: {
@@ -41,6 +43,7 @@ function makeMessage(params: {
   createdAt: string;
   userId?: number;
   deletedAt?: string | null;
+  editedAt?: string | null;
 }): Message {
   return {
     id: params.id,
@@ -49,6 +52,7 @@ function makeMessage(params: {
     username: params.username,
     content: params.content,
     created_at: params.createdAt,
+    edited_at: params.editedAt,
     deleted_at: params.deletedAt,
   };
 }
@@ -90,8 +94,20 @@ describe("MessageList", () => {
     mockGetRoomMessages.mockReset();
     mockGetRoomMessagesNewer.mockReset();
     mockDeleteMessage.mockReset();
+    mockEditMessage.mockReset();
     mockOnIncomingMessagesProcessed.mockReset();
     mockDeleteMessage.mockResolvedValue({});
+    mockEditMessage.mockImplementation(
+      async (messageId: number, content: string) =>
+        makeMessage({
+          id: messageId,
+          userId: 1,
+          username: "alice",
+          content,
+          createdAt: "2024-01-01T10:00:00Z",
+          editedAt: "2024-01-01T10:01:00Z",
+        }),
+    );
   });
 
   it("shows loading state while initial fetch is pending", async () => {
@@ -247,6 +263,61 @@ describe("MessageList", () => {
     expect(screen.getByText("First message")).toBeInTheDocument();
   });
 
+  it("applies websocket edit updates in place without reordering", async () => {
+    const first = makeMessage({
+      id: 1,
+      username: "alice",
+      content: "First message",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+    const second = makeMessage({
+      id: 2,
+      username: "bob",
+      content: "Second message",
+      createdAt: "2024-01-01T10:01:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [second, first],
+      next_cursor: null,
+    });
+
+    const { rerender } = renderMessageList();
+    await screen.findByText("First message");
+    const firstBefore = screen.getByText("First message");
+    const secondBefore = screen.getByText("Second message");
+    expect(
+      firstBefore.compareDocumentPosition(secondBefore) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    rerender(
+      <MessageList
+        roomId={1}
+        density="compact"
+        incomingMessages={[]}
+        incomingMessageEdits={[
+          {
+            id: 2,
+            room_id: 1,
+            content: "Second message updated",
+            edited_at: "2024-01-01T10:02:00Z",
+          },
+        ]}
+        onIncomingMessagesProcessed={mockOnIncomingMessagesProcessed}
+        onIncomingMessageEditsProcessed={vi.fn()}
+        scrollToLatestSignal={0}
+      />,
+    );
+
+    const firstAfter = await screen.findByText("First message");
+    const secondAfter = screen.getByText("Second message updated");
+    expect(
+      firstAfter.compareDocumentPosition(secondAfter) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.queryByText("Second message")).not.toBeInTheDocument();
+    expect(screen.getByText("(edited)")).toBeInTheDocument();
+  });
+
   it("shows in-app delete confirmation modal and calls delete API on confirm", async () => {
     const user = userEvent.setup();
     const ownMessage = makeMessage({
@@ -297,6 +368,127 @@ describe("MessageList", () => {
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(mockDeleteMessage).not.toHaveBeenCalled();
+  });
+
+  it("shows edited marker and keeps original timestamp metadata", async () => {
+    const editedMessage = makeMessage({
+      id: 80,
+      userId: 1,
+      username: "alice",
+      content: "Edited once",
+      createdAt: "2024-01-01T10:00:00Z",
+      editedAt: "2024-01-01T10:05:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [editedMessage],
+      next_cursor: null,
+    });
+
+    renderMessageList();
+
+    await screen.findByText("Edited once");
+    const marker = screen.getByText("(edited)");
+    const metadataRow = screen.getByText("alice").closest("div");
+    const createdTimestamp = metadataRow?.querySelector("span[title]");
+    expect(marker).toBeInTheDocument();
+    expect(marker.getAttribute("title")).toBeTruthy();
+    expect(createdTimestamp?.getAttribute("title")).toBeTruthy();
+    expect(marker.getAttribute("title")).not.toBe(createdTimestamp?.getAttribute("title"));
+  });
+
+  it("saves inline edits through PATCH and updates content in place", async () => {
+    const user = userEvent.setup();
+    const ownMessage = makeMessage({
+      id: 81,
+      userId: 1,
+      username: "alice",
+      content: "Original content",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [ownMessage],
+      next_cursor: null,
+    });
+    mockEditMessage.mockResolvedValueOnce(
+      makeMessage({
+        id: 81,
+        userId: 1,
+        username: "alice",
+        content: "Updated content",
+        createdAt: "2024-01-01T10:00:00Z",
+        editedAt: "2024-01-01T10:02:00Z",
+      }),
+    );
+
+    renderMessageList();
+    await screen.findByText("Original content");
+
+    await user.click(screen.getByRole("button", { name: "Edit message" }));
+    const textarea = screen.getByLabelText("Edit message content");
+    await user.clear(textarea);
+    await user.type(textarea, "Updated content");
+    await user.click(screen.getByRole("button", { name: "Save message edit" }));
+
+    expect(mockEditMessage).toHaveBeenCalledWith(81, "Updated content", "test-token");
+    expect(await screen.findByText("Updated content")).toBeInTheDocument();
+    expect(screen.queryByText("Original content")).not.toBeInTheDocument();
+    expect(screen.getByText("(edited)")).toBeInTheDocument();
+  });
+
+  it("supports edit keyboard controls for save/newline/cancel", async () => {
+    const user = userEvent.setup();
+    const ownMessage = makeMessage({
+      id: 82,
+      userId: 1,
+      username: "alice",
+      content: "Line one",
+      createdAt: "2024-01-01T10:00:00Z",
+    });
+
+    mockGetRoomMessages.mockResolvedValueOnce({
+      messages: [ownMessage],
+      next_cursor: null,
+    });
+    mockEditMessage.mockResolvedValueOnce(
+      makeMessage({
+        id: 82,
+        userId: 1,
+        username: "alice",
+        content: "Line one\nLine two",
+        createdAt: "2024-01-01T10:00:00Z",
+        editedAt: "2024-01-01T10:03:00Z",
+      }),
+    );
+
+    renderMessageList();
+    await screen.findByText("Line one");
+
+    await user.click(screen.getByRole("button", { name: "Edit message" }));
+    const textarea = screen.getByLabelText("Edit message content");
+    await user.click(textarea);
+    await user.keyboard("{Shift>}{Enter}{/Shift}Line two");
+    expect((textarea as HTMLTextAreaElement).value).toBe("Line one\nLine two");
+
+    fireEvent.keyDown(textarea, { key: "Enter" });
+    await waitFor(() => {
+      expect(mockEditMessage).toHaveBeenCalledWith(
+        82,
+        "Line one\nLine two",
+        "test-token",
+      );
+    });
+    const updatedRow = document.querySelector("[data-message-id='82']");
+    expect(updatedRow).not.toBeNull();
+    expect(updatedRow).toHaveTextContent("Line one Line two");
+
+    await user.click(screen.getByRole("button", { name: "Edit message" }));
+    const reopened = screen.getByLabelText("Edit message content");
+    fireEvent.keyDown(reopened, { key: "Escape" });
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Edit message content")).not.toBeInTheDocument();
+    });
   });
 
   it("shows TODAY and older date divider labels", async () => {
