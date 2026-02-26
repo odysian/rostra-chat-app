@@ -29,9 +29,10 @@ Read in this order:
 - Specs close only when all child Tasks are done or explicitly deferred.
 - Detailed control-plane rules are canonical in `docs/ISSUES_WORKFLOW.md`.
 - For one-shot issue body + `gh` command generation, use `skills/spec-workflow-gh.md`.
-- Default shorthand command:
-  - `Create an issue workflow for feature <feature-id> in <filename>.`
-  - Interpreted as `mode=single` automation using `skills/spec-workflow-gh.md` with minimal chatter and direct `gh issue create`.
+- Canonical single-line kickoff prompt:
+  - `Run kickoff for feature <feature-id> from <filename> mode=<single|gated|fast>.`
+  - If `mode` is omitted, default to `single`.
+  - Expected output: issue body file(s), `gh issue create` command(s), created issue link(s), and a 3-5 step implementation plan.
 
 ## Agent Operating Loop
 
@@ -119,14 +120,25 @@ bandit -r app/ -ll
 
 ### Frontend (React + Vite)
 ```bash
+# Preferred: run from repo root
+make frontend-verify
+```
+
+If you need to isolate a specific frontend failure, run commands from `frontend/`:
+```bash
+cd frontend
+
 # Type check
 npx tsc --noEmit
+
+# Build (catches errors that dev mode misses)
+npm run build
 
 # Lint
 npx eslint src/
 
-# Build (catches errors that dev mode misses)
-npm run build
+# Tests
+npm test
 ```
 
 ### Database

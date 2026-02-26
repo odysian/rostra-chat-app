@@ -355,10 +355,8 @@ make backend-verify
 # Backend (if DB bootstrap is unavailable)
 make backend-verify SKIP_DB_BOOTSTRAP=1
 
-# Frontend
-cd frontend && npx tsc --noEmit
-cd frontend && npx eslint src/
-cd frontend && npm run build
+# Frontend (preferred)
+make frontend-verify
 ```
 
 If any step fails, fix the issue before reporting completion. Do not leave broken tests, lint errors, or type errors for the developer to clean up.
@@ -899,7 +897,7 @@ For multi-step tasks, state a brief plan with checks:
 
 Before reporting any task as complete:
 - [ ] Backend verification passes (`make backend-verify`, or fallback with `SKIP_DB_BOOTSTRAP=1`)
-- [ ] Frontend builds (`cd frontend && npx tsc --noEmit && npx eslint src/ && npm run build`)
+- [ ] Frontend verification passes (`make frontend-verify`; fallback: `cd frontend && npx tsc --noEmit && npx eslint src/ && npm run build && npm test`)
 - [ ] No hardcoded secrets, URLs, or credentials
 - [ ] New endpoints are documented in ARCHITECTURE.md or flagged for update
 - [ ] New patterns are consistent with PATTERNS.md
