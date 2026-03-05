@@ -481,6 +481,27 @@ After every implementation session, before committing, run through docs/REVIEW_C
 
 **Tests:** Happy path, error path, and edge cases covered. Tests have specific assertions. Test names are descriptive.
 
+### Bounded Fresh-Context Review-Patch Loop (Issue Modes)
+
+For Task execution in `single` and `gated` modes, use this post-PR sequence:
+
+1. Commit implementation changes and open PR (`Closes #<task-id>`).
+2. Trigger a fresh-context review pass using a separate agent/session.
+3. Patch notable findings on the PR branch, commit as `fix(review-r<round>): ...`, and re-run verification.
+4. Run at most one additional review pass if patch commits were added.
+5. Stop when clean, capped, or findings repeat.
+
+Loop-prevention defaults:
+
+- `max_review_rounds=2`
+- `max_auto_patch_commits=2`
+- stop early when no patch-eligible findings remain or repeated findings indicate churn.
+
+Required review audit trail:
+
+- PR comment per round with findings, severity, and disposition.
+- Patch commit SHA(s) or follow-up Task links for deferred findings.
+
 ### AI Review Log (README.md Section)
 
 Every project README includes a section documenting specific instances where agent-generated code was reviewed and corrected. This serves two purposes: it proves code comprehension to hiring managers, and it creates a reference for future agent instructions.
@@ -825,6 +846,11 @@ Canonical execution rules live in `docs/ISSUES_WORKFLOW.md`.
 - For `single` and `gated` modes, create a dedicated Task branch before implementation.
 - Backend-coupled work requires Decision Locks before implementation.
 - After major refactors, open one docs-only Task for readability hardening (comments + `docs/PATTERNS.md` updates), with no behavior changes.
+- After opening a Task PR, run one fresh-context review pass using a separate agent/session before finalize.
+- Review/patch automation is bounded to prevent loops:
+  - `max_review_rounds=2`
+  - `max_auto_patch_commits=2`
+  - stop early when no patch-eligible findings remain or the same finding repeats.
 
 ### During Implementation
 - **One task at a time.** Never implement multiple features or fix multiple unrelated issues in one session.

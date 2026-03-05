@@ -43,7 +43,9 @@ Read in this order:
 5. Implement with tight, surgical changes.
 6. Run verification commands.
 7. Update tests/docs if required.
-8. Open PR that closes the Task issue; close Spec after child Tasks are done/deferred.
+8. Open PR that closes the Task issue.
+9. Run one fresh-context review pass and patch notable findings on the same branch (bounded by workflow caps).
+10. Close Spec after child Tasks are done/deferred.
 
 ## Process
 
@@ -223,6 +225,7 @@ Just do it. No plan needed. Execute, verify, done.
 - Default sizing in issue modes: 1 feature -> 1 Task -> 1 PR unless split criteria apply.
 - GitHub issues are the execution source of truth. `TASKS.md` is scratchpad-only.
 - Follow canonical rules in `docs/ISSUES_WORKFLOW.md` for DoR/DoD and Phase 3 gates.
+- Follow canonical rules in `docs/ISSUES_WORKFLOW.md` for DoR/DoD, fresh-context review gates, and bounded review/patch caps.
 - Decision Locks live in the controlling issue (Task in `single` mode, Spec in `gated` mode); use Decision issues only for non-trivial/reused discussion.
 - If a decision has lasting architecture/security/performance impact, create and link an ADR (`docs/adr/NNN-kebab-case-title.md`).
 

@@ -67,6 +67,13 @@ Use this after agent sessions or before committing. Not every item applies to ev
 - [ ] **Edge cases:** Empty list, boundary lengths, etc. Backend uses pytest with real test DB (savepoint rollback). Frontend uses Vitest + React Testing Library test files under `frontend/src/**/__tests__/`.
 - [ ] **TESTPLAN.md:** New test cases added to `backend/TESTPLAN.md` before writing tests (per AGENTS.md rule).
 
+## Fresh-Context Review
+
+- [ ] **Review pass completed:** Fresh-context review run on the Task PR branch using a separate agent/session.
+- [ ] **Loop caps respected:** Review/patch loop stayed within configured limits (`max_review_rounds=2`, `max_auto_patch_commits=2`).
+- [ ] **Findings documented:** Each review round records findings with severity and disposition (`patched`, `deferred`, `dismissed`).
+- [ ] **Traceability:** Patch commit SHA(s) or follow-up Task issue link(s) are included in the PR.
+
 ## Verification Commands (this project)
 
 Run from **project root** unless noted. These match the Verification section in AGENTS.md.

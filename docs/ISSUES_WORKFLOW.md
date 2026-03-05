@@ -25,6 +25,9 @@ This repository uses GitHub issues as the execution control plane.
 6. Phase 3/backend-coupled work requires Decision Locks checked before implementation begins.
 7. After major refactors, open one docs-only Task for readability hardening (comments + `docs/PATTERNS.md` updates), with no behavior changes.
 8. For `single` and `gated` modes, create a dedicated branch for the Task issue before implementation (for example: `task-123-short-name`).
+9. Before finalize, run a fresh-context review pass (separate agent/session) on the Task PR branch.
+10. Review/patch loops must be bounded: `max_review_rounds=2`, `max_auto_patch_commits=2`, and stop early when no patch-eligible findings remain or repeated findings indicate churn.
+11. Every review round must be documented in the PR (findings, severity, disposition, and linked patch commit/follow-up issue).
 
 ## Execution Modes (Choose Before Opening Issues)
 
@@ -88,6 +91,27 @@ A Task can be closed when:
 - tests and docs for the feature are included in the same Task by default
 - docs are updated if required
 - follow-ups are created
+- required fresh-context review pass is complete with findings/dispositions documented
+- any auto-review patches are committed to the Task PR branch within configured review/patch caps
+
+## Fresh-Context Review Automation
+
+Default sequence for `single` and `gated` Task execution:
+
+1. Implement and verify Task scope.
+2. Commit implementation changes and open PR with `Closes #<task-id>`.
+3. Run fresh-context review round `r1` using a separate agent/session.
+4. Patch `high` and `critical` findings immediately on the PR branch.
+5. For `medium`/`low`, either patch if trivial and low-risk or create follow-up Task issue(s).
+6. If patch commits were added and round cap not reached, run one more review round.
+7. Stop when clean, capped, or only deferred findings remain with linked follow-ups.
+
+Required documentation per review round:
+
+- timestamp + reviewer identity (agent/session)
+- finding list with severity and impacted files
+- disposition for each finding: `patched`, `deferred`, or `dismissed` (with rationale)
+- patch commit SHA(s) or follow-up issue link(s)
 
 ## Decisions Policy (Locks, Issues, ADRs)
 

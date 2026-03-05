@@ -45,6 +45,7 @@ Interpret this shorthand as:
 - `Parent Spec: (placeholder)` only in `mode=gated`
 5. Final execution step for issue modes:
 - start Task `#<id>` in a new branch and open PR with `Closes #<id>`
+- run bounded fresh-context review/patch loop before finalizing (`max_review_rounds=2`, `max_auto_patch_commits=2`)
 
 ## Procedure
 
@@ -93,6 +94,7 @@ Ask Codex to:
 - start Task `#<id>` in a new branch
 - implement and verify
 - open PR containing `Closes #<id>`
+- run fresh-context review and patch notable findings with loop caps enforced
 
 ## Common GitHub CLI Snippets
 
