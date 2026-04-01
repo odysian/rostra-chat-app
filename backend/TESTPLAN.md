@@ -191,6 +191,18 @@ If refresh-token auth is added later, define this section in a dedicated Spec an
 
 ---
 
+### Runtime DB URL Normalization
+
+**Happy Path:**
+- `test_build_async_database_config_strips_neon_libpq_only_params`
+  - Given a raw Neon URL containing `sslmode=require` and `channel_binding=require`
+  - Runtime config switches the driver to `postgresql+asyncpg`
+  - Runtime URL no longer includes `sslmode` or `channel_binding`
+  - Runtime connect args include asyncpg-compatible SSL configuration
+  - Raw URL remains unchanged for Alembic/sync engine usage
+
+---
+
 ### POST /api/rooms
 
 **Happy Path:**

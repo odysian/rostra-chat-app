@@ -1,13 +1,12 @@
 from sqlalchemy import MetaData
-from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
+from app.core.database_url import build_async_database_config
 
-# Build async URL safely (handles any existing driver suffix like +psycopg2)
-_parsed_url = make_url(settings.DATABASE_URL)
-_async_url = _parsed_url.set(drivername="postgresql+asyncpg")
+raw_database_url = settings.DATABASE_URL
+async_database_url, async_connect_args = build_async_database_config(raw_database_url)
 
 # Async engine for the application
 # Pool tuned for Render PostgreSQL (direct connection, shared across 3 apps):
@@ -16,8 +15,9 @@ _async_url = _parsed_url.set(drivername="postgresql+asyncpg")
 # - pool_pre_ping: detects dead connections before handing them out
 # - pool_recycle=300: refresh connections periodically for connection hygiene
 async_engine = create_async_engine(
-    _async_url,
+    async_database_url,
     echo=False,
+    connect_args=async_connect_args,
     pool_size=3,
     max_overflow=5,
     pool_recycle=300,
