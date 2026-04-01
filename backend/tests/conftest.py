@@ -18,7 +18,6 @@ import pytest
 from dotenv import load_dotenv
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import create_engine, event, text
-from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -49,6 +48,7 @@ from app.api import auth, messages, rooms
 from app.api.dependencies import get_current_user
 from app.core.config import settings
 from app.core.database import Base, async_engine, get_db
+from app.core.database_url import build_async_database_config
 from app.models.user import User
 from app.core.rate_limit import limiter
 
@@ -200,15 +200,18 @@ _ensure_test_database_exists()
 # Same reason Alembic uses a sync engine: DDL is a one-off operation.
 sync_test_engine = create_engine(TEST_DATABASE_URL, echo=False)
 
-# Build async test URL from TEST_DATABASE_URL (swap driver to asyncpg)
-_parsed_test_url = make_url(TEST_DATABASE_URL)
-_async_test_url = _parsed_test_url.set(drivername="postgresql+asyncpg")
+# Build async test engine config from TEST_DATABASE_URL so Neon/libpq query
+# params are normalized the same way as the app runtime path.
+_async_test_url, _async_test_connect_args = build_async_database_config(TEST_DATABASE_URL)
 
 # Async test engine — used for per-test sessions (db_session fixture).
 # NullPool ensures each test gets a fresh connection, avoiding stale
 # connections from previous tests' event loops in the pool.
 async_test_engine = create_async_engine(
-    _async_test_url, echo=False, poolclass=NullPool
+    _async_test_url,
+    echo=False,
+    connect_args=_async_test_connect_args,
+    poolclass=NullPool,
 )
 
 # Async test session factory
@@ -358,7 +361,11 @@ def app(monkeypatch):
         pytest.skip("SKIP_DB_BOOTSTRAP=1: skipping database-backed websocket fixture")
 
     ws_engine = create_async_engine(
-        _async_test_url, echo=False, pool_size=5, max_overflow=0
+        _async_test_url,
+        echo=False,
+        connect_args=_async_test_connect_args,
+        pool_size=5,
+        max_overflow=0,
     )
     WSSessionLocal = async_sessionmaker(
         ws_engine, class_=AsyncSession, expire_on_commit=False
